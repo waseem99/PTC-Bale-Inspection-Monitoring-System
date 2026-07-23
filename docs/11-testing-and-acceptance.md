@@ -2,99 +2,123 @@
 
 ## Test strategy
 
-Testing is organized across hardware, edge services, AI behavior, Node.js API and MongoDB persistence, React dashboard, Azure deployment, resilience, security, and client acceptance.
+Testing is organized across hardware, local edge services, PTC-specific AI behavior, local MERN application/data, dashboard, optional Azure synchronization, resilience, security, and client acceptance.
+
+The Bangladesh implementation is a feasibility/reference source only. Final AI acceptance uses approved PTC footage and live PTC scenarios.
 
 ## Test levels
 
 ### Unit tests
 
-- SOP state transitions and reason-code generation;
-- event contract validation and idempotency;
-- MongoDB document mapping and filter construction;
-- KPI and export calculations;
-- synchronization retry logic;
-- configuration parsing;
+- SOP state transitions;
+- completed, missed, incomplete, unresolved, and health reason-code generation;
+- event validation and idempotency;
+- filter and report calculations;
+- local spool and optional synchronization retry logic;
+- configuration parsing, including camera orientation and zones;
 - evidence naming and checksum logic.
 
 ### Component tests
 
-- RTSP reconnect behavior;
+- RTSP reconnect and stream orientation;
 - camera-health detection;
 - model runtime loading and inference;
-- track lifecycle;
+- track/session lifecycle;
 - rolling video buffer;
 - local spool persistence;
-- Node.js API authentication and authorization;
-- Mongoose validation, indexes, and migration scripts;
-- Blob upload and authorized retrieval;
-- Socket.IO or Azure Web PubSub event delivery.
+- local Node.js API authentication/authorization;
+- local MongoDB setup, indexes, and migrations;
+- protected local evidence storage/retrieval;
+- optional Azure/Blob synchronization.
 
 ### Integration tests
 
-- camera or recorded stream to AI detections;
-- detections to SOP outcome;
-- outcome to evidence creation;
-- edge event to Node.js API;
-- API to MongoDB-compatible database and Blob Storage;
-- real-time event to React dashboard;
+- camera or approved recorded PTC stream to AI detections;
+- detections/tracks/interactions to SOP outcome;
+- outcome to local evidence creation;
+- edge event to local Node.js API/database;
+- local API to dashboard;
+- local Socket.IO event/health update to dashboard;
 - review and remarks to audit record;
-- export of filtered records.
+- export of filtered local records;
+- optional local-to-Azure synchronization without duplicates.
 
 ### End-to-end tests
 
-- completed inspection appears in dashboard;
-- missed inspection creates the correct violation and evidence;
+- completed PTC inspection appears in local dashboard;
+- missed opening/frisking creates the approved violation and evidence;
 - incomplete inspection creates the correct reason code;
+- unresolved visibility is not reported as a definite violation;
 - event review and remarks persist;
 - filters and exports match visible records;
-- camera outage appears as a health failure, not an inspection violation;
-- internet outage queues events and later synchronizes without duplicates.
+- camera outage appears as health failure, not inspection violation;
+- internet/Azure outage leaves the local workflow operational;
+- optional synchronization resumes without duplicates.
 
 ## Test frameworks
 
 - **Python:** Pytest for edge, AI, compliance, spool, and evaluation tests.
-- **Node.js API:** Jest and Supertest, with an isolated MongoDB-compatible test environment.
+- **Node.js API:** Jest and Supertest with an isolated local MongoDB-compatible test environment.
 - **React:** Vitest and React Testing Library.
 - **End to end:** Playwright.
 - **Contracts:** JSON Schema/OpenAPI validation and compatibility checks.
-- **Infrastructure:** Bicep validation/what-if and deployment smoke tests where approved.
+- **Infrastructure:** local package/install tests and Bicep validation/what-if for approved Azure resources.
+
+## Reference-to-PTC validation
+
+Before final SOP and UAT approval:
+
+- classify each relevant Bangladesh-reference feature;
+- confirm the meaning of `Not Scanned` versus PTC opening/frisking;
+- confirm that generic named-person, dwell-time, trail, and item-count features are excluded;
+- record whether reference media is permitted for training;
+- ensure reference media is never used as PTC acceptance evidence;
+- record camera-geometry differences between the reference and PTC.
 
 ## Hardware and site acceptance
 
-- all four cameras installed at approved positions;
-- field of view covers the agreed zones;
-- images are usable under normal operating lighting;
-- no critical blind spots remain in the approved coverage;
+- all four cameras installed at PTC-approved positions;
+- field of view covers the agreed opening/frisking zones;
+- image orientation is correct for inference and dashboard display;
+- images are usable under representative operating lighting;
+- multiple workers and multiple bales are tested;
+- no unresolved critical blind spot remains;
 - PoE and network links are stable;
 - timestamps are synchronized;
-- edge workstation processes all configured streams;
+- local workstation processes all configured streams;
 - UPS and safe shutdown behavior are tested;
 - an eight-hour stream stability test completes without unresolved critical errors.
 
-## AI acceptance dataset
+## PTC AI acceptance dataset
 
 The client and Codistan must agree:
 
-- scenario definitions;
-- number and distribution of completed, missed, and incomplete cases;
+- PTC-specific scenario definitions;
+- number and distribution of completed, missed, incomplete, and unresolved cases;
+- all four camera/zone perspectives represented as applicable;
+- multiple-worker/bale, rework, occlusion, and lighting cases;
 - handling of ambiguous or insufficient-visibility cases;
-- model and configuration version used;
+- model, rule, zone, camera, and configuration versions used;
 - quantitative acceptance thresholds;
 - approved evaluation report format.
 
-The final test set remains separate from training and routine calibration data.
+The locked PTC test set remains separate from training and routine calibration data. Bangladesh reference media remains separately manifested and cannot be used to claim PTC acceptance accuracy.
 
 ## Scenario matrix
 
 | Scenario | Expected outcome |
 |---|---|
-| Bale enters, required inspection is completed, bale exits | Completed inspection event |
-| Bale enters and exits with no required interaction | Missed inspection violation |
-| Interaction starts but required action/duration is not completed | Incomplete inspection violation |
-| Camera goes offline | Camera health event; no inspection judgment from missing footage |
-| Track is lost due to severe occlusion | Insufficient visibility or unresolved outcome according to approved rule |
-| Internet is unavailable | Event remains locally queued and synchronizes later |
-| API receives the same event twice | One MongoDB event document persists through unique event ID/idempotency |
+| Bale enters, all required PTC opening/frisking actions are completed, bale exits | Completed inspection event |
+| Bale enters and exits with no required opening/frisking interaction | Missed inspection violation |
+| Interaction starts but one or more required conditions are not completed | Incomplete inspection violation |
+| Multiple workers interact with one bale correctly | One session with the approved completed/incomplete outcome |
+| Multiple bales are visible or processed simultaneously | Separate temporary sessions where the approved view supports it; ambiguous association becomes unresolved |
+| Bale is reworked or re-enters the zone | Outcome follows the approved rework/session rule |
+| Required action is severely occluded | Unresolved/insufficient visibility according to the approved rule |
+| Camera goes offline or image becomes unusable | Camera health event; no inspection judgment from missing footage |
+| Internet or Azure is unavailable | Local event, evidence, dashboard, and review continue; optional synchronization queues |
+| Local API/database is temporarily unavailable | Python spool retains records and replays after recovery |
+| Local/cloud API receives the same event twice | One event persists through idempotency |
 
 ## Non-functional tests
 
@@ -102,62 +126,67 @@ The final test set remains separate from training and routine calibration data.
 
 - four simultaneous configured streams;
 - sustained runtime over an agreed test duration;
-- acceptable event-to-dashboard latency;
-- bounded CPU, GPU, RAM, disk, database, and queue use;
+- acceptable local event-to-dashboard latency;
+- bounded CPU, GPU, RAM, disk, and queue use;
 - evidence generation does not stop inference;
-- API pagination and indexed filters remain responsive for the agreed data volume.
+- local Node/Mongo/React services remain responsive under expected PoC event volume.
 
 ### Resilience
 
 - camera disconnect and reconnect;
 - Python service restart;
-- Node.js API restart;
+- Node.js service restart;
+- local MongoDB restart;
 - workstation reboot;
-- temporary Azure/API/database outage;
-- network interruption;
+- internet and Azure outage;
 - low disk warning;
-- failed evidence upload and retry;
-- real-time channel disconnect and reconnect.
+- failed local evidence write;
+- failed optional evidence synchronization and retry.
 
 ### Security
 
-- unauthenticated dashboard/API access rejected;
-- invalid or expired Entra tokens rejected;
+- unauthenticated local dashboard/API access rejected;
 - unauthorized evidence access rejected;
-- edge machine authentication separated from user authentication;
-- secrets absent from logs, browser bundles, and repository;
-- production storage/database access restricted to the approved topology;
+- approved local users remain able to operate under the agreed offline model;
+- optional Entra access behaves correctly where enabled;
+- secrets absent from logs and repository;
+- local evidence/database paths protected;
+- approved Azure storage private;
 - audit records created for review changes;
-- service accounts have only required access.
+- service accounts have only required access;
+- restricted reference and PTC media remain outside GitHub.
 
 ## Defect severity
 
-- **P0:** data loss, security exposure, system unusable, or all-camera processing failure.
-- **P1:** core inspection outcome, evidence, synchronization, review, or dashboard workflow materially incorrect.
-- **P2:** non-blocking functional issue with a practical workaround.
+- **P0:** data loss, security exposure, complete local system outage, or all-camera processing failure.
+- **P1:** core inspection outcome, local evidence, local persistence, or review workflow materially incorrect.
+- **P2:** non-blocking functional issue with a practical workaround, including optional cloud issues where local operation continues.
 - **P3:** cosmetic or documentation issue not affecting operation.
 
-MVP release requires all P0 and P1 defects closed or explicitly accepted in writing.
+PoC release requires all P0 and P1 defects closed or explicitly accepted in writing.
 
 ## UAT entry criteria
 
-- approved hardware and camera placement complete;
-- MVP features deployed;
-- test environment and users available;
-- acceptance footage/scenarios approved;
+- reference-to-PTC mapping completed sufficiently for testing;
+- approved PTC hardware and camera placement complete;
+- local PoC features deployed;
+- approved optional Azure components deployed where required;
+- PTC test environment and users available;
+- locked PTC acceptance footage/scenarios approved;
 - no open P0 defects;
 - critical documentation available;
 - event retention and access configured.
 
 ## UAT exit criteria
 
-- required scenarios executed;
-- results and evidence recorded;
+- required PTC scenarios executed;
+- local offline operation demonstrated;
+- results and restricted evidence references recorded;
 - all P0/P1 issues resolved or formally accepted;
 - client training completed;
 - user and operations documentation delivered;
 - release manifest and installed versions recorded;
-- acceptance sign-off obtained.
+- acceptance, acceptance with limitations, or non-acceptance decision obtained.
 
 ## Evidence of completion
 
@@ -166,6 +195,7 @@ Each acceptance issue must include:
 - environment and release version;
 - test steps;
 - expected and actual result;
-- related camera/scenario IDs;
-- approved screenshots or references stored outside public GitHub;
+- related camera/zone/scenario/event IDs;
+- approved restricted evidence references stored outside GitHub;
+- model/rule/configuration versions;
 - client or joint acceptance decision.
