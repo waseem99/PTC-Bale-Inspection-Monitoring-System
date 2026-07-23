@@ -2,9 +2,21 @@
 
 ## Repository strategy
 
-Use this repository as the monorepo for the MVP. Do not create another repository at this stage.
+Use this private repository as the monorepo for the PoC/MVP. Do not create another repository at this stage.
 
-A separate repository is needed only if PTC requires separate access boundaries, the infrastructure must move into a client-owned repository, or model development becomes independently owned.
+A separate repository is needed only if PTC requires separate access boundaries, infrastructure must move into a client-owned repository, or model development becomes independently owned.
+
+## Project Manager ownership
+
+The Project Manager (`arifkhannamal9288`) is assigned to:
+
+- epics #1 through #8;
+- reference-to-PTC mapping #59;
+- client decisions, scope, SOP, architecture, retention, UAT, and governance issues;
+- site survey, hardware/vendor, network, installation, and acceptance coordination;
+- UAT, handover, training, hypercare cadence, and closure.
+
+The PM is accountable for dependency follow-up, acceptance evidence coordination, client decisions, status hygiene, and change control. Technical implementation issues remain assigned to the relevant engineering owner; the PM should not be the sole implementation assignee unless performing the work.
 
 ## Branching
 
@@ -12,7 +24,7 @@ A separate repository is needed only if PTC requires separate access boundaries,
 - short-lived feature branches: `feature/<issue>-<name>`;
 - bug branches: `fix/<issue>-<name>`;
 - documentation branches: `docs/<issue>-<name>`;
-- release tags: semantic versions, with MVP tagged `v1.0.0-mvp` after acceptance.
+- release tags: semantic versions, with PoC tagged `v1.0.0-mvp` after acceptance.
 
 Direct production code changes to `main` are not permitted after the foundation setup.
 
@@ -22,11 +34,13 @@ A pull request must:
 
 - reference its issue;
 - explain scope and exclusions;
-- list tests performed;
-- identify configuration, model, contract, database, Azure, and documentation impact;
-- contain no secrets, client footage, production IPs, evidence, or model binaries;
+- identify whether any behavior originated from the Bangladesh reference and show its PTC approval;
+- list local/offline tests performed;
+- identify model, contract, database, edge, local application, optional Azure, and documentation impact;
+- contain no secrets, client footage, production IPs, evidence, reference media, or model binaries;
 - pass required CI checks;
-- receive at least one appropriate review;
+- receive at least one appropriate technical review;
+- receive PM review when scope, client dependency, acceptance, delivery, or change control is affected;
 - remain small enough to review reliably.
 
 ## Definition of ready
@@ -34,24 +48,27 @@ A pull request must:
 An issue is ready when:
 
 - scope is clear;
+- reference-project assumptions have been separated from PTC requirements;
 - dependencies are identified;
 - acceptance criteria are testable;
 - required client decisions are available or explicitly tracked;
 - security and data impact are known;
-- it is within the approved MVP or hypercare scope.
+- local/offline behavior is understood;
+- it is within the approved PoC/MVP or hypercare scope.
 
 ## Definition of done
 
 An issue is done when:
 
 - implementation and review are complete;
-- tests pass;
+- tests pass, including local/offline tests where applicable;
 - acceptance criteria are evidenced;
 - logs and failure behavior are considered;
 - documentation is updated;
 - no restricted data is committed;
-- related configuration and migration changes are versioned;
-- deployment or release impact is recorded.
+- related configuration, model, and migration changes are versioned;
+- deployment or release impact is recorded;
+- client/PM acceptance is recorded where required.
 
 ## Recommended labels
 
@@ -67,6 +84,7 @@ An issue is done when:
 ### Area
 
 - `area:scope`
+- `area:reference`
 - `area:site`
 - `area:hardware`
 - `area:edge`
@@ -91,6 +109,7 @@ An issue is done when:
 - `scope:hypercare`
 - `scope:change-request`
 - `dependency:client`
+- `dependency:reference-clarification`
 - `dependency:hardware`
 - `dependency:azure`
 - `status:blocked`
@@ -101,32 +120,35 @@ An issue is done when:
 |---|---|
 | Status | Backlog, Ready, In Progress, Review, Blocked, Client Validation, Done |
 | Priority | P0, P1, P2, P3 |
-| Area | Scope, Site, Hardware, Edge, AI, Backend, Web, Azure, Security, QA, Docs |
-| Delivery stage | MVP, Hypercare, Change Request |
+| Area | Scope, Reference, Site, Hardware, Edge, AI, Backend, Web, Azure, Security, QA, Docs |
+| Delivery stage | PoC/MVP, Hypercare, Change Request |
 | Target week | W1 through W13 |
 | Client dependency | Yes, No |
 | Acceptance owner | Codistan, PTC, Joint |
+| PM coordination | Required, Not Required |
 | Effort | XS, S, M, L, XL |
 
 ## Recommended views
 
-1. **MVP board:** filtered to delivery stage MVP, grouped by Status.
+1. **PoC board:** filtered to delivery stage PoC/MVP, grouped by Status.
 2. **Current week:** filtered by Target week.
 3. **Client dependencies:** Client dependency Yes and Status not Done.
-4. **AI workstream:** Area AI, grouped by Status.
-5. **Site readiness:** Site and Hardware areas.
-6. **Hypercare:** delivery stage Hypercare.
-7. **Change requests:** scope change-request, excluded from MVP execution.
+4. **Reference mapping:** Area Reference or dependency reference-clarification.
+5. **PM coordination:** PM coordination Required and Status not Done.
+6. **AI workstream:** Area AI, grouped by Status.
+7. **Site readiness:** Site and Hardware areas.
+8. **Hypercare:** delivery stage Hypercare.
+9. **Change requests:** scope change-request, excluded from PoC execution.
 
 ## Milestone structure
 
-- M0 Scope and Architecture Locked
+- M0 Reference, Scope, and Architecture Locked
 - M1 Site and Hardware Ready
-- M2 Edge Video Platform Ready
-- M3 AI Compliance Model Ready
-- M4 MERN Backend and Azure Platform Ready
-- M5 Dashboard Ready
-- M6 MVP UAT and Release
+- M2 Local Edge Video Platform Ready
+- M3 PTC AI Compliance Model Ready
+- M4 Local MERN and Approved Azure Management Plane Ready
+- M5 Local Dashboard Ready
+- M6 PoC UAT and Release
 - M7 Hypercare and Final Stabilization
 
 ## Issue hierarchy
@@ -141,33 +163,12 @@ GitHub issues are organized as:
 Issue titles use a milestone prefix:
 
 ```text
+[M0] Translate Bangladesh reference into PTC validation baseline
 [M0] Confirm approved bale inspection SOP
 [M2] Implement RTSP camera ingestion and reconnect
 [M3] Implement inspection SOP state machine
 [M6] Complete client UAT and sign-off
 ```
-
-## Project Manager ownership
-
-The Project Manager should be assigned as the accountable coordination owner on:
-
-- all delivery epics: #1 through #8;
-- scope, client-decision, governance, and acceptance issues: #9 through #17;
-- site-footage permission and coordination issue: #27;
-- client UAT, handover, hypercare governance, and final closure: #52, #53, #54, and #57.
-
-The Project Manager may be a co-assignee on delivery/integration issues where coordination is needed, but should not replace the technical owner on implementation issues such as AI training, RTSP ingestion, API coding, infrastructure coding, or dashboard development.
-
-Project Manager responsibilities in GitHub:
-
-- confirm issue readiness and dependencies;
-- obtain and record client decisions;
-- maintain target week and status;
-- mark blockers and escalate client dependencies;
-- coordinate vendor/site/UAT schedules;
-- ensure acceptance evidence and sign-off are attached or externally referenced;
-- separate defects and approved scope from new change requests;
-- close epics only when all mandatory exit criteria are met.
 
 ## Dependency notation
 
@@ -185,23 +186,27 @@ Issue bodies must include:
 ```text
 feat(edge): add RTSP reconnect policy
 fix(ai): prevent lost tracks from creating violations
-docs(scope): clarify permanent bale identity exclusion
-test(api): add ingestion idempotency coverage
+docs(scope): clarify reference feature exclusion
+test(api): add local ingestion idempotency coverage
 chore(ci): add dashboard build workflow
 ```
 
 ## CI checks to introduce with code
 
-- Node/TypeScript formatting, linting, type checks, tests, and production builds;
-- React component and end-to-end tests;
-- Python formatting, linting, type checks, and tests;
+- formatting and linting;
+- unit tests;
+- local Node API build and tests;
+- local MongoDB integration tests;
+- React dashboard build and tests;
+- Python tests and type/lint checks;
+- local/offline end-to-end tests;
 - contract compatibility checks;
-- MongoDB migration/index checks;
 - dependency vulnerability checks;
 - secret scanning;
-- infrastructure validation;
+- local installation/package validation;
+- optional Azure infrastructure validation;
 - container/package build where used.
 
 ## GitHub limitations and manual setup
 
-The connected workflow can create repository files and issues, but GitHub Project custom fields, repository labels, milestones, branch rules, and project-item assignment may require manual GitHub configuration. This document defines the exact setup to apply.
+The connected workflow can create repository files, issues, assignees, and pull-request review requests. GitHub Project custom fields, repository labels, milestones, branch rules, and project-item assignment may still require manual GitHub configuration. This document defines the exact setup to apply.
