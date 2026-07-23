@@ -2,16 +2,16 @@
 
 ## Test strategy
 
-Testing is organized across hardware, edge services, AI behavior, API/data, dashboard, Azure deployment, resilience, security, and client acceptance.
+Testing is organized across hardware, edge services, AI behavior, Node.js API and MongoDB persistence, React dashboard, Azure deployment, resilience, security, and client acceptance.
 
 ## Test levels
 
 ### Unit tests
 
-- SOP state transitions;
-- reason-code generation;
-- event validation and idempotency;
-- filter and report calculations;
+- SOP state transitions and reason-code generation;
+- event contract validation and idempotency;
+- MongoDB document mapping and filter construction;
+- KPI and export calculations;
 - synchronization retry logic;
 - configuration parsing;
 - evidence naming and checksum logic.
@@ -24,30 +24,40 @@ Testing is organized across hardware, edge services, AI behavior, API/data, dash
 - track lifecycle;
 - rolling video buffer;
 - local spool persistence;
-- API authentication and authorization;
-- database migrations;
-- Blob upload and retrieval.
+- Node.js API authentication and authorization;
+- Mongoose validation, indexes, and migration scripts;
+- Blob upload and authorized retrieval;
+- Socket.IO or Azure Web PubSub event delivery.
 
 ### Integration tests
 
 - camera or recorded stream to AI detections;
 - detections to SOP outcome;
 - outcome to evidence creation;
-- edge event to cloud API;
-- API to database and Blob Storage;
-- SignalR event to dashboard;
+- edge event to Node.js API;
+- API to MongoDB-compatible database and Blob Storage;
+- real-time event to React dashboard;
 - review and remarks to audit record;
 - export of filtered records.
 
 ### End-to-end tests
 
 - completed inspection appears in dashboard;
-- missed inspection creates correct violation and evidence;
-- incomplete inspection creates correct reason code;
+- missed inspection creates the correct violation and evidence;
+- incomplete inspection creates the correct reason code;
 - event review and remarks persist;
 - filters and exports match visible records;
-- camera outage appears as health failure, not inspection violation;
+- camera outage appears as a health failure, not an inspection violation;
 - internet outage queues events and later synchronizes without duplicates.
+
+## Test frameworks
+
+- **Python:** Pytest for edge, AI, compliance, spool, and evaluation tests.
+- **Node.js API:** Jest and Supertest, with an isolated MongoDB-compatible test environment.
+- **React:** Vitest and React Testing Library.
+- **End to end:** Playwright.
+- **Contracts:** JSON Schema/OpenAPI validation and compatibility checks.
+- **Infrastructure:** Bicep validation/what-if and deployment smoke tests where approved.
 
 ## Hardware and site acceptance
 
@@ -84,7 +94,7 @@ The final test set remains separate from training and routine calibration data.
 | Camera goes offline | Camera health event; no inspection judgment from missing footage |
 | Track is lost due to severe occlusion | Insufficient visibility or unresolved outcome according to approved rule |
 | Internet is unavailable | Event remains locally queued and synchronizes later |
-| Cloud receives the same event twice | One event persists through idempotency |
+| API receives the same event twice | One MongoDB event document persists through unique event ID/idempotency |
 
 ## Non-functional tests
 
@@ -93,32 +103,37 @@ The final test set remains separate from training and routine calibration data.
 - four simultaneous configured streams;
 - sustained runtime over an agreed test duration;
 - acceptable event-to-dashboard latency;
-- bounded CPU, GPU, RAM, disk, and queue use;
-- evidence generation does not stop inference.
+- bounded CPU, GPU, RAM, disk, database, and queue use;
+- evidence generation does not stop inference;
+- API pagination and indexed filters remain responsive for the agreed data volume.
 
 ### Resilience
 
 - camera disconnect and reconnect;
-- service restart;
+- Python service restart;
+- Node.js API restart;
 - workstation reboot;
-- temporary Azure/API outage;
+- temporary Azure/API/database outage;
 - network interruption;
 - low disk warning;
-- failed evidence upload and retry.
+- failed evidence upload and retry;
+- real-time channel disconnect and reconnect.
 
 ### Security
 
 - unauthenticated dashboard/API access rejected;
+- invalid or expired Entra tokens rejected;
 - unauthorized evidence access rejected;
-- secrets absent from logs and repository;
-- production storage private;
+- edge machine authentication separated from user authentication;
+- secrets absent from logs, browser bundles, and repository;
+- production storage/database access restricted to the approved topology;
 - audit records created for review changes;
 - service accounts have only required access.
 
 ## Defect severity
 
 - **P0:** data loss, security exposure, system unusable, or all-camera processing failure.
-- **P1:** core inspection outcome, evidence, synchronization, or review workflow materially incorrect.
+- **P1:** core inspection outcome, evidence, synchronization, review, or dashboard workflow materially incorrect.
 - **P2:** non-blocking functional issue with a practical workaround.
 - **P3:** cosmetic or documentation issue not affecting operation.
 
