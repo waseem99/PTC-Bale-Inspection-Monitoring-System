@@ -6,6 +6,8 @@
 - [Scope and boundaries](02-scope-and-boundaries.md)
 - [Client inputs and decisions required](14-client-inputs-required.md)
 - [Decision log](15-decision-log.md)
+- [Risk register](17-risk-register.md)
+- [Requirements traceability](18-requirements-traceability.md)
 
 ## Solution design
 
