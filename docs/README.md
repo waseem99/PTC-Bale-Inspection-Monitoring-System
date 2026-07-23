@@ -1,0 +1,37 @@
+# Project Documentation
+
+## Governance and scope
+
+- [Project charter](01-project-charter.md)
+- [Scope and boundaries](02-scope-and-boundaries.md)
+- [Client inputs and decisions required](14-client-inputs-required.md)
+- [Decision log](15-decision-log.md)
+
+## Solution design
+
+- [Solution architecture](03-solution-architecture.md)
+- [Technical stack](04-technical-stack.md)
+- [SOP and domain model](05-sop-and-domain-model.md)
+- [Data and event model](06-data-and-event-model.md)
+- [AI development and evaluation](07-ai-development-plan.md)
+
+## Deployment and security
+
+- [Edge deployment](08-edge-deployment.md)
+- [Azure deployment](09-azure-deployment.md)
+- [Security and privacy](10-security-and-privacy.md)
+
+## Delivery and operation
+
+- [Testing and acceptance](11-testing-and-acceptance.md)
+- [Delivery plan](12-delivery-plan.md)
+- [Operations runbook](13-operations-runbook.md)
+- [GitHub workflow and issue planning](16-github-workflow.md)
+
+## Documentation rules
+
+1. The awarded proposal, BOQ, approved SOP, and signed change requests are authoritative.
+2. Site-sensitive details must not be committed while the repository is public.
+3. Architecture decisions must be recorded in the decision log.
+4. An issue is not complete until its acceptance criteria and documentation impact are addressed.
+5. Raw footage, datasets, evidence clips, credentials, production IPs, and model binaries remain outside Git.
