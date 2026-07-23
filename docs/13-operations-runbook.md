@@ -2,19 +2,19 @@
 
 ## Purpose
 
-This runbook defines the minimum operational checks, incident response, release, rollback, and support procedures for the edge and Azure components.
+This runbook defines the minimum operational checks, incident response, release, rollback, and support procedures for the Python edge runtime and MERN/Azure application components.
 
 ## Daily operational checks
 
 - confirm all four cameras are online;
 - confirm last-frame timestamps are current;
-- confirm edge services are running;
+- confirm Python edge services are running;
 - confirm GPU inference is active;
 - review local disk free space;
 - review pending synchronization queue;
-- confirm latest event reached the dashboard;
+- confirm the latest event reached the dashboard;
 - review evidence-generation failures;
-- review P0/P1 application alerts;
+- review Node.js API, MongoDB, Blob, identity, and dashboard alerts;
 - confirm workstation and switch remain on UPS-protected power.
 
 ## Camera incident
@@ -41,7 +41,7 @@ Do not classify inspections during absent/unusable footage as definite violation
 
 ## Edge service incident
 
-1. identify the failed service and last healthy timestamp;
+1. identify the failed Python service and last healthy timestamp;
 2. inspect structured logs using the correlation/event ID;
 3. verify disk space, GPU driver, and dependency status;
 4. restart the affected managed service;
@@ -51,14 +51,14 @@ Do not classify inspections during absent/unusable footage as definite violation
 
 ## Synchronization backlog
 
-1. verify site internet and DNS;
-2. verify API endpoint and TLS certificate;
-3. verify service identity/credential validity;
+1. verify site internet, DNS, proxy, and TLS connectivity;
+2. verify the Node.js API endpoint is available;
+3. verify edge machine identity or credential validity;
 4. inspect API response category;
 5. confirm local queue depth and oldest pending event;
 6. avoid deleting pending events;
 7. restore connectivity and observe idempotent retry;
-8. confirm queue returns to normal.
+8. confirm queue returns to normal without duplicate MongoDB event documents.
 
 ## Low disk condition
 
@@ -69,14 +69,15 @@ Do not classify inspections during absent/unusable footage as definite violation
 5. verify evidence generation resumes;
 6. investigate unexpectedly high event volume or clip duration.
 
-## Azure/API incident
+## Azure/application incident
 
-- check application health and recent deployments;
-- check authentication and Key Vault access;
-- check Azure SQL connectivity and capacity;
+- check App Service/container and Static Web App health;
+- check Microsoft Entra authentication and Key Vault access;
+- check MongoDB/Cosmos DB connectivity, capacity, indexes, and throttling;
 - check Blob Storage permissions and availability;
+- check Socket.IO or Azure Web PubSub connectivity where used;
 - review Application Insights failures and dependency calls;
-- roll back the application release if the incident began after deployment;
+- roll back the Node.js/React application release if the incident began after deployment;
 - confirm edge events continue to queue locally.
 
 ## Model/configuration incident
@@ -94,19 +95,21 @@ Symptoms include a sudden increase in false positives, false negatives, lost tra
 ## Release procedure
 
 1. verify all required pull requests are reviewed and merged;
-2. confirm CI passes;
-3. record API, dashboard, edge, model, rule, and configuration versions;
+2. confirm Node, React, Python, contract, Bicep, and security CI checks pass;
+3. record API, dashboard, edge, model, rule, schema/index, and configuration versions;
 4. back up production configuration and pending spool state;
-5. deploy to UAT and run smoke tests;
-6. obtain production approval;
-7. deploy Azure application components;
-8. deploy edge package during the approved window;
-9. validate camera health, one normal event, one approved test violation, evidence, sync, and dashboard;
-10. publish release notes and installed-version manifest.
+5. validate MongoDB migration/index scripts and Blob changes in UAT;
+6. deploy to UAT and run smoke tests;
+7. obtain production approval;
+8. deploy Azure infrastructure/application components;
+9. deploy edge package during the approved window;
+10. validate camera health, one normal event, one approved test violation, evidence, sync, review, and dashboard;
+11. publish release notes and installed-version manifest.
 
 ## Rollback procedure
 
-- restore the previous Azure application release;
+- restore the previous Node.js API and React dashboard release;
+- roll back or compensate MongoDB data/index changes according to the approved migration plan;
 - restore the previous edge release package;
 - restore the previous model/rules/configuration as one compatible set;
 - preserve pending events and evidence;
@@ -118,14 +121,15 @@ Symptoms include a sudden increase in false positives, false negatives, lost tra
 - infrastructure code and application source remain in GitHub;
 - model artifacts and manifests remain in approved model storage;
 - production configuration is backed up securely;
-- Azure SQL and Blob retention follow client-approved policy;
+- MongoDB/Cosmos DB backup and retention follow client-approved policy;
+- Azure Blob lifecycle/retention follows client-approved policy;
 - local spool is preserved during upgrades and incidents;
 - raw footage and datasets follow separately approved retention.
 
 ## Support severity and response priority
 
 - **P0:** security exposure, data loss, or complete production outage.
-- **P1:** core camera/AI/event/evidence workflow materially unavailable or incorrect.
+- **P1:** core camera/AI/event/evidence/review workflow materially unavailable or incorrect.
 - **P2:** partial non-blocking defect with workaround.
 - **P3:** cosmetic, low-impact, or documentation issue.
 
@@ -138,6 +142,7 @@ The commercial support agreement governs actual response and resolution times.
 - release and configuration manifest;
 - model evaluation report;
 - Azure resource inventory;
+- MongoDB collection/index and retention configuration;
 - user and service access list;
 - backup and retention settings;
 - incident and escalation contacts;
