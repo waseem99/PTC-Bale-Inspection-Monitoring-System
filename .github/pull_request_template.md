@@ -23,6 +23,7 @@ List related behavior intentionally not changed.
 - [ ] Unit tests
 - [ ] Integration tests
 - [ ] Recorded-stream or AI regression tests, where applicable
+- [ ] Local offline application tests, where applicable
 - [ ] Dashboard/end-to-end tests, where applicable
 - [ ] Infrastructure validation, where applicable
 - [ ] Manual smoke test
@@ -30,23 +31,25 @@ List related behavior intentionally not changed.
 ## Impact review
 
 - [ ] Shared contracts reviewed
-- [ ] Database migration reviewed
-- [ ] Model/rules/configuration version impact reviewed
-- [ ] Edge deployment impact reviewed
-- [ ] Azure deployment impact reviewed
-- [ ] Security and data-retention impact reviewed
+- [ ] Local MongoDB migration/index impact reviewed
+- [ ] Model/rules/zones/camera-configuration impact reviewed
+- [ ] Edge and local application deployment impact reviewed
+- [ ] Optional Azure deployment/synchronization impact reviewed
+- [ ] Security, privacy, and retention impact reviewed
+- [ ] Bangladesh-reference versus PTC-scope impact reviewed
 - [ ] Documentation updated
 
 ## Security checklist
 
-- [ ] No credentials, camera URLs, client IPs, footage, evidence, datasets, or model binaries committed
+- [ ] No credentials, camera URLs, client IPs, footage, evidence, datasets, model binaries, or restricted client documents committed
 - [ ] Logs do not expose secrets or restricted data
 - [ ] New endpoints enforce authentication and authorization
+- [ ] Restricted evidence is referenced by approved event/storage identifiers only
 
 ## Deployment and rollback
 
-Describe deployment order, configuration changes, and rollback steps.
+Describe local deployment order, configuration changes, optional Azure changes, and rollback steps.
 
 ## Evidence
 
-Reference approved external evidence, test run, or screenshots without uploading restricted client data to a public repository.
+Reference approved external evidence, test runs, or sanitized screenshots. Do not upload raw client footage or restricted operational data to GitHub, even though the repository is private.
