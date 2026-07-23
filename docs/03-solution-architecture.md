@@ -4,7 +4,7 @@
 
 The MVP uses a **hybrid edge/Azure architecture**. Video ingestion, AI inference, SOP evaluation, and evidence creation run at the client site. Azure hosts only the application services approved by the client and receives event metadata and evidence rather than continuous raw camera streams.
 
-This preserves low latency and operational continuity while aligning the management layer with the client's Microsoft and Azure environment.
+The application layer uses the team's preferred **MERN + Python** stack while remaining aligned with the client's Microsoft identity and Azure hosting environment.
 
 ## Logical architecture
 
@@ -15,7 +15,7 @@ flowchart LR
     C3[Camera 3]
     C4[Camera 4]
 
-    subgraph EDGE[Client Site - Edge Runtime]
+    subgraph EDGE[Client Site - Python Edge Runtime]
         INGEST[Camera Ingest and Health]
         BUFFER[Rolling Frame Buffer]
         DETECT[AI Detection]
@@ -23,7 +23,7 @@ flowchart LR
         RULES[SOP Compliance Engine]
         EVIDENCE[Evidence Builder]
         SPOOL[Local Event Spool]
-        LOCAL[Local Operations Endpoint]
+        LIVE[Protected Live-view Gateway]
     end
 
     C1 --> INGEST
@@ -37,21 +37,24 @@ flowchart LR
     BUFFER --> EVIDENCE
     RULES --> EVIDENCE
     EVIDENCE --> SPOOL
-    SPOOL --> LOCAL
+    INGEST --> LIVE
 
     subgraph AZURE[Approved Azure Environment]
-        API[Platform API]
-        SQL[Azure SQL]
+        API[Node.js / Express API]
+        MONGO[Azure Cosmos DB for MongoDB or Approved MongoDB]
         BLOB[Blob Evidence Storage]
-        WEB[Dashboard]
+        WEB[React Dashboard]
         ENTRA[Microsoft Entra ID]
+        RT[Socket.IO or Azure Web PubSub]
         MON[Application Monitoring]
     end
 
     SPOOL -->|Secure event synchronization| API
-    API --> SQL
+    API --> MONGO
     API --> BLOB
+    API --> RT
     WEB --> API
+    WEB --> RT
     ENTRA --> WEB
     API --> MON
 ```
@@ -68,29 +71,34 @@ flowchart LR
 - snapshot and short clip creation;
 - local event persistence during connectivity loss;
 - secure synchronization and duplicate prevention;
+- protected browser-compatible live-view delivery;
 - service watchdog and operational logs.
 
-## Azure responsibilities
+## Azure/application responsibilities
 
-- authenticated dashboard access;
-- event metadata and evidence management;
-- search, filters, event review, and remarks;
+- React dashboard authenticated through Microsoft Entra ID;
+- Node.js/Express event and health ingestion APIs;
+- MongoDB-compatible event metadata, review, audit, and health records;
+- private snapshot and short-clip storage in Azure Blob Storage;
+- event search, filters, review status, and remarks;
 - CSV/PDF export;
+- near-real-time event and health updates;
 - audit logs and application monitoring;
 - approved retention policies;
-- deployment of API and web application through GitHub Actions.
+- deployment through GitHub Actions and Bicep.
 
 ## Data-flow sequence
 
 1. A camera provides an RTSP stream to the edge workstation.
-2. The ingest service validates stream health and samples frames.
+2. The Python ingest service validates stream health and samples frames.
 3. The AI service detects and tracks bales and workers.
 4. Zone logic and the SOP state machine evaluate the interaction sequence.
-5. A normal or violation event is created with a reason code and confidence metadata.
+5. A completed, missed, incomplete, or unresolved event is created with a reason code and confidence metadata.
 6. The rolling buffer produces a snapshot and short evidence clip.
-7. The event is written to the local spool.
-8. The sync process sends metadata and approved evidence to the application API.
-9. The dashboard receives near-real-time updates and allows review.
+7. The event is written to the durable local spool.
+8. The synchronization service submits metadata to the Node.js API and uploads approved evidence.
+9. The API persists metadata in the approved MongoDB-compatible database and evidence in Blob Storage.
+10. The React dashboard receives near-real-time updates and allows authorized review.
 
 ## Failure behavior
 
@@ -108,7 +116,7 @@ flowchart LR
 - synchronize after connectivity returns;
 - use deterministic event IDs to prevent duplicates.
 
-### Azure unavailable
+### Azure/API unavailable
 
 - continue edge processing and local persistence;
 - expose local operational status where approved;
@@ -116,7 +124,7 @@ flowchart LR
 
 ### Edge service failure
 
-- run services under a managed Windows service or approved container runtime;
+- run Python components as managed Windows services or through an approved container runtime;
 - use watchdog restart and structured logs;
 - recover pending events from persistent storage.
 
@@ -124,8 +132,8 @@ flowchart LR
 
 - **Local development:** simulated streams and sample events only.
 - **Integration:** controlled test cameras or approved recorded footage.
-- **Azure non-production:** API, dashboard, database, and storage for integration/UAT.
-- **Production edge:** client-site GPU workstation and cameras.
+- **Azure non-production:** React dashboard, Node.js API, MongoDB-compatible database, Blob Storage, and identity integration for integration/UAT.
+- **Production edge:** client-site GPU workstation and four cameras.
 - **Production Azure:** client-approved tenant and subscription resources.
 
 ## Architecture constraints
@@ -134,5 +142,6 @@ flowchart LR
 - no continuous raw-video upload by default;
 - no permanent bale identity without an external identifier;
 - no face recognition;
-- final Azure networking and identity design depends on the client tenant and security approvals;
+- no direct browser access to camera RTSP credentials;
+- final Azure networking, MongoDB service selection, and identity design depend on client approvals;
 - final camera fields of view depend on the site survey.
