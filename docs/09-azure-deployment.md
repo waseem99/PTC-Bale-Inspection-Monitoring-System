@@ -8,16 +8,17 @@ Azure hosts the approved management-plane components. Camera decoding and live A
 
 | Resource | Purpose |
 |---|---|
-| App Service or approved container hosting | Platform API |
-| Static Web Apps or App Service | Dashboard frontend |
-| Azure SQL Database | Event, review, camera, health, and audit metadata |
-| Blob Storage | Approved snapshots and short clips |
-| Key Vault | Application secrets and certificates |
+| Azure App Service or approved container hosting | Node.js/Express platform API |
+| Azure Static Web Apps or App Service | React dashboard frontend |
+| Azure Cosmos DB for MongoDB or client-approved MongoDB | Event, review, camera, health, and audit metadata |
+| Azure Blob Storage | Approved snapshots and short clips |
+| Azure Key Vault | Application secrets and certificates |
 | Application Insights | API and frontend telemetry |
 | Log Analytics, if approved | Central operational logs and alerts |
 | Microsoft Entra ID application registrations | User and service authentication |
+| Azure Web PubSub, only if approved/required | Managed real-time dashboard updates; otherwise Socket.IO runs with the API |
 
-Final services depend on client subscription policy, networking, and approved architecture.
+Final services depend on client subscription policy, networking, database standards, and approved architecture.
 
 ## Resource separation
 
@@ -39,7 +40,8 @@ The templates must include:
 - resource tags;
 - managed identity where supported;
 - secure transport requirements;
-- storage lifecycle configuration after retention approval;
+- database and storage network restrictions;
+- Blob lifecycle configuration after retention approval;
 - diagnostic settings;
 - least-privilege access assignments;
 - outputs consumed by deployment workflows without exposing secrets.
@@ -48,10 +50,11 @@ The templates must include:
 
 ### Dashboard users
 
-- authenticate through Microsoft Entra ID;
+- authenticate through Microsoft Entra ID using MSAL;
 - use client-approved user or group assignments;
 - avoid application-managed passwords;
-- define the minimal approved user-role model.
+- define the minimal approved user-role model;
+- validate access tokens again in the Node.js API.
 
 ### Edge service
 
@@ -72,7 +75,8 @@ Required decisions:
 - outbound ports permitted from the workstation;
 - client proxy requirements;
 - DNS and certificate requirements;
-- whether the dashboard is accessible only through the client network.
+- whether the dashboard is accessible only through the client network;
+- whether Cosmos DB/MongoDB access must use private networking.
 
 The MVP should not depend on inbound connections from Azure to the cameras or edge workstation.
 
@@ -80,15 +84,16 @@ The MVP should not depend on inbound connections from Azure to the cameras or ed
 
 GitHub Actions workflows will:
 
-1. restore dependencies;
-2. run linting and unit tests;
-3. run build and contract checks;
+1. install pinned Node and Python dependencies;
+2. run formatting, linting, type checks, and unit tests;
+3. run API, contract, MongoDB integration, and dashboard builds/tests;
 4. scan for committed secrets and known dependency issues;
-5. package API and dashboard artifacts;
-6. deploy infrastructure through approved credentials;
+5. package the Node.js API, React dashboard, and Python edge release;
+6. validate and deploy infrastructure through approved credentials;
 7. deploy application artifacts to the selected environment;
-8. run smoke tests;
-9. record the release version.
+8. run database/index migration scripts;
+9. run smoke tests;
+10. record the integrated release version.
 
 Production deployment requires a protected GitHub environment and approval from an authorized reviewer.
 
@@ -98,15 +103,18 @@ Production deployment requires a protected GitHub environment and approval from 
 - secrets use Key Vault or approved deployment secrets;
 - no production connection string is committed;
 - edge credentials are not stored in Azure application configuration unless required and approved;
-- environment-specific values are documented by key name, not actual value.
+- environment-specific values are documented by key name, not actual value;
+- browser bundles contain only public Entra configuration and no confidential client secret.
 
-## Database deployment
+## MongoDB deployment and controlled changes
 
-- schema changes use EF Core migrations;
-- migrations are reviewed with application changes;
-- destructive changes require an explicit migration and rollback plan;
-- UAT migration runs before production;
-- backup and retention are configured according to client policy.
+- Mongoose schemas are application validation, not a substitute for migration discipline;
+- collection indexes are deployed through repeatable, reviewed scripts;
+- document schema versions are recorded where compatibility requires them;
+- data backfills/transforms are idempotent and tested before UAT/production execution;
+- destructive changes require an explicit backup, compatibility, and rollback plan;
+- UAT migration/index scripts run before production;
+- backup, availability, capacity, and retention follow client policy and the selected MongoDB service.
 
 ## Blob paths
 
@@ -124,12 +132,13 @@ Minimum signals:
 
 - API availability and response time;
 - failed edge-ingestion requests;
-- authentication failures;
-- database failures;
+- authentication and authorization failures;
+- MongoDB/Cosmos DB dependency failures and throttling;
 - evidence upload failures;
 - storage and retention job failures;
 - dashboard errors;
-- event-ingestion rate and backlog indicators.
+- real-time connection failures;
+- event-ingestion rate and edge backlog indicators.
 
 Alerts and recipients must be approved before production.
 
@@ -138,6 +147,7 @@ Alerts and recipients must be approved before production.
 - tenant and subscription details;
 - resource group and region;
 - naming and tagging standards;
+- approved MongoDB service and capacity approach;
 - identity groups and application-registration process;
 - network and private-endpoint requirements;
 - Key Vault access model;
