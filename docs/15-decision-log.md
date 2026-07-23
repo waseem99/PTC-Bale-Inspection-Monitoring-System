@@ -19,9 +19,9 @@ Record material architecture, scope, security, deployment, and AI decisions here
 ## ADR-003 — Use Azure for approved management-plane services
 
 - **Status:** Proposed pending client environment confirmation
-- **Decision:** Host the dashboard/API, event metadata, evidence objects, identity integration, secrets, and monitoring in the approved Azure environment.
-- **Reason:** Aligns with the client's Microsoft/Azure environment while retaining edge processing.
-- **Pending:** tenant, subscription, networking, identity, data residency, MongoDB service, and deployment approvals.
+- **Decision:** Host approved dashboard/API, metadata, evidence objects, identity integration, secrets, and monitoring services in the client-approved Azure environment while retaining the locally functional edge pipeline and local intranet capability committed in the BOQ.
+- **Reason:** Aligns with the client's Microsoft/Azure environment while retaining edge processing and offline operation.
+- **Pending:** tenant, subscription, networking, identity, data residency, MongoDB service, local-versus-Azure dashboard boundary, and deployment approvals.
 
 ## ADR-004 — No permanent bale identity in MVP
 
@@ -68,6 +68,28 @@ Record material architecture, scope, security, deployment, and AI decisions here
 - **Reason:** This matches existing team capability, reduces delivery risk within the eight-week MVP, preserves one JavaScript/TypeScript application ecosystem, and remains fully deployable within Azure with Entra ID, Key Vault, Blob Storage, Application Insights, Bicep, and GitHub Actions.
 - **Consequences:** .NET, EF Core, Azure SQL, and SignalR are not part of the MVP unless the client mandates them through an approved architecture change. MongoDB schema versions, indexes, and data transformations require explicit migration discipline.
 - **Follow-up issues:** #5, #35, #36, #37, #39, #40, #41, #42, #43, #44, #49, #53.
+
+## ADR-010 — Treat the Bangladesh implementation as a benchmark, not the PTC specification
+
+- **Status:** Accepted
+- **Date:** 2026-07-23
+- **Owner:** Project Manager and technical leadership
+- **Context:** The client/project owner shared media from a similar Bangladesh PoC, including overhead cameras, bale detection overlays, an apparent `Not Scanned` state, a local display, and a five-stage PoC journey. The source set does not contain the reference system's full requirements, code, model, dashboard specification, or acceptance criteria.
+- **Decision:** Use the reference to understand physical layout, camera geometry, likely process-state monitoring, model-development sequencing, and PoC expectations. Do not import any visible feature into PTC scope unless it is also supported by the PTC BOQ/proposal or confirmed in writing.
+- **Reason:** Direct replication without a gap analysis could introduce scanner integration, worker identity, dwell analytics, mobile functionality, or other features that are not part of the awarded scope.
+- **Consequences:** A reference-to-PTC mapping must be completed before final SOP, UAT, and camera-design approval. The term `Not Scanned` must be reconciled with PTC's required opening/frisking workflow.
+- **Follow-up issues:** #9, #13, #15, #27 and the dedicated reference-mapping issue.
+
+## ADR-011 — Require PTC-specific footage for training, calibration, and acceptance
+
+- **Status:** Accepted
+- **Date:** 2026-07-23
+- **Owner:** AI Lead and Project Manager
+- **Context:** The Bangladesh media is useful for understanding the problem but may differ from the PTC site in cameras, bale types, wrapping, conveyor geometry, lighting, worker density, and exact SOP.
+- **Decision:** Treat the Bangladesh media as restricted reference material only unless data-use rights explicitly permit model training. Use PTC site footage for the final training dataset, live calibration, and locked UAT set.
+- **Reason:** Site-specific domain shift can materially affect detection, tracking, interaction recognition, and violation classification.
+- **Consequences:** PTC footage permission, collection, staging, annotation, and acceptance-set separation remain critical-path client dependencies. Bangladesh data cannot be used to claim PTC accuracy.
+- **Follow-up issues:** #13, #15, #27, #28, #29, #30, #34 and #51.
 
 ## ADR template
 
