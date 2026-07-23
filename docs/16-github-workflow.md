@@ -124,7 +124,7 @@ An issue is done when:
 - M1 Site and Hardware Ready
 - M2 Edge Video Platform Ready
 - M3 AI Compliance Model Ready
-- M4 Backend and Azure Platform Ready
+- M4 MERN Backend and Azure Platform Ready
 - M5 Dashboard Ready
 - M6 MVP UAT and Release
 - M7 Hypercare and Final Stabilization
@@ -146,6 +146,28 @@ Issue titles use a milestone prefix:
 [M3] Implement inspection SOP state machine
 [M6] Complete client UAT and sign-off
 ```
+
+## Project Manager ownership
+
+The Project Manager should be assigned as the accountable coordination owner on:
+
+- all delivery epics: #1 through #8;
+- scope, client-decision, governance, and acceptance issues: #9 through #17;
+- site-footage permission and coordination issue: #27;
+- client UAT, handover, hypercare governance, and final closure: #52, #53, #54, and #57.
+
+The Project Manager may be a co-assignee on delivery/integration issues where coordination is needed, but should not replace the technical owner on implementation issues such as AI training, RTSP ingestion, API coding, infrastructure coding, or dashboard development.
+
+Project Manager responsibilities in GitHub:
+
+- confirm issue readiness and dependencies;
+- obtain and record client decisions;
+- maintain target week and status;
+- mark blockers and escalate client dependencies;
+- coordinate vendor/site/UAT schedules;
+- ensure acceptance evidence and sign-off are attached or externally referenced;
+- separate defects and approved scope from new change requests;
+- close epics only when all mandatory exit criteria are met.
 
 ## Dependency notation
 
@@ -170,12 +192,11 @@ chore(ci): add dashboard build workflow
 
 ## CI checks to introduce with code
 
-- formatting and linting;
-- unit tests;
-- API build and tests;
-- dashboard build and tests;
-- Python tests and type/lint checks;
+- Node/TypeScript formatting, linting, type checks, tests, and production builds;
+- React component and end-to-end tests;
+- Python formatting, linting, type checks, and tests;
 - contract compatibility checks;
+- MongoDB migration/index checks;
 - dependency vulnerability checks;
 - secret scanning;
 - infrastructure validation;
