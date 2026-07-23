@@ -44,11 +44,11 @@ This is the implementation backlog created from the awarded scope. Each child is
 - #33 — Implement versioned SOP state machine and violation reason codes
 - #34 — Build AI evaluation harness, export runtime model, and benchmark four-stream inference
 
-## M4 — API, data, Azure, and CI/CD
+## M4 — MERN API, data, Azure, and CI/CD
 
-- #5 — Epic: platform API, data layer, and Azure foundation
-- #35 — Initialize monorepo application skeleton and shared contracts
-- #36 — Implement Azure SQL data model, EF Core migrations, and test fixtures
+- #5 — Epic: Node.js platform API, MongoDB data layer, and Azure foundation
+- #35 — Initialize MERN/Python monorepo application skeleton and shared contracts
+- #36 — Implement MongoDB collections, Mongoose schemas, indexes, migrations, and test fixtures
 - #37 — Implement secure idempotent edge event and health ingestion API
 - #38 — Implement secure evidence upload, metadata, retrieval, and retention hooks
 - #39 — Implement event list, detail, filters, review status, remarks, and audit APIs
