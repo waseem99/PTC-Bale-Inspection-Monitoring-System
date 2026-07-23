@@ -18,6 +18,7 @@
 - [SOP and domain model](05-sop-and-domain-model.md)
 - [Data and event model](06-data-and-event-model.md)
 - [AI development and evaluation](07-ai-development-plan.md)
+- [Development foundation and dashboard plan](21-development-foundation-and-dashboard-plan.md)
 
 ## Deployment and security
 
