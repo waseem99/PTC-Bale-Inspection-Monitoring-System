@@ -1,0 +1,58 @@
+# Secrets and environment
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.key
+secrets/
+
+# Client and site-sensitive artifacts
+data/raw/
+data/annotated/
+data/evidence/
+site-footage/
+site-images/private/
+credentials/
+models/*.pt
+models/*.onnx
+models/*.engine
+!models/README.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+
+# Node
+node_modules/
+dist/
+coverage/
+.vite/
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and runtime
+logs/
+*.log
+runtime/
+local-storage/
+
+# Infrastructure local state
+*.tfstate
+*.tfstate.*
+.azure/
