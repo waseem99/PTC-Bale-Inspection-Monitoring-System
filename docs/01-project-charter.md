@@ -6,57 +6,73 @@ PTC Bale Inspection & Monitoring System
 
 ## Objective
 
-Deliver an AI-assisted monitoring system that observes the bale inspection area through four fixed IP cameras, detects bale and worker activity, evaluates the client-approved inspection sequence, identifies missed or incomplete checks, and provides timestamped visual evidence through a dashboard.
+Deliver a fixed-scope AI-assisted Proof of Concept that observes the approved PTC bale inspection area through four fixed IP cameras, detects bale and anonymous worker activity, evaluates the client-approved opening and frisking sequence, identifies missed or incomplete checks, and provides timestamped evidence through a locally functional browser dashboard.
 
 ## Delivery model
 
-- **MVP:** 8 weeks
-- **Hypercare and improvements:** 5 weeks following MVP acceptance
-- **Runtime:** hybrid edge and Azure
-- **Source control and delivery management:** GitHub
-- **Primary client technology alignment:** Microsoft, Windows, Azure, and Microsoft Entra ID
+- **PoC/MVP:** 8 weeks
+- **Hypercare and improvements:** 5 weeks following PoC acceptance
+- **Core runtime:** local/offline at the PTC site
+- **Optional management plane:** client-approved Microsoft Azure components
+- **Application stack:** MERN for the local/approved cloud application and Python for edge/AI
+- **Source control and delivery management:** private GitHub repository
+- **Primary client technology alignment:** Windows, Microsoft Azure, and Microsoft Entra ID where approved
 
-## MVP outcomes
+## Reference implementation context
 
-1. Four approved camera feeds are connected and stable.
-2. The edge system detects bales and workers in the inspection area.
-3. The agreed inspection steps are represented in a deterministic SOP state machine.
-4. Missed and incomplete inspections generate events.
-5. Events include camera ID, timestamp, reason, snapshot, and short evidence clip.
-6. Supervisors can view live feeds, review events, filter records, mark review status, add remarks, and export basic reports.
-7. Core camera processing continues during temporary internet outages.
-8. Approved event data is synchronized to Azure where the deployment topology permits.
-9. The solution is tested against agreed scenarios and handed over with documentation and training.
+The client/project owner shared media from a similar Bangladesh PoC. That material is used to understand physical workflow, overhead camera geometry, bale detection, process-state overlays, and the staged PoC journey. It is not the authoritative PTC specification and does not add worker identification, dwell analytics, scanner integration, mobile applications, item counts, or other visible generic-demo features to the fixed scope.
+
+The reference analysis and PTC mapping are maintained in `docs/20-bangladesh-reference-poc-analysis.md` and issue #59.
+
+## PoC outcomes
+
+1. Four PTC-approved camera feeds are connected, oriented, synchronized, and stable.
+2. The local edge system detects bales and anonymous workers in the approved inspection area.
+3. Each visible bale inspection is represented by a temporary camera/zone session rather than a permanent business identity.
+4. The agreed PTC opening and frisking steps are represented in a deterministic, versioned SOP state machine.
+5. Completed, missed, incomplete, unresolved, and operational-health outcomes are separated correctly.
+6. Events include camera/zone, timestamp, reason, configuration versions, snapshot, and short evidence clip.
+7. Supervisors can use the local intranet dashboard to view live feeds, review events, filter records, mark review status, add remarks, and export basic reports.
+8. Core AI, local event storage, local evidence, and local dashboard operation continue during internet or Azure outages.
+9. Approved event data synchronizes to Azure only where the client-approved topology requires it.
+10. The PoC is tested against a locked PTC-specific scenario set and handed over with documentation and training.
 
 ## Success authority
 
-Success is measured against the client-approved acceptance scenarios and the awarded scope, not against unapproved assumptions or future enhancements.
+Success is measured against the awarded BOQ, the approved technical proposal, the final PTC SOP, and the client-approved PTC acceptance scenarios. Bangladesh reference footage demonstrates concept feasibility but is not PTC acceptance evidence.
 
 ## Stakeholder responsibilities
 
 ### Codistan
 
+- reference-to-PTC gap analysis;
 - solution architecture and implementation;
 - camera and edge software integration;
-- AI data preparation, model training, and evaluation;
-- dashboard and API development;
-- Azure deployment automation;
+- PTC data preparation, model training, and evaluation;
+- local dashboard and API development;
+- approved Azure deployment/synchronization automation;
 - testing, calibration, documentation, and training;
 - hypercare and agreed improvement cycles.
 
-### Client
+### Client / PTC
 
+- named process owner, project owner, and UAT owner;
 - site access and safety induction;
-- confirmed SOP and violation definitions;
+- confirmed opening/frisking SOP and violation definitions;
+- clarification of `scan`, `open`, `check`, and `frisk` terminology;
 - approval of camera locations and coverage;
-- access to representative operational footage;
-- network, Azure tenant, identity, and security approvals;
+- permission and access to representative PTC operational footage;
+- confirmation of Bangladesh-media data-use rights;
+- local network, access, and optional Azure/identity/security approvals;
 - timely UAT participation and acceptance decisions.
 
 ## Delivery principles
 
-- No permanent bale identity is claimed without barcode, RFID, or another external identifier.
-- No face recognition or worker identification is included.
-- AI outcomes are evidence-assisted compliance signals and require agreed confidence thresholds and client validation.
-- Site footage and evidence are handled as restricted client data.
-- Any requirement outside the approved scope enters a documented change-control process.
+- The Bangladesh reference is a benchmark, not a feature list.
+- No permanent bale identity is claimed without barcode, RFID, scanner, or another approved external identifier.
+- No face recognition, named worker tracking, or worker-performance scoring is included.
+- AI outcomes are evidence-assisted compliance signals and require agreed PTC confidence thresholds and client validation.
+- PTC site footage is required for final training, calibration, and acceptance.
+- Site footage, evidence, reference media, and model artifacts are handled as restricted data outside GitHub.
+- The local PoC must remain functional without internet access.
+- Any requirement outside the approved scope enters documented change control.
