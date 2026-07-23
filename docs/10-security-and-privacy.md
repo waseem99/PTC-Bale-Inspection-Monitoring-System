@@ -33,7 +33,9 @@ Treat the following as restricted client data:
 ## Authentication and authorization
 
 - dashboard users authenticate with Microsoft Entra ID where approved;
-- edge-to-cloud calls use a dedicated machine identity;
+- the React application uses MSAL without a browser-side client secret;
+- the Node.js API validates issuer, audience, signature, expiry, and approved claims server-side;
+- edge-to-cloud calls use a dedicated machine identity separate from user identity;
 - camera credentials use a dedicated restricted service account where camera support allows;
 - no shared administrator credentials in code or documentation;
 - access is granted according to least privilege;
@@ -44,10 +46,12 @@ Treat the following as restricted client data:
 - place cameras and edge workstation in the client-approved network segment;
 - restrict camera access to the required workstation and administration points;
 - no direct public exposure of RTSP streams;
+- no camera credentials or raw RTSP URLs are exposed to the React frontend;
 - use outbound-only synchronization from edge to Azure;
 - require TLS for all application API communication;
 - validate client proxy, firewall, DNS, and certificate requirements;
-- use private endpoints or network restrictions where mandated.
+- use private endpoints or network restrictions where mandated;
+- restrict MongoDB/Cosmos DB and Blob access to approved application identities and networks.
 
 ## Edge hardening
 
@@ -63,14 +67,26 @@ Treat the following as restricted client data:
 
 ## Application security
 
-- validate all API inputs;
-- enforce authorization on every event and evidence endpoint;
-- use parameterized data access through the ORM;
+- validate all external payloads using versioned schemas before persistence or processing;
+- enforce authorization on every event, evidence, review, health, and export endpoint;
+- use Mongoose/MongoDB driver APIs and never construct untrusted database operators from request input;
+- explicitly allow approved filters and sort fields;
+- apply NoSQL injection protections and reject operator-shaped input where not required;
 - use private evidence containers;
 - generate only short-lived authorized evidence access;
 - protect export endpoints from unbounded queries;
 - apply pagination, rate limits where required, and file-size controls;
-- record security-relevant application events without logging secrets.
+- configure secure HTTP headers, CORS, and request body limits;
+- record security-relevant application events without logging secrets or restricted evidence.
+
+## Dependency and supply-chain controls
+
+- pin Node and Python dependencies through lock files;
+- review npm and Python dependency advisories;
+- scan source and container/package artifacts for known vulnerabilities where available;
+- prevent secrets from entering Git history or workflow logs;
+- use approved GitHub Actions and pin third-party actions to trusted versions/commits where required;
+- document the Node.js, Python, GPU/runtime, and operating-system versions in each release manifest.
 
 ## Evidence integrity
 
@@ -102,7 +118,7 @@ The client must approve retention for:
 - audit logs;
 - diagnostic logs.
 
-Deletion must be auditable and must not occur before required acceptance or investigation periods.
+Deletion must be auditable and must not occur before required acceptance or investigation periods. MongoDB TTL indexes and Blob lifecycle policies may be used only where their behavior matches the approved policy and never for unsynchronized edge records.
 
 ## Logging rules
 
@@ -111,6 +127,7 @@ Do not log:
 - passwords, tokens, certificates, or full connection strings;
 - camera credentials or full stream URLs;
 - raw image contents in application logs;
+- evidence access tokens;
 - personal data not required for support.
 
 Log:
@@ -120,7 +137,8 @@ Log:
 - event ID and reason code;
 - error category and correlation ID;
 - configuration/model version;
-- synchronization attempt and outcome.
+- synchronization attempt and outcome;
+- authenticated actor ID for approved review changes.
 
 ## Incident handling
 
@@ -140,8 +158,9 @@ Log:
 - edge service identity approved;
 - camera credentials rotated from defaults;
 - TLS and certificate validation enabled;
-- Azure storage is private;
+- Azure Blob and MongoDB/Cosmos DB access restricted;
 - production secrets stored in Key Vault or approved store;
 - endpoint and network rules tested;
+- NoSQL injection, authorization, and evidence access tests passed;
 - audit logging tested;
 - backup, retention, and incident contacts documented.
