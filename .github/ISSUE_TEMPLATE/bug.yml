@@ -17,7 +17,7 @@ body:
     id: environment
     attributes:
       label: Environment and versions
-      description: Edge/API/dashboard/model/rule/configuration versions and camera ID where relevant.
+      description: Local/edge/API/dashboard/model/rule/configuration versions and camera ID where relevant.
     validations:
       required: true
   - type: textarea
@@ -48,7 +48,7 @@ body:
     id: evidence
     attributes:
       label: Evidence reference
-      description: Use approved external references. Do not upload restricted footage or evidence while the repository is public.
+      description: Reference the approved restricted storage location and event ID. Do not upload client footage, raw evidence, credentials, or site-sensitive files to GitHub, even though the repository is private.
   - type: textarea
     id: workaround
     attributes:
@@ -58,5 +58,5 @@ body:
     attributes:
       label: Data handling
       options:
-        - label: The issue contains no credentials, production IPs, client footage, evidence files, or personal data.
+        - label: The issue contains no credentials, production IPs, client footage, raw evidence files, personal data, or restricted client documents.
           required: true
