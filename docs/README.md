@@ -9,6 +9,7 @@
 - [Risk register](17-risk-register.md)
 - [Requirements traceability](18-requirements-traceability.md)
 - [Complete GitHub issue map](19-issue-map.md)
+- [Bangladesh reference PoC analysis and PTC translation](20-bangladesh-reference-poc-analysis.md)
 
 ## Solution design
 
@@ -34,7 +35,8 @@
 ## Documentation rules
 
 1. The awarded proposal, BOQ, approved SOP, and signed change requests are authoritative.
-2. Site-sensitive details must not be committed while the repository is public.
-3. Architecture decisions must be recorded in the decision log.
-4. An issue is not complete until its acceptance criteria and documentation impact are addressed.
-5. Raw footage, datasets, evidence clips, credentials, production IPs, and model binaries remain outside Git.
+2. Reference-project media informs design but does not add PTC scope without written confirmation.
+3. Site-sensitive details and restricted media must not be committed even though the repository is private.
+4. Architecture decisions must be recorded in the decision log.
+5. An issue is not complete until its acceptance criteria and documentation impact are addressed.
+6. Raw footage, datasets, evidence clips, credentials, production IPs, and model binaries remain outside Git.
