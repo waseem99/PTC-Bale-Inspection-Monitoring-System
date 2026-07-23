@@ -21,7 +21,7 @@ Record material architecture, scope, security, deployment, and AI decisions here
 - **Status:** Proposed pending client environment confirmation
 - **Decision:** Host the dashboard/API, event metadata, evidence objects, identity integration, secrets, and monitoring in the approved Azure environment.
 - **Reason:** Aligns with the client's Microsoft/Azure environment while retaining edge processing.
-- **Pending:** tenant, subscription, networking, identity, data residency, and deployment approvals.
+- **Pending:** tenant, subscription, networking, identity, data residency, MongoDB service, and deployment approvals.
 
 ## ADR-004 — No permanent bale identity in MVP
 
@@ -53,6 +53,21 @@ Record material architecture, scope, security, deployment, and AI decisions here
 - **Status:** Accepted
 - **Decision:** Define numerical AI acceptance thresholds only after representative footage and client-approved scenarios are available.
 - **Reason:** The proposal does not support a universal accuracy guarantee independent of lighting, camera placement, occlusion, and SOP consistency.
+
+## ADR-009 — Use MERN and Python rather than .NET
+
+- **Status:** Accepted
+- **Date:** 2026-07-23
+- **Owner:** Codistan technical leadership
+- **Context:** The client uses Microsoft and Azure, but the Codistan delivery team's established application stack is MERN and its AI/edge stack is Python. Azure hosting and Microsoft Entra ID do not require ASP.NET application code.
+- **Options considered:**
+  1. .NET/ASP.NET Core, Azure SQL, Entity Framework Core, and SignalR;
+  2. Node.js/Express/TypeScript, React, MongoDB-compatible persistence, and Python edge/AI;
+  3. Python-only application and AI stack.
+- **Decision:** Use React/TypeScript for the dashboard, Node.js/Express/TypeScript for the platform API, Azure Cosmos DB for MongoDB or another client-approved MongoDB deployment for metadata, and Python for edge camera, AI, evidence, synchronization, and SOP services. Use Socket.IO by default or Azure Web PubSub where client governance requires a managed real-time service.
+- **Reason:** This matches existing team capability, reduces delivery risk within the eight-week MVP, preserves one JavaScript/TypeScript application ecosystem, and remains fully deployable within Azure with Entra ID, Key Vault, Blob Storage, Application Insights, Bicep, and GitHub Actions.
+- **Consequences:** .NET, EF Core, Azure SQL, and SignalR are not part of the MVP unless the client mandates them through an approved architecture change. MongoDB schema versions, indexes, and data transformations require explicit migration discipline.
+- **Follow-up issues:** #5, #35, #36, #37, #39, #40, #41, #42, #43, #44, #49, #53.
 
 ## ADR template
 
