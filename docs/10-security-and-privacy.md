@@ -2,18 +2,19 @@
 
 ## Security objectives
 
-- protect camera streams, site footage, evidence, and client operational data;
-- prevent unauthorized access to cameras, edge services, dashboard, and Azure resources;
+- protect camera streams, PTC footage, Bangladesh reference media, evidence, and client operational data;
+- prevent unauthorized access to cameras, edge services, local dashboard, and approved Azure resources;
 - maintain traceable review and configuration changes;
-- preserve edge operation without exposing inbound services;
-- align deployment with client Microsoft and Azure security controls.
+- preserve local operation without exposing inbound services;
+- align approved cloud deployment with client Microsoft and Azure security controls.
 
 ## Data classification
 
-Treat the following as restricted client data:
+Treat the following as restricted client/project data:
 
 - camera credentials and stream URLs;
-- live and recorded footage;
+- live and recorded PTC footage;
+- Bangladesh reference images and videos;
 - snapshots and evidence clips;
 - site layouts, camera positions, IP plans, and power/network diagrams;
 - annotated datasets;
@@ -23,102 +24,106 @@ Treat the following as restricted client data:
 
 ## Repository controls
 
-- repository must be private before site-specific or client-sensitive artifacts are added;
+- repository is private;
 - enable branch protection for `main`;
 - require pull requests and review for production-impacting changes;
 - enable secret scanning and dependency alerts where available;
-- do not commit `.env`, certificates, camera URLs, IP addresses, footage, datasets, evidence, or model binaries;
-- use Git LFS only if explicitly approved; secure object storage is preferred for models and datasets.
+- do not commit `.env`, certificates, camera URLs, production IP addresses, footage, datasets, evidence, reference media, client source documents, or model binaries;
+- use Git LFS only if explicitly approved; restricted object storage is preferred for models and datasets;
+- private visibility does not change restricted-data handling rules.
 
 ## Authentication and authorization
 
-- dashboard users authenticate with Microsoft Entra ID where approved;
-- the React application uses MSAL without a browser-side client secret;
-- the Node.js API validates issuer, audience, signature, expiry, and approved claims server-side;
-- edge-to-cloud calls use a dedicated machine identity separate from user identity;
+- local dashboard users use the client-approved offline-capable access model;
+- approved central/remote users authenticate with Microsoft Entra ID where enabled;
+- edge-to-local and optional edge/local-to-cloud calls use dedicated machine identities;
 - camera credentials use a dedicated restricted service account where camera support allows;
 - no shared administrator credentials in code or documentation;
 - access is granted according to least privilege;
-- production administration is separated from normal dashboard use.
+- production administration is separated from normal dashboard use;
+- loss of Azure or Entra connectivity must not disable already approved local PoC operation.
 
 ## Network controls
 
-- place cameras and edge workstation in the client-approved network segment;
+- place cameras and the edge workstation in the client-approved network segment;
 - restrict camera access to the required workstation and administration points;
 - no direct public exposure of RTSP streams;
-- no camera credentials or raw RTSP URLs are exposed to the React frontend;
-- use outbound-only synchronization from edge to Azure;
-- require TLS for all application API communication;
+- use outbound-only synchronization from the site to Azure where approved;
+- require TLS for application API communication where traffic leaves the workstation/site;
 - validate client proxy, firewall, DNS, and certificate requirements;
 - use private endpoints or network restrictions where mandated;
-- restrict MongoDB/Cosmos DB and Blob access to approved application identities and networks.
+- do not introduce scanner, RFID, PLC, or custom IoT connectivity without approved change control.
 
-## Edge hardening
+## Edge and local application hardening
 
 - current supported operating system and security updates;
 - approved endpoint protection;
 - restricted local administrator access;
-- automatic service start under a dedicated service identity;
+- automatic Python, Node.js, MongoDB, and dashboard-service start under approved identities;
 - host firewall rules limited to required traffic;
 - encrypted disk where required by client policy;
-- protected configuration and evidence directories;
+- protected configuration, database, spool, and evidence directories;
 - software inventory and signed/approved release packages;
-- remove unnecessary services and development tools from production.
+- remove unnecessary services and development tools from production;
+- document local backup, restore, and safe-shutdown behavior.
 
 ## Application security
 
-- validate all external payloads using versioned schemas before persistence or processing;
-- enforce authorization on every event, evidence, review, health, and export endpoint;
-- use Mongoose/MongoDB driver APIs and never construct untrusted database operators from request input;
-- explicitly allow approved filters and sort fields;
-- apply NoSQL injection protections and reject operator-shaped input where not required;
-- use private evidence containers;
-- generate only short-lived authorized evidence access;
+- validate all API inputs against versioned contracts;
+- enforce authorization on every event, evidence, review, export, and administration endpoint;
+- use validated/parameterized data access through Mongoose;
+- expose local evidence only through authorized API access;
+- use private Azure evidence containers where synchronization is enabled;
+- generate only short-lived authorized cloud evidence access;
 - protect export endpoints from unbounded queries;
 - apply pagination, rate limits where required, and file-size controls;
-- configure secure HTTP headers, CORS, and request body limits;
-- record security-relevant application events without logging secrets or restricted evidence.
-
-## Dependency and supply-chain controls
-
-- pin Node and Python dependencies through lock files;
-- review npm and Python dependency advisories;
-- scan source and container/package artifacts for known vulnerabilities where available;
-- prevent secrets from entering Git history or workflow logs;
-- use approved GitHub Actions and pin third-party actions to trusted versions/commits where required;
-- document the Node.js, Python, GPU/runtime, and operating-system versions in each release manifest.
+- record security-relevant events without logging secrets or raw media.
 
 ## Evidence integrity
 
 - use stable event IDs;
 - record evidence checksums;
 - store original AI outcome separately from human review status;
-- retain model, SOP, and configuration versions with each event;
+- retain model, SOP, zone, camera, and configuration versions with each event;
 - audit changes to review status and remarks;
+- preserve unsynchronized records and evidence;
 - define the approved handling of deleted or expired evidence.
 
 ## Privacy boundaries
 
 - no face recognition;
 - no biometric identification;
-- no employee scoring or profiling;
-- person detections are temporary tracks used only for process interaction;
+- no named worker tracking;
+- no employee scoring, dwell analytics, or profiling;
+- person detections are temporary anonymous tracks used only for process interaction;
 - dashboard access and evidence visibility are limited to approved users;
-- data collection is restricted to the agreed inspection area and purpose.
+- data collection is restricted to the agreed inspection area and purpose;
+- generic demonstration features do not authorize additional person analytics.
+
+## Reference and dataset governance
+
+- record whether Bangladesh media is reference-only or permitted for training;
+- do not use Bangladesh media as PTC acceptance evidence;
+- preserve source-site and permitted-use fields in dataset manifests;
+- separate Bangladesh reference, PTC training, PTC calibration, and locked PTC UAT data;
+- do not place any of these media sets in GitHub;
+- access and deletion follow approved ownership and retention decisions.
 
 ## Retention and deletion
 
 The client must approve retention for:
 
-- raw training footage;
-- annotated data;
+- Bangladesh reference material where Codistan stores a copy;
+- raw PTC training footage;
+- annotated PTC data;
 - local event evidence;
-- cloud evidence;
-- event metadata;
+- approved cloud evidence;
+- local and cloud event metadata;
 - audit logs;
-- diagnostic logs.
+- diagnostic logs;
+- local spool and unsynchronized records.
 
-Deletion must be auditable and must not occur before required acceptance or investigation periods. MongoDB TTL indexes and Blob lifecycle policies may be used only where their behavior matches the approved policy and never for unsynchronized edge records.
+Deletion must be auditable and must not occur before required acceptance, synchronization, support, or investigation periods.
 
 ## Logging rules
 
@@ -126,41 +131,43 @@ Do not log:
 
 - passwords, tokens, certificates, or full connection strings;
 - camera credentials or full stream URLs;
-- raw image contents in application logs;
-- evidence access tokens;
-- personal data not required for support.
+- raw image/video contents;
+- personal data not required for support;
+- unrestricted local evidence paths.
 
 Log:
 
 - service status;
-- camera ID rather than credentials;
+- camera/zone ID rather than credentials;
 - event ID and reason code;
 - error category and correlation ID;
-- configuration/model version;
-- synchronization attempt and outcome;
-- authenticated actor ID for approved review changes.
+- model/rule/zone/camera configuration version;
+- local persistence and optional synchronization attempt/outcome.
 
 ## Incident handling
 
 1. contain access or stop affected synchronization where required;
-2. preserve relevant logs and event identifiers;
-3. notify the approved project/client contacts;
-4. rotate affected secrets;
-5. assess footage/evidence exposure;
-6. document root cause and corrective action;
-7. validate the fix before restoring normal operation.
+2. keep local safety and evidence-preservation requirements in mind;
+3. preserve relevant logs, event IDs, and checksums;
+4. notify the approved project/client contacts;
+5. rotate affected secrets;
+6. assess footage/evidence/reference-data exposure;
+7. document root cause and corrective action;
+8. validate local operation and then optional cloud synchronization before restoring normal service.
 
 ## Pre-production security checklist
 
 - private repository confirmed;
-- no secrets in commit history;
-- Entra ID application and groups approved;
-- edge service identity approved;
+- no secrets or restricted media in commit history;
+- local dashboard access method approved and tested offline;
+- Entra ID application and groups approved where enabled;
+- local/edge service identities approved;
 - camera credentials rotated from defaults;
-- TLS and certificate validation enabled;
-- Azure Blob and MongoDB/Cosmos DB access restricted;
-- production secrets stored in Key Vault or approved store;
+- TLS and certificate validation enabled where required;
+- local evidence/database directories protected;
+- approved Azure storage private;
+- production secrets stored in Key Vault or approved local store;
 - endpoint and network rules tested;
-- NoSQL injection, authorization, and evidence access tests passed;
 - audit logging tested;
+- data-use rights and dataset lineage recorded;
 - backup, retention, and incident contacts documented.
