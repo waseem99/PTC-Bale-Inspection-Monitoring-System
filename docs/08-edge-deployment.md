@@ -1,149 +1,141 @@
-# Edge Deployment
+# Edge and Local PoC Deployment
 
 ## Purpose
 
-The edge workstation is the production runtime for camera connectivity, computer vision, SOP evaluation, evidence generation, and offline event buffering.
+The site workstation hosts the complete locally functional PoC: camera processing, AI inference, SOP evaluation, event/evidence creation, local persistence, local Node.js API, local MongoDB-compatible database, React intranet dashboard, and optional outbound Azure synchronization.
 
-## Prerequisites
+## Physical baseline
 
-- approved four-camera installation;
-- stable PoE and network connectivity;
-- GPU workstation matching the approved BOQ configuration;
-- sufficient local storage;
-- UPS protection;
-- approved Windows environment or an approved alternative;
-- client-approved service account and network rules;
-- synchronized system time.
+- four BOQ cameras connected through the approved PoE/network switch;
+- GPU-enabled Windows workstation;
+- approved local storage and UPS;
+- local network access for the dashboard;
+- outbound Azure connectivity only where issue #11 approves it.
 
-## Edge services
+The Bangladesh reference shows overhead/ceiling cameras, rotated views, multiple bales/workers, loose leaves, and significant occlusion. These are design inputs, not approved PTC installation instructions. Issue #15 must validate PTC-specific overhead, oblique, and side views.
 
-1. **Camera ingest and health service**
-   - loads camera configuration;
-   - connects to RTSP streams;
-   - monitors last-frame time;
-   - reconnects using controlled backoff.
+## Required local services
 
-2. **AI inference service**
-   - performs frame preprocessing;
-   - executes the approved model;
-   - outputs detections with timestamps and confidence.
+1. **Camera ingest and health** — RTSP/ONVIF connection, timestamps, orientation, reconnect, and health.
+2. **AI inference** — bale and anonymous person detection, tracking, and interaction signals.
+3. **Compliance engine** — PTC opening/frisking session state and explainable outcomes.
+4. **Evidence service** — rolling buffer, snapshots, and short clips.
+5. **Durable spool** — preserves events before local application acceptance and optional cloud synchronization.
+6. **Node.js platform API** — local events, evidence access, review, filters, exports, audit, and health.
+7. **Local MongoDB-compatible database** — event/review/health/audit metadata.
+8. **React dashboard and live gateway** — local intranet monitoring and review.
+9. **Optional synchronization service** — outbound idempotent metadata/evidence synchronization to approved Azure components.
 
-3. **Tracking and compliance service**
-   - maintains camera-local tracks;
-   - applies zones and associations;
-   - evaluates SOP state transitions;
-   - creates outcomes and reason codes.
+## Filesystem and data boundaries
 
-4. **Evidence service**
-   - maintains a rolling frame buffer;
-   - produces snapshots and short clips;
-   - calculates checksums;
-   - applies local retention rules.
+Use protected directories for:
 
-5. **Synchronization agent**
-   - writes events to a durable local spool;
-   - authenticates to the approved API;
-   - uploads metadata and evidence;
-   - retries without duplication.
+- application and service packages;
+- non-secret configuration;
+- protected secrets/credential references;
+- local MongoDB data and backups;
+- pending spool records;
+- event evidence;
+- logs;
+- model/rule/zone/camera configuration packages;
+- release manifests.
 
-6. **Local operations endpoint**
-   - exposes service and camera health;
-   - supports approved local operational checks;
-   - does not expose credentials or unrestricted raw streams.
+Raw PTC footage, annotations, Bangladesh reference media, and production model binaries must remain in approved restricted stores and must not be copied into GitHub.
 
-## Proposed filesystem layout
+## Camera configuration
 
-```text
-C:\ProgramData\PTCBaleAI\
-├── config\
-├── models\
-├── rules\
-├── spool\
-├── evidence\
-├── logs\
-└── releases\
-```
+For each camera record:
 
-All production paths and access-control rules must be finalized with client IT.
+- camera and zone ID;
+- RTSP profile without exposing credentials in logs;
+- native resolution and approved processing stream;
+- frame rate and sampling policy;
+- bitrate/compression;
+- image rotation/orientation;
+- WDR, exposure, shutter, and lighting settings;
+- entry, inspection, exit, and ignored polygons;
+- mounting height, angle, lens, and PTC layout reference;
+- time source;
+- configuration version.
 
-## Configuration
+Do not adopt `Not Scanned` or reference camera labels as PTC configuration semantics until issue #59/#9 resolves them.
 
-Configuration is environment-specific and must not be committed with production values.
+## Installation sequence
 
-- camera IDs and secure stream references;
-- zone coordinates;
-- model and rule versions;
-- confidence and timing thresholds;
-- event evidence duration;
-- API endpoint and authentication reference;
-- spool and evidence retention;
-- logging level.
+1. confirm reference-to-PTC scope mapping and approved SOP sufficiently for survey;
+2. complete PTC site survey and sample-view approval;
+3. install and label cameras, cabling, switching, workstation, storage, and UPS;
+4. harden the Windows workstation and configure service identities;
+5. install GPU driver and runtime prerequisites;
+6. install local MongoDB-compatible database;
+7. deploy Node.js API, React dashboard, live gateway, and protected evidence directories;
+8. deploy Python edge/AI/compliance services;
+9. apply approved camera, zone, rule, and model configurations;
+10. run local camera-to-dashboard smoke tests;
+11. run eight-hour stream/application stability test;
+12. configure optional Azure synchronization only after issue #11 approval;
+13. capture the installed inventory and release manifest.
 
-## Installation workflow
+## Managed service behavior
 
-1. validate hardware, GPU driver, and storage health;
-2. create the approved service account and directories;
-3. install runtime dependencies from signed or approved packages;
-4. place the approved model and configuration package;
-5. register services for automatic startup;
-6. configure firewall and outbound API access;
-7. test each camera independently;
-8. test all four streams simultaneously;
-9. run AI and evidence generation tests;
-10. simulate internet loss and recovery;
-11. validate automatic service restart;
-12. capture the installed release manifest.
+- automatic start after workstation reboot;
+- explicit startup dependencies: database, API, dashboard/live gateway, then Python event submission as appropriate;
+- watchdog restart with bounded backoff;
+- no loss of pending spool records during restart or upgrade;
+- persistent configuration/evidence/database directories outside replaceable package folders;
+- structured rotating logs;
+- version endpoint/manifest for every component;
+- controlled upgrade and rollback scripts.
 
-## Release package
+## Offline and failure behavior
 
-Each edge release contains:
+### Internet/Azure unavailable
 
-- versioned service binaries or containers;
-- dependency manifest;
-- model manifest and checksum;
-- configuration schema;
-- installation and rollback scripts;
-- release notes;
-- database/spool migration steps where applicable.
+- camera ingest and AI continue;
+- local evidence and event metadata continue;
+- local dashboard and review remain available;
+- optional cloud records queue and synchronize later.
 
-## Rollback
+### Local Node API/database unavailable
 
-- retain the previous approved release package;
-- stop services in the approved sequence;
-- back up spool and configuration;
-- restore the previous binaries/model/rules;
-- restart and validate camera health;
-- retain unsynchronized events;
-- document the rollback and cause.
+- Python spool retains events;
+- inference and evidence generation continue within storage limits;
+- service watchdog attempts recovery;
+- events replay idempotently after local application recovery.
 
-## Health checks
+### Camera unavailable
 
-- camera online/offline;
-- last frame age;
-- decoder/reconnect errors;
-- inference service status;
-- GPU availability and memory;
-- queue depth and oldest pending event;
-- local disk free space;
-- evidence generation errors;
-- last successful cloud synchronization.
+- other cameras continue;
+- camera health changes to offline;
+- missing footage does not create a definite process violation.
 
-## Backup and recovery
+### Workstation power interruption
 
-The edge workstation is not a permanent archive. Recovery planning covers:
+- UPS provides the approved continuity/safe-shutdown window;
+- database and spool are closed safely where possible;
+- all services recover automatically after power returns;
+- pending records remain intact.
 
-- configuration backup;
-- model/rule release package;
-- unsynchronized event spool;
-- documented rebuild procedure;
-- evidence retained according to the approved policy.
+## Local security baseline
 
-## Site-security rules
+- client-approved Windows build, patches, and endpoint protection;
+- restricted administrator and service accounts;
+- firewall permits only approved camera/local dashboard/outbound traffic;
+- camera credentials protected from source, logs, and browser clients;
+- database and evidence not exposed to the wider network except through the authorized API;
+- local dashboard authentication works according to the approved offline model;
+- encrypted storage where required;
+- development tools and sample/reference media removed from production.
 
-- do not expose RTSP streams outside the approved network;
-- do not share camera credentials across users;
-- use named service identities where possible;
-- restrict local administrator access;
-- apply client endpoint-protection requirements;
-- record installed software and versions;
-- remove development tools not required in production.
+## Acceptance checks
+
+- four cameras are correctly oriented and time synchronized;
+- approved PTC opening/frisking actions are visible in representative operations;
+- multiple-worker/bale and occlusion behavior is documented;
+- four streams remain stable for eight hours;
+- local Node/Mongo/React application remains responsive;
+- local event/evidence/review works without internet;
+- camera, service, database, and workstation restart tests pass;
+- UPS transition/safe shutdown is verified;
+- optional Azure synchronization recovers without duplicates where enabled;
+- installed versions, serials, settings, and known limitations are recorded.
