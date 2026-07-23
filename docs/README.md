@@ -8,6 +8,7 @@
 - [Decision log](15-decision-log.md)
 - [Risk register](17-risk-register.md)
 - [Requirements traceability](18-requirements-traceability.md)
+- [Complete GitHub issue map](19-issue-map.md)
 
 ## Solution design
 
