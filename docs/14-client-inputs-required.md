@@ -40,8 +40,8 @@ This register contains the decisions and access required to deliver the MVP with
 
 | ID | Required input or decision | Why it is required | Target |
 |---|---|---|---|
-| CI-20 | Azure tenant, subscription, region, and resource group | Required for infrastructure deployment | Week 1–2 |
-| CI-21 | Azure naming, tagging, and cost-governance standards | Required for compliant resource creation | Week 1–2 |
+| CI-20 | Azure tenant, subscription, region, resource group, and approval to host Node.js/React services | Required for application and infrastructure deployment | Week 1–2 |
+| CI-21 | Azure naming, tagging, cost-governance standards, and approved MongoDB service/capacity | Required for compliant Cosmos DB for MongoDB or alternative MongoDB deployment | Week 1–2 |
 | CI-22 | Entra ID application-registration and group process | Required for authentication | Week 2 |
 | CI-23 | Site-to-Azure network and firewall requirements | Required for secure edge synchronization | Week 2 |
 | CI-24 | Private endpoint, proxy, DNS, and certificate requirements | Affects architecture and deployment effort | Week 2 |
@@ -68,6 +68,7 @@ The project team must not assume:
 - continuous cloud video recording;
 - a specific accuracy percentage before representative testing;
 - public Azure endpoints;
+- a specific MongoDB hosting tier or capacity before client approval;
 - scheduled email reports;
 - additional cameras or external integrations;
 - unlimited retention;
