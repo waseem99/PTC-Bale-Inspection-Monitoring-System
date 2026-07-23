@@ -27,15 +27,15 @@ Create a short-lived branch from `main`:
 
 ## Code boundaries
 
-- shared contracts belong in `packages/contracts/`;
+- shared JSON Schema/OpenAPI contracts belong in `packages/contracts/`;
 - camera and synchronization behavior belongs in `services/edge-agent/`;
 - model execution belongs in `services/ai-inference/`;
 - SOP rules and outcomes belong in `services/compliance-engine/`;
-- application event management belongs in `services/platform-api/`;
-- user interface belongs in `apps/dashboard-web/`;
+- Node.js/Express application event management belongs in `apps/platform-api/`;
+- React user interface belongs in `apps/dashboard-web/`;
 - Azure and edge provisioning belong under `infrastructure/`.
 
-Do not duplicate SOP logic in the frontend or cloud API.
+Do not duplicate SOP logic in the frontend or platform API.
 
 ## Security
 
@@ -53,17 +53,17 @@ Never commit:
 Changes must include the appropriate tests:
 
 - Python unit/regression tests for edge and AI behavior;
-- .NET unit/integration tests for API and data behavior;
-- frontend component/end-to-end tests for user workflows;
+- Jest/Supertest unit and integration tests for the Node.js API and MongoDB data behavior;
+- Vitest and Playwright tests for frontend and end-to-end user workflows;
 - infrastructure validation for Bicep changes;
-- contract compatibility tests for shared schemas.
+- contract compatibility tests for shared JSON Schema/OpenAPI definitions.
 
 ## Documentation
 
 Update documentation when changing:
 
 - architecture or service boundaries;
-- event contracts or database schema;
+- event contracts or MongoDB collection/index design;
 - SOP rules and reason codes;
 - deployment steps or configuration;
 - security, retention, or access behavior;
