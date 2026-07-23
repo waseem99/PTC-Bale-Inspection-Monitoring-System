@@ -2,143 +2,199 @@
 
 ## Purpose
 
-The AI system must evaluate a client-approved operational sequence. It must not infer business rules from visual patterns alone. The final SOP, valid exceptions, and violation definitions require written client approval before model acceptance.
+This document defines the domain concepts and state-machine structure for the PTC PoC. Final transitions and thresholds require PTC process-owner approval under issues #59 and #9.
 
-## Core domain entities
+## Reference terminology warning
+
+The Bangladesh reference video appears to display `Not Scanned`. This label is not adopted as a PTC event or requirement until the client confirms whether `scan` means:
+
+- physical bale opening;
+- frisking/checking;
+- barcode/device scanning;
+- another operational step.
+
+PTC event names and reason codes must use the client-approved local terminology.
+
+## Domain entities
 
 ### Camera
 
-Represents one configured inspection-area camera.
+A physical PTC camera with:
 
-- camera ID;
-- display name and physical zone;
+- camera/zone ID;
+- approved location and orientation;
 - stream configuration reference;
-- health status;
-- last-frame timestamp;
-- active zone configuration version.
+- entry, inspection, exit, and ignored regions;
+- health and last-frame status;
+- configuration version.
 
-### Bale track
+### Temporary bale track
 
-A temporary computer-vision track visible within one camera sequence.
+A camera/zone-local visual track while the bale remains observable. It is not a permanent bale identifier and cannot be guaranteed across cameras, re-entry, or extended occlusion.
 
-- camera-local track ID;
-- first-seen and last-seen timestamps;
-- entry, inspection, and exit-zone timestamps;
-- associated worker tracks;
-- confidence history.
+### Anonymous person track
 
-A bale track is not a permanent business identifier.
-
-### Worker track
-
-A temporary person track used only to evaluate interaction with a bale and inspection zone. No face recognition, identity, biometric profile, or employee scoring is included.
+A temporary visual track used only to evaluate interaction with the bale. It contains no employee name, face identity, attendance, dwell KPI, or performance score.
 
 ### Inspection session
 
-A derived sequence for one bale track while it moves through the monitored inspection workflow.
+A bounded evaluation associated with one temporary bale track and approved camera/zone. A session records:
 
-- session ID;
-- camera ID;
-- bale track ID;
-- start and end time;
-- observed states;
-- final outcome;
-- reason codes;
-- evidence references;
-- model, SOP, and configuration versions.
+- entry/start condition;
+- relevant worker-bale associations;
+- observed opening/frisking signals;
+- visibility quality;
+- exit/timeout/rework condition;
+- final outcome and reason code;
+- model/rule/camera/zone/configuration versions.
 
 ### Event
 
-A normal inspection, violation, or system-health occurrence persisted for dashboard review.
+A completed, violation, unresolved, or operational-health occurrence persisted locally for dashboard review and optionally synchronized where approved.
 
-## Proposed state-machine pattern
+### Evidence
 
-The state names below are placeholders until the client confirms the SOP.
+A snapshot and/or short clip associated with one event/session, with timestamps, checksum, camera/zone, and retention status.
 
-```mermaid
-stateDiagram-v2
-    [*] --> Detected
-    Detected --> EnteredInspectionZone
-    EnteredInspectionZone --> WorkerInteractionObserved
-    WorkerInteractionObserved --> RequiredCheckObserved
-    RequiredCheckObserved --> Completed
-    EnteredInspectionZone --> MissedInspection: bale exits without required interaction
-    WorkerInteractionObserved --> IncompleteInspection: required action not completed
-    Detected --> Abandoned: track lost before evaluation
-    Completed --> [*]
-    MissedInspection --> [*]
-    IncompleteInspection --> [*]
-    Abandoned --> [*]
+## Proposed state model
+
+The exact sequence is pending PTC approval. The implementation skeleton should support:
+
+```text
+NOT_PRESENT
+  -> ENTERED_ZONE
+  -> AWAITING_REQUIRED_INTERACTION
+  -> OPENING_OBSERVED
+  -> FRISKING_IN_PROGRESS
+  -> REQUIRED_ACTIONS_COMPLETED
+  -> EXITED_COMPLETED
 ```
 
-## Initial event taxonomy
+Alternative terminal paths:
 
-### Compliance events
+```text
+AWAITING_REQUIRED_INTERACTION -> EXITED_MISSED
+OPENING_OBSERVED/FRISKING_IN_PROGRESS -> EXITED_INCOMPLETE
+ANY_ACTIVE_STATE -> UNRESOLVED_VISIBILITY
+ANY_ACTIVE_STATE -> CANCELLED_OPERATIONAL_OUTAGE
+ANY_ACTIVE_STATE -> REWORK_OR_REENTRY according to the approved PTC rule
+```
+
+State names may be revised after #9; code must use versioned machine-readable values rather than UI-only wording.
+
+## Outcome taxonomy
+
+### Completed inspection
+
+All mandatory PTC actions and completion/exit conditions are observed with sufficient evidence.
+
+### Missed inspection
+
+The bale reaches the approved terminal/exit condition without the required opening/frisking interaction being observed, while visibility and system health were sufficient to evaluate it.
+
+### Incomplete inspection
+
+One or more required actions began or partial evidence was observed, but the complete approved sequence/conditions were not satisfied before the terminal condition.
+
+### Unresolved / insufficient visibility
+
+The system cannot make a supported process decision because of severe occlusion, track ambiguity, simultaneous-bale association uncertainty, unusable image, or another approved limitation.
+
+### Operational health event
+
+Camera, stream, service, database, storage, or workstation failure. Health events are not process violations.
+
+## Required PTC decisions
+
+- exact bale entry and exit conditions;
+- exact number/location of opening/frisking points;
+- sequence and minimum duration/observable condition for each step;
+- whether opening alone is the immediate/basic PoC requirement or frisking is equally mandatory for acceptance;
+- whether multiple bales can be processed simultaneously in one view;
+- whether one camera/zone is authoritative or multiple views are combined;
+- rules for rework, re-entry, conveyor stoppage, supervisor override, and abandoned sessions;
+- behavior under temporary and severe occlusion;
+- approved reason-code and dashboard wording.
+
+## Multi-worker and multi-bale rules
+
+- multiple anonymous workers may associate with one bale session;
+- proximity alone is not necessarily a valid inspection action;
+- a worker may not be assigned to two bales simultaneously unless the approved logic supports it;
+- multiple bale sessions are created only where detection/tracking separation is sufficiently reliable;
+- ambiguous association produces unresolved behavior rather than unsupported violation certainty;
+- no cross-camera permanent identity is claimed.
+
+## Initial machine-readable event types
+
+### Compliance
 
 - `inspection.completed`
 
-### Violation events
+### Violations
 
 - `inspection.missed`
 - `inspection.incomplete`
 
-### Operational events
+### Non-violation evaluation
+
+- `inspection.unresolved`
+
+### Operational
 
 - `camera.offline`
 - `camera.recovered`
 - `edge.service_degraded`
+- `local.application_degraded`
 - `sync.pending`
 - `sync.recovered`
 
-Operational failures must not be misclassified as inspection violations.
+## Reason-code examples
 
-## Rule inputs
+Final reason codes depend on the approved PTC SOP. Candidate forms include:
 
-- configured camera and zones;
-- bale detection and track confidence;
-- worker detection and track confidence;
-- spatial association between bale, worker, and inspection zone;
-- observed interaction/action signal;
-- minimum action duration;
-- allowed sequence timing;
-- exit condition;
-- occlusion and lost-track thresholds.
-
-## Reason codes
-
-Each inspection outcome must contain a machine-readable reason code, for example:
-
-- `NO_WORKER_INTERACTION`
-- `CHECK_DURATION_BELOW_THRESHOLD`
-- `REQUIRED_ACTION_NOT_OBSERVED`
-- `BALE_EXITED_BEFORE_CHECK`
+- `NO_REQUIRED_INTERACTION`
+- `OPENING_NOT_OBSERVED`
+- `FRISKING_NOT_OBSERVED`
+- `REQUIRED_ACTION_INCOMPLETE`
+- `ACTION_DURATION_BELOW_THRESHOLD`
+- `BALE_EXITED_BEFORE_COMPLETION`
+- `TRACK_ASSOCIATION_AMBIGUOUS`
 - `TRACK_LOST_IN_EVALUATION_ZONE`
 - `INSUFFICIENT_VISIBILITY`
+- `CAMERA_OR_SYSTEM_UNAVAILABLE`
 
-Final codes depend on the approved SOP and acceptance scenarios.
+The reference phrase `Not Scanned` is not a PTC reason code unless expressly approved.
 
-## Configuration management
+## Event contract requirements
 
-The following must be versioned independently from the model:
+Each final event includes:
 
-- camera zones;
-- confidence thresholds;
-- interaction-duration thresholds;
-- state transition timeouts;
-- event clip duration;
-- active SOP rules;
-- camera frame-sampling configuration.
+- stable event ID;
+- inspection session ID;
+- camera and zone ID;
+- temporary bale track ID;
+- outcome and approved reason code;
+- event start/end and occurrence timestamps;
+- confidence/visibility metadata;
+- model, rule, zone, camera, and threshold configuration versions;
+- evidence metadata;
+- local persistence and optional synchronization status;
+- human review status and remarks stored separately from the original AI outcome.
 
-Each persisted event must identify the model version and configuration version that produced it.
+## Versioning
+
+The following must be versioned together for release compatibility:
+
+- SOP/state-machine rules;
+- outcome/reason-code taxonomy;
+- model artifact;
+- camera orientation and zone definitions;
+- thresholds/timeouts;
+- event contract version.
 
 ## Human review
 
-AI events are reviewable records. The dashboard supports:
+The dashboard supports approved review statuses, operator remarks, evidence review, reason-code display, and an audit trail. Human review must not silently modify the original AI outcome.
 
-- unreviewed, confirmed, and dismissed status where approved;
-- operator remarks;
-- evidence review;
-- reason-code display;
-- audit of review updates.
-
-The review workflow must not silently modify the original AI outcome. Human review is stored as a separate status and audit trail.
+Any change to the approved physical workflow or addition of barcode/RFID/scanner/IoT identity is a change request, not a calibration adjustment.
