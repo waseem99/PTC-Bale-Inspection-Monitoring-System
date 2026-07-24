@@ -24,7 +24,7 @@ export default function App() {
   useEffect(() => {
     if (isInitializing || isAuthenticated || route.name === 'login') return;
     const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
-    navigate(`/login?returnTo=${returnTo}`, { replace: true });
+    navigate(`/login?returnTo=${returnTo}`, { replace: true, bypassBlocker: true });
   }, [isAuthenticated, isInitializing, route.name]);
 
   if (isInitializing) return <FullPageLoading />;
