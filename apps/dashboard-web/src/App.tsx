@@ -30,7 +30,7 @@ export default function App() {
   if (isInitializing) return <FullPageLoading />;
   if (!isAuthenticated && route.name !== 'login') return <FullPageLoading />;
 
-  let page: ReactNode;
+  let page: ReactNode = <NotFoundPage />;
   switch (route.name) {
     case 'login':
       page = <LoginPage />;
@@ -54,7 +54,6 @@ export default function App() {
       page = <ReportsPage />;
       break;
     case 'notFound':
-      page = <NotFoundPage />;
       break;
   }
 
