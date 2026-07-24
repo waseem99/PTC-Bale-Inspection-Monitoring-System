@@ -25,7 +25,7 @@ export default function EventsPage() {
   useEffect(() => setSearchInput(query.search ?? ''), [query.search]);
   useEffect(() => { const timeout = window.setTimeout(() => { const normalized = searchInput.trim(); if ((query.search ?? '') === normalized) return; updateQuery({ search: normalized || null, page: 1 }, true); }, 350); return () => window.clearTimeout(timeout); }, [query.search, searchInput, updateQuery]);
   const key = `events:${eventQueryToSearchParams(query).toString()}`;
-  const events = useQuery({ key, enabled: Boolean(token), staleTime: 15_000, keepPreviousData: true, queryFn: (signal) => api.getEvents(token, query, signal) });
+  const events = useQuery({ key, enabled: Boolean(session), staleTime: 15_000, keepPreviousData: true, queryFn: (signal) => api.getEvents(token, query, signal) });
   useEffect(() => {
     if (!events.data) return; if (events.data.page !== query.page) { updateQuery({ page: events.data.page }, true); return; }
     const adjacentPages = [events.data.hasPreviousPage ? events.data.page - 1 : null, events.data.hasNextPage ? events.data.page + 1 : null].filter((page): page is number => page !== null);
