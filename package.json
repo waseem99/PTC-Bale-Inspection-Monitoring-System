@@ -9,9 +9,10 @@
     "packages/*"
   ],
   "scripts": {
-    "foundation:status": "node -e \"console.log('Repository foundation and dashboard v1 are available on tracked feature branches.')\"",
+    "foundation:status": "node -e \"console.log('Repository foundation and production-ready frontend are available on tracked feature branches.')\"",
     "dev:dashboard": "pnpm --filter @ptc-bale/dashboard-web dev",
     "build:dashboard": "pnpm --filter @ptc-bale/dashboard-web build",
-    "preview:dashboard": "pnpm --filter @ptc-bale/dashboard-web preview"
+    "preview:dashboard": "pnpm --filter @ptc-bale/dashboard-web preview",
+    "check:dashboard": "pnpm --filter @ptc-bale/dashboard-web check"
   }
 }
