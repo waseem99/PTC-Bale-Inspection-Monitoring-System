@@ -13,6 +13,7 @@ interface CacheEntry<T> {
   data?: T;
   error?: unknown;
   updatedAt: number;
+  revision: number;
   isFetching: boolean;
   promise: Promise<T> | undefined;
   controller: AbortController | undefined;
@@ -32,6 +33,7 @@ export class QueryClient {
     if (existing) return existing;
     const created: CacheEntry<T> = {
       updatedAt: 0,
+      revision: 0,
       isFetching: false,
       promise: undefined,
       controller: undefined,
@@ -108,6 +110,7 @@ export class QueryClient {
     for (const [key, entry] of this.cache.entries()) {
       if (key.startsWith(prefix)) {
         entry.updatedAt = 0;
+        entry.revision += 1;
         this.notify(key);
       }
     }
@@ -173,13 +176,14 @@ export function useQuery<T>({
   queryFnRef.current = queryFn;
   const [, forceRender] = useState(0);
   const previousDataRef = useRef<T | undefined>(undefined);
+  const snapshot = client.getSnapshot<T>(key);
 
   useEffect(() => client.subscribe(key, () => forceRender((value) => value + 1)), [client, key]);
 
   useEffect(() => {
     if (!enabled) return;
     void client.fetchQuery<T>(key, (signal) => queryFnRef.current(signal), { staleTime }).catch(() => undefined);
-  }, [client, enabled, key, staleTime]);
+  }, [client, enabled, key, staleTime, snapshot.revision]);
 
   useEffect(() => {
     if (!enabled || !refetchInterval) return;
@@ -191,7 +195,6 @@ export function useQuery<T>({
     return () => window.clearInterval(interval);
   }, [client, enabled, key, refetchInterval]);
 
-  const snapshot = client.getSnapshot<T>(key);
   if (snapshot.data !== undefined) previousDataRef.current = snapshot.data;
   const visibleData = snapshot.data ?? (keepPreviousData ? previousDataRef.current : undefined);
   const isPreviousData = snapshot.data === undefined && visibleData !== undefined;
@@ -202,7 +205,7 @@ export function useQuery<T>({
   return {
     ...(visibleData !== undefined ? { data: visibleData } : {}),
     ...(snapshot.error !== undefined ? { error: snapshot.error } : {}),
-    isLoading: visibleData === undefined && snapshot.isFetching,
+    isLoading: enabled && visibleData === undefined && (snapshot.isFetching || (snapshot.updatedAt === 0 && snapshot.error === undefined)),
     isFetching: snapshot.isFetching,
     isStale: visibleData !== undefined && (isPreviousData || Date.now() - snapshot.updatedAt > staleTime),
     isPreviousData,
@@ -224,28 +227,30 @@ export function useMutation<TInput, TOutput>(
   const [isPending, setPending] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
   const controllerRef = useRef<AbortController | null>(null);
+  const pendingRef = useRef(false);
+  const mutationFnRef = useRef(mutationFn);
+  mutationFnRef.current = mutationFn;
 
   useEffect(() => () => controllerRef.current?.abort(), []);
 
-  const mutate = useCallback(
-    async (input: TInput) => {
-      if (isPending) throw new Error('A mutation is already in progress.');
-      controllerRef.current?.abort();
-      const controller = new AbortController();
-      controllerRef.current = controller;
-      setPending(true);
-      setError(undefined);
-      try {
-        return await mutationFn(input, controller.signal);
-      } catch (mutationError) {
-        setError(mutationError);
-        throw mutationError;
-      } finally {
-        setPending(false);
-      }
-    },
-    [isPending, mutationFn],
-  );
+  const mutate = useCallback(async (input: TInput) => {
+    if (pendingRef.current) throw new Error('A mutation is already in progress.');
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    pendingRef.current = true;
+    setPending(true);
+    setError(undefined);
+    try {
+      return await mutationFnRef.current(input, controller.signal);
+    } catch (mutationError) {
+      setError(mutationError);
+      throw mutationError;
+    } finally {
+      pendingRef.current = false;
+      setPending(false);
+    }
+  }, []);
 
   const reset = useCallback(() => setError(undefined), []);
   return useMemo(
