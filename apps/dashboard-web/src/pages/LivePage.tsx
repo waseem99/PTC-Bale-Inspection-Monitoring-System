@@ -6,7 +6,7 @@ import { formatRelativeTime } from '../utils';
 
 export default function LivePage() {
   const { session } = useAuth(); const token = session?.token ?? '';
-  const cameras = useQuery({ key: 'cameras', enabled: Boolean(token), staleTime: 3_000, refetchInterval: 5_000, queryFn: (signal) => api.getCameras(token, signal) });
+  const cameras = useQuery({ key: 'cameras', enabled: Boolean(session), staleTime: 3_000, refetchInterval: 5_000, queryFn: (signal) => api.getCameras(token, signal) });
   return <AppShell title="Live Monitoring">
     <section className="page-intro"><div><span className="eyebrow">Four-camera PoC</span><h2 tabIndex={-1}>Inspection-zone monitoring</h2><p>Camera connectivity and AI processing states remain separate from inspection outcomes.</p></div><div className="page-intro__actions"><Freshness updatedAt={cameras.updatedAt} isFetching={cameras.isFetching} isStale={cameras.isStale}/><button className="button button--secondary" type="button" onClick={() => void cameras.refetch()} disabled={cameras.isFetching}><Icon name="refresh" size={18}/> Refresh</button></div></section>
     <div className="info-banner"><Icon name="camera" size={20}/><span>The current provider uses synthetic visual scenes. The same camera cards accept authorized WebRTC/HLS stream URLs when the edge gateway is connected.</span></div>
