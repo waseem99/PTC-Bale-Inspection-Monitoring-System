@@ -2,12 +2,16 @@
   "name": "ptc-bale-inspection-monitoring-system",
   "version": "0.0.0",
   "private": true,
+  "packageManager": "pnpm@9.15.4",
   "description": "Local-first MERN and Python proof of concept for PTC bale inspection monitoring.",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "foundation:status": "node -e \"console.log('Repository foundation created. Application packages will be initialized through tracked GitHub issues.')\""
+    "foundation:status": "node -e \"console.log('Repository foundation and dashboard v1 are available on tracked feature branches.')\"",
+    "dev:dashboard": "pnpm --filter @ptc-bale/dashboard-web dev",
+    "build:dashboard": "pnpm --filter @ptc-bale/dashboard-web build",
+    "preview:dashboard": "pnpm --filter @ptc-bale/dashboard-web preview"
   }
 }
