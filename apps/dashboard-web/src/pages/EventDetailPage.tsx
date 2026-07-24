@@ -3,17 +3,23 @@ import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import { AppShell, ErrorState, Icon, LoadingPanel, StatusPill, outcomeTone, reviewTone, useToast } from '../components';
 import { useMutation, useQuery, useQueryClient } from '../query';
-import { Link } from '../router';
+import { Link, setNavigationBlocker } from '../router';
 import type { ReviewEventInput, ReviewStatus } from '../types';
 import { formatDateTime } from '../utils';
 
 export default function EventDetailPage({ eventId }: { eventId: string }) {
   const { session, can } = useAuth(); const token = session?.token ?? ''; const queryClient = useQueryClient(); const { pushToast } = useToast();
-  const eventQuery = useQuery({ key: `event:${eventId}`, enabled: Boolean(token && eventId), staleTime: 10_000, queryFn: (signal) => api.getEvent(token, eventId, signal) });
+  const eventQuery = useQuery({ key: `event:${eventId}`, enabled: Boolean(session && eventId), staleTime: 10_000, queryFn: (signal) => api.getEvent(token, eventId, signal) });
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus>('unreviewed'); const [remarks, setRemarks] = useState(''); const event = eventQuery.data; const canReview = can('supervisor', 'admin');
   useEffect(() => { if (!event) return; setReviewStatus(event.reviewStatus); setRemarks(event.remarks ?? ''); }, [event]);
   const dirty = useMemo(() => event ? event.reviewStatus !== reviewStatus || (event.remarks ?? '') !== remarks : false, [event, remarks, reviewStatus]);
-  useEffect(() => { const beforeUnload = (browserEvent: BeforeUnloadEvent) => { if (!dirty) return; browserEvent.preventDefault(); browserEvent.returnValue = ''; }; window.addEventListener('beforeunload', beforeUnload); return () => window.removeEventListener('beforeunload', beforeUnload); }, [dirty]);
+  useEffect(() => {
+    if (!dirty) return;
+    const clearBlocker = setNavigationBlocker(() => 'You have unsaved review changes. Leave this event without saving?');
+    const beforeUnload = (browserEvent: BeforeUnloadEvent) => { browserEvent.preventDefault(); browserEvent.returnValue = ''; };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => { clearBlocker(); window.removeEventListener('beforeunload', beforeUnload); };
+  }, [dirty]);
   const mutation = useMutation<ReviewEventInput, NonNullable<typeof event>>(async (input, signal) => api.reviewEvent(token, eventId, input, signal));
   async function saveReview(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault(); if (!event || !canReview || mutation.isPending || reviewStatus === 'unreviewed') return;
