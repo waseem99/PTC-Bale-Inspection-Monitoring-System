@@ -124,6 +124,9 @@ async function liveRequest<T>(path: string, options: RequestOptions, validate?: 
     const payload = text ? parseJsonSafely(text) : null;
     if (!response.ok) {
       const serverError = isRecord(payload) ? payload : {};
+      if (response.status === 401 && path !== '/auth/login' && path !== '/auth/me') {
+        window.dispatchEvent(new Event('ptc:auth-expired'));
+      }
       throw new ApiError({
         code: typeof serverError.code === 'string' ? serverError.code : `HTTP_${response.status}`,
         message: typeof serverError.message === 'string' ? serverError.message : 'The request could not be completed.',
