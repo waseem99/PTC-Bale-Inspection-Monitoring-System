@@ -19,6 +19,8 @@
 - [Data and event model](06-data-and-event-model.md)
 - [AI development and evaluation](07-ai-development-plan.md)
 - [Development foundation and dashboard plan](21-development-foundation-and-dashboard-plan.md)
+- [Frontend production readiness](22-frontend-production-readiness.md)
+- [Frontend/live API contract](23-frontend-api-contract.md)
 
 ## Deployment and security
 
