@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, ty
 
 interface NavigateOptions {
   replace?: boolean;
+  bypassBlocker?: boolean;
 }
 
 interface RouterValue {
@@ -9,6 +10,9 @@ interface RouterValue {
   searchParams: URLSearchParams;
   navigate: (to: string, options?: NavigateOptions) => void;
 }
+
+type NavigationBlocker = () => string | null;
+let activeNavigationBlocker: NavigationBlocker | null = null;
 
 const RouterContext = createContext<RouterValue | null>(null);
 
@@ -25,9 +29,20 @@ function subscribeToLocation(callback: () => void) {
   };
 }
 
+export function setNavigationBlocker(blocker: NavigationBlocker | null): () => void {
+  activeNavigationBlocker = blocker;
+  return () => {
+    if (activeNavigationBlocker === blocker) activeNavigationBlocker = null;
+  };
+}
+
 export function navigate(to: string, options: NavigateOptions = {}): void {
   const current = `${window.location.pathname}${window.location.search}`;
   if (to === current && !options.replace) return;
+  if (!options.bypassBlocker) {
+    const message = activeNavigationBlocker?.();
+    if (message && !window.confirm(message)) return;
+  }
   if (options.replace) window.history.replaceState(null, '', to);
   else window.history.pushState(null, '', to);
   window.dispatchEvent(new Event('ptc:navigate'));
