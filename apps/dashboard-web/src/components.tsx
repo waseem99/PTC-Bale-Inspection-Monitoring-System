@@ -90,7 +90,7 @@ export function useToast(): ToastContextValue { const value = useContext(ToastCo
 
 interface ErrorBoundaryState { error?: Error; }
 export class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
-  state: ErrorBoundaryState = {};
+  override state: ErrorBoundaryState = {};
   static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { error }; }
   override componentDidCatch(error: Error, info: ErrorInfo): void { console.error('Dashboard error boundary', { error, componentStack: info.componentStack }); }
   override render() { if (this.state.error) return <main className="fatal-error"><img src={ptcLogoDataUri} alt="PTC"/><h1>Dashboard could not be displayed</h1><p>{this.state.error.message}</p><button className="button button--primary" type="button" onClick={() => window.location.reload()}>Reload application</button></main>; return this.props.children; }
