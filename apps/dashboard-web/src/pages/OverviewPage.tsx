@@ -10,9 +10,9 @@ const RECENT_QUERY: EventQuery = { page: 1, pageSize: 5, sortBy: 'timestamp', so
 
 export default function OverviewPage() {
   const { session } = useAuth(); const token = session?.token ?? '';
-  const summary = useQuery({ key: 'summary', enabled: Boolean(token), staleTime: 30_000, refetchInterval: 60_000, queryFn: (signal) => api.getSummary(token, signal) });
-  const cameras = useQuery({ key: 'cameras', enabled: Boolean(token), staleTime: 5_000, refetchInterval: 10_000, queryFn: (signal) => api.getCameras(token, signal) });
-  const recentEvents = useQuery({ key: 'events:recent', enabled: Boolean(token), staleTime: 15_000, refetchInterval: 30_000, queryFn: (signal) => api.getEvents(token, RECENT_QUERY, signal) });
+  const summary = useQuery({ key: 'summary', enabled: Boolean(session), staleTime: 30_000, refetchInterval: 60_000, queryFn: (signal) => api.getSummary(token, signal) });
+  const cameras = useQuery({ key: 'cameras', enabled: Boolean(session), staleTime: 5_000, refetchInterval: 10_000, queryFn: (signal) => api.getCameras(token, signal) });
+  const recentEvents = useQuery({ key: 'events:recent', enabled: Boolean(session), staleTime: 15_000, refetchInterval: 30_000, queryFn: (signal) => api.getEvents(token, RECENT_QUERY, signal) });
   return <AppShell title="Overview">
     <section className="page-intro"><div><span className="eyebrow">Operational overview</span><h2 tabIndex={-1}>Inspection operations at a glance</h2><p>Monitor inspection outcomes, evidence review and system readiness from one operational view.</p></div><div className="page-intro__actions"><Freshness updatedAt={summary.updatedAt} isFetching={summary.isFetching} isStale={summary.isStale}/><button className="button button--secondary" type="button" onClick={() => void summary.refetch()} disabled={summary.isFetching}><Icon name="refresh" size={18}/> Refresh</button><Link className="button button--primary" to="/live">Open live monitoring <Icon name="arrow" size={18}/></Link></div></section>
     {summary.isLoading && <LoadingPanel rows={4} label="Loading dashboard summary"/>}{summary.error && !summary.data && <ErrorState error={summary.error} onRetry={() => void summary.refetch()}/>} 
