@@ -1,24 +1,29 @@
-export type PageKey = 'overview' | 'live' | 'events' | 'health' | 'reports';
-export type CameraStatus = 'online' | 'warning' | 'offline';
-export type AiStatus = 'processing' | 'degraded' | 'paused';
-export type EventOutcome = 'completed' | 'missed' | 'incomplete' | 'unresolved';
+export type Role = 'viewer' | 'supervisor' | 'admin';
+export type Outcome = 'completed' | 'missed' | 'incomplete' | 'unresolved';
 export type ReviewStatus = 'unreviewed' | 'confirmed' | 'dismissed';
+export type SortDirection = 'asc' | 'desc';
+export type EventSortField = 'timestamp' | 'outcome' | 'confidence' | 'reviewStatus' | 'cameraName';
+export type CameraConnectionStatus = 'online' | 'warning' | 'offline';
+export type AiStatus = 'processing' | 'degraded' | 'stopped';
+export type HealthState = 'healthy' | 'warning' | 'critical' | 'neutral';
+export type StepState = 'complete' | 'failed' | 'unknown';
 
-export interface Camera {
+export interface User {
   id: string;
-  name: string;
-  zone: string;
-  status: CameraStatus;
-  aiStatus: AiStatus;
-  lastFrame: string;
-  fps: number;
-  streamQuality: string;
-  todayEvents: number;
+  username: string;
+  displayName: string;
+  role: Role;
 }
 
-export interface InspectionStep {
+export interface Session {
+  token: string;
+  user: User;
+  expiresAt: string;
+}
+
+export interface EventStep {
   label: string;
-  state: 'complete' | 'failed' | 'unknown';
+  state: StepState;
   time?: string;
 }
 
@@ -26,17 +31,33 @@ export interface InspectionEvent {
   id: string;
   cameraId: string;
   cameraName: string;
+  zone: string;
   timestamp: string;
-  outcome: EventOutcome;
+  outcome: Outcome;
   reason: string;
   confidence: number;
   reviewStatus: ReviewStatus;
   summary: string;
   evidenceAvailable: boolean;
   remarks?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
   modelVersion: string;
   ruleVersion: string;
-  steps: InspectionStep[];
+  version: number;
+  steps: EventStep[];
+}
+
+export interface Camera {
+  id: string;
+  name: string;
+  zone: string;
+  status: CameraConnectionStatus;
+  aiStatus: AiStatus;
+  lastFrameAt: string;
+  fps: number;
+  streamQuality: string;
+  todayEvents: number;
 }
 
 export interface HealthMetric {
@@ -44,5 +65,71 @@ export interface HealthMetric {
   label: string;
   value: string;
   detail: string;
-  state: 'healthy' | 'warning' | 'critical' | 'neutral';
+  state: HealthState;
+  checkedAt: string;
+}
+
+export interface KpiSummary {
+  total: number;
+  completed: number;
+  violations: number;
+  unresolved: number;
+  unreviewed: number;
+  completedRate: number;
+  periodLabel: string;
+  generatedAt: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  generatedAt: string;
+}
+
+export interface EventQuery {
+  page: number;
+  pageSize: number;
+  cameraId?: string;
+  outcome?: Outcome;
+  reviewStatus?: ReviewStatus;
+  search?: string;
+  sortBy: EventSortField;
+  sortDirection: SortDirection;
+  from?: string;
+  to?: string;
+}
+
+export interface ReviewEventInput {
+  reviewStatus: Exclude<ReviewStatus, 'unreviewed'>;
+  remarks: string;
+  expectedVersion: number;
+}
+
+export interface ExportRequest {
+  cameraId?: string;
+  outcome?: Outcome;
+  reviewStatus?: ReviewStatus;
+  from?: string;
+  to?: string;
+  format: 'csv';
+}
+
+export interface ApiErrorPayload {
+  code: string;
+  message: string;
+  status: number;
+  correlationId: string;
+  details?: Record<string, unknown>;
+}
+
+export interface AppRuntime {
+  dataMode: 'mock' | 'live';
+  environmentName: string;
+  buildVersion: string;
+  apiBaseUrl: string;
 }
