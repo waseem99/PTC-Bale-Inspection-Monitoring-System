@@ -72,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const validationAbort = useRef<AbortController | null>(null);
 
   const clearSession = useCallback(() => {
+    validationAbort.current?.abort();
     queryClient.clear();
     setSession(null);
     persistSession(null);
@@ -104,6 +105,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false;
       controller.abort();
     };
+  }, [clearSession]);
+
+  useEffect(() => {
+    const handleAuthExpired = () => clearSession();
+    window.addEventListener('ptc:auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('ptc:auth-expired', handleAuthExpired);
   }, [clearSession]);
 
   useEffect(() => {
@@ -140,7 +147,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const logout = useCallback(async () => {
-    validationAbort.current?.abort();
     const token = session?.token ?? '';
     const hadSession = Boolean(session);
     clearSession();
