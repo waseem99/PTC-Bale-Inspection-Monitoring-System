@@ -1,48 +1,45 @@
 # PTC Bale Inspection Dashboard
 
-Initial React/TypeScript dashboard implementation for the PTC Bale Inspection & Monitoring PoC.
+Production-oriented React/TypeScript frontend for the PTC Bale Inspection & Monitoring PoC.
 
-## Current version
+## Delivery status
 
-This branch provides a client-reviewable **development demo** with:
+The frontend uses the same typed interfaces in both modes:
 
-- demo login and protected in-app session;
-- PTC-aligned green/grey visual system;
-- large supervisor-friendly typography;
-- operations overview and KPI cards;
-- four synthetic camera scenes with AI overlays;
-- inspection-event filters and CSV export;
-- event detail, evidence placeholder, review status and remarks;
-- local system, AI, GPU, database, storage and Azure-sync health;
-- basic report and print/PDF view.
+- **Mock mode:** fully functional synthetic provider for client review and frontend UAT.
+- **Live mode:** configured application API without page or workflow rewrites.
 
-No live PTC cameras, production data, credentials or restricted media are included.
+It includes route-based screens, protected sessions, query caching, server-compatible pagination, filters, sorting, review mutations, exports, offline/failure handling, responsive layouts, accessibility controls, tests, security headers and CI quality gates.
 
-## Run locally
+Backend-dependent integrations remain separate: real authentication validation, authorized WebRTC/HLS camera URLs, persistent database/evidence APIs, AI-generated events and Azure synchronization.
+
+## Routes
+
+`/login`, `/overview`, `/live`, `/events`, `/events/:eventId`, `/health`, `/reports`
+
+## Mock access
+
+Users: `viewer`, `supervisor`, `admin`. Default local password: `PTC-Demo-2026!`. Override with `VITE_DEMO_PASSWORD`.
+
+## Commands
 
 ```bash
 pnpm install
-pnpm --filter @ptc-bale/dashboard-web dev
+pnpm dev:dashboard
+pnpm check:dashboard
 ```
 
-Open `http://localhost:4173`.
+Dashboard: `http://localhost:4173`
 
-The login is explicitly demo-only: enter any non-empty username and password. Server-side fixed-user authentication is tracked separately under GitHub issue #41.
+## Production controls
 
-## Important boundaries
+- memory cache with stale times, deduplication, abort and safe retries;
+- URL-based server-compatible pagination, filters and sorting;
+- versioned review mutation and conflict handling;
+- local mock persistence only for synthetic review data;
+- no credentials, tokens, evidence or media cached by the service worker;
+- SPA fallback and security headers supplied for Azure Static Web Apps and compatible hosts;
+- source maps disabled and CI scans for obvious secrets;
+- direct RTSP URLs and camera credentials are prohibited in browser code.
 
-- Camera scenes are synthetic CSS visuals, not PTC or Bangladesh footage.
-- AI values and events are sample records for workflow validation.
-- The frontend does not contain RTSP credentials or SOP logic.
-- Entra ID and Azure synchronization remain future adapters.
-- Final PTC logo assets should be replaced with the approved source package before production use.
-
-## Brand basis
-
-The visual direction follows the official PTC brand-guide principles:
-
-- green and grey as the dominant identity colors;
-- Open Sans as the approved substitute when PTCRaleway is unavailable;
-- restrained use of overlays and technical accents;
-- sharp, simple operational icon treatment;
-- accessible status communication using text and icons in addition to color.
+The approved source logo asset must replace the screenshot-derived placeholder before final client deployment.

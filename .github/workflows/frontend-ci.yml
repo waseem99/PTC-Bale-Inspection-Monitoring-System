@@ -1,0 +1,55 @@
+name: Frontend CI
+on:
+  pull_request:
+    paths: ['apps/dashboard-web/**','package.json','pnpm-workspace.yaml','.github/workflows/frontend-ci.yml']
+  push:
+    branches: [main, project-foundation]
+    paths: ['apps/dashboard-web/**','package.json','pnpm-workspace.yaml','.github/workflows/frontend-ci.yml']
+permissions:
+  contents: read
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.4 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20.18.1 }
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm --filter @ptc-bale/dashboard-web lint
+      - run: pnpm --filter @ptc-bale/dashboard-web typecheck
+      - run: pnpm --filter @ptc-bale/dashboard-web test
+      - run: pnpm --filter @ptc-bale/dashboard-web build
+      - name: Scan production bundle
+        shell: bash
+        run: |
+          test -d apps/dashboard-web/dist
+          ! find apps/dashboard-web/dist -name '*.map' | grep -q .
+          ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|mongodb\+srv://|rtsp://[^ ]+:[^ ]+@)' apps/dashboard-web/dist
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.4 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20.18.1 }
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/dashboard-web
+      - run: pnpm test:e2e
+        working-directory: apps/dashboard-web
+        env:
+          VITE_DATA_MODE: mock
+          VITE_ALLOW_DEMO_CREDENTIALS: 'true'
+          VITE_MOCK_LATENCY_MS: '40'
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: dashboard-playwright-report, path: apps/dashboard-web/playwright-report, retention-days: 14 }
