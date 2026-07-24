@@ -2,16 +2,19 @@
 
 ## Purpose
 
-The production frontend currently runs through a mock provider. The live Node.js/Express API must implement the same interface and response shapes so the UI can switch through configuration only.
+The production frontend currently runs through a fully functional mock provider. The live Node.js/Express API must implement the same interfaces and response shapes so the application can switch through environment configuration only.
 
 ## General requirements
 
 - Base URL is configured through `VITE_API_BASE_URL`.
 - JSON endpoints return `Content-Type: application/json`.
-- Authenticated requests accept `Authorization: Bearer <token>` until an approved cookie/Entra adapter replaces it.
+- The preferred local/live authentication mechanism is a secure, `HttpOnly`, `SameSite` session cookie. A bearer-token or Microsoft Entra adapter may be used where approved.
+- The frontend sends `credentials: same-origin` on live application requests.
 - Requests include `X-Correlation-ID`; responses should return the same or a server-generated correlation ID.
 - Timestamps are ISO 8601 UTC values. The frontend renders them in `Asia/Karachi`.
 - Error responses use a stable `code`, user-safe `message`, `correlationId`, and optional `details` object.
+- A `401` from an authenticated endpoint clears the active frontend session and returns the user to sign-in.
+- API responses are runtime-validated before they enter the dashboard state layer.
 
 ## Authentication
 
@@ -30,7 +33,7 @@ Response:
 
 ```json
 {
-  "token": "opaque-token",
+  "token": "",
   "expiresAt": "2026-07-24T20:00:00Z",
   "user": {
     "id": "usr-001",
@@ -41,11 +44,15 @@ Response:
 }
 ```
 
-Supported roles are `viewer`, `supervisor`, and `admin`.
+For cookie-backed sessions, `token` may be an empty string and the response must set the secure session cookie. For an approved bearer-token adapter, `token` contains the opaque access token. Supported roles are `viewer`, `supervisor`, and `admin`.
 
 ### `GET /auth/me`
 
-Returns the same session shape and validates expiry and authorization.
+Restores and validates the current session. This endpoint enables browser refresh and direct-route access without storing a live access token in browser storage.
+
+### `POST /auth/logout`
+
+Revokes the server-side session and clears the authentication cookie. The frontend also clears its local query cache and session state even where server revocation is temporarily unavailable.
 
 ## Dashboard summary
 
