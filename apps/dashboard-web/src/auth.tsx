@@ -20,13 +20,14 @@ interface AuthContextValue {
   isInitializing: boolean;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   can: (...roles: Role[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function readStoredSession(): Session | null {
+  if (runtime.dataMode !== 'mock') return null;
   try {
     const raw = window.sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
@@ -56,6 +57,7 @@ function readStoredSession(): Session | null {
 }
 
 function persistSession(session: Session | null): void {
+  if (runtime.dataMode !== 'mock') return;
   if (!session) {
     window.sessionStorage.removeItem(SESSION_KEY);
     return;
@@ -66,12 +68,18 @@ function persistSession(session: Session | null): void {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(() => readStoredSession());
-  const [isInitializing, setInitializing] = useState(() => Boolean(readStoredSession()));
+  const [isInitializing, setInitializing] = useState(true);
   const validationAbort = useRef<AbortController | null>(null);
+
+  const clearSession = useCallback(() => {
+    queryClient.clear();
+    setSession(null);
+    persistSession(null);
+  }, [queryClient]);
 
   useEffect(() => {
     const stored = readStoredSession();
-    if (!stored) {
+    if (runtime.dataMode === 'mock' && !stored) {
       setInitializing(false);
       return;
     }
@@ -79,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true;
     validationAbort.current = controller;
     void api
-      .getCurrentSession(stored.token, controller.signal)
+      .getCurrentSession(stored?.token ?? '', controller.signal)
       .then((validated) => {
         if (!active) return;
         setSession(validated);
@@ -87,9 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch((error: unknown) => {
         if (!active || (error instanceof ApiError && error.code === 'REQUEST_ABORTED')) return;
-        queryClient.clear();
-        setSession(null);
-        persistSession(null);
+        clearSession();
       })
       .finally(() => {
         if (active) setInitializing(false);
@@ -98,26 +104,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false;
       controller.abort();
     };
-  }, [queryClient]);
+  }, [clearSession]);
 
   useEffect(() => {
     if (!session) return;
     const remaining = new Date(session.expiresAt).getTime() - Date.now();
     if (remaining <= 0) {
-      queryClient.clear();
-      setSession(null);
-      persistSession(null);
+      clearSession();
       return;
     }
-    const timeout = window.setTimeout(() => {
-      queryClient.clear();
-      setSession(null);
-      persistSession(null);
-    }, remaining);
+    const timeout = window.setTimeout(clearSession, remaining);
     return () => window.clearTimeout(timeout);
-  }, [queryClient, session]);
+  }, [clearSession, session]);
 
   useEffect(() => {
+    if (runtime.dataMode !== 'mock') return;
     const handleStorage = (event: StorageEvent) => {
       if (event.storageArea === window.sessionStorage && event.key === SESSION_KEY) {
         queryClient.clear();
@@ -138,12 +139,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     persistSession(nextSession);
   }, [queryClient]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     validationAbort.current?.abort();
-    queryClient.clear();
-    setSession(null);
-    persistSession(null);
-  }, [queryClient]);
+    const token = session?.token ?? '';
+    const hadSession = Boolean(session);
+    clearSession();
+    if (!hadSession) return;
+    const controller = new AbortController();
+    validationAbort.current = controller;
+    try {
+      await api.logout(token, controller.signal);
+    } catch {
+      // Local sign-out remains authoritative even if server revocation is unavailable.
+    }
+  }, [clearSession, session]);
 
   const can = useCallback(
     (...roles: Role[]) => Boolean(session?.user && roles.includes(session.user.role)),
