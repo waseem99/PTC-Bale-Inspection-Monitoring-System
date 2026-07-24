@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { ApiError, __testables, api, generateMockEvents } from './api';
+import { __testables, api, generateMockEvents } from './api';
 
 describe('mock API provider', () => {
   beforeEach(() => {
@@ -74,6 +74,6 @@ describe('mock API provider', () => {
         remarks: 'Not permitted.',
         expectedVersion: event.version,
       }),
-    ).rejects.toMatchObject<Partial<ApiError>>({ code: 'FORBIDDEN', status: 403 });
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
   });
 });
