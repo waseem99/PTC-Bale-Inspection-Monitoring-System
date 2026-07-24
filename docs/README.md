@@ -34,6 +34,7 @@
 - [Delivery plan](12-delivery-plan.md)
 - [Operations runbook](13-operations-runbook.md)
 - [GitHub workflow and issue planning](16-github-workflow.md)
+- [Frontend UAT and release checklist](24-frontend-uat-checklist.md)
 
 ## Documentation rules
 
