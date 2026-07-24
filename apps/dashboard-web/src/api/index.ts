@@ -13,6 +13,10 @@ export const api = {
     if (runtime.dataMode === 'mock') { await mockLatency(signal); return requireMockSession(token); }
     return liveRequestWithRetry<Session>('/auth/me', { token, signal }, assertSession);
   },
+  async logout(token: string, signal?: AbortSignal): Promise<void> {
+    if (runtime.dataMode === 'mock') { requireMockSession(token); await mockLatency(signal); return; }
+    await liveRequestWithRetry<void>('/auth/logout', { method: 'POST', token, signal });
+  },
   async getSummary(token: string, signal?: AbortSignal): Promise<KpiSummary> {
     if (runtime.dataMode === 'mock') { requireMockSession(token); await mockLatency(signal); return calculateSummary(generateMockEvents()); }
     return liveRequestWithRetry<KpiSummary>('/dashboard/summary', { token, signal }, assertKpiSummary);
@@ -53,7 +57,7 @@ export const api = {
     }
     const correlationId = randomCorrelationId(); const merged = mergeSignals(signal, DEFAULT_TIMEOUT_MS * 2);
     try {
-      const response = await fetch(`${runtime.apiBaseUrl}/exports/events`, { method: 'POST', headers: { Accept: 'text/csv', 'Content-Type': 'application/json', 'X-Correlation-ID': correlationId, Authorization: `Bearer ${token}` }, body: JSON.stringify(request), signal: merged.signal, credentials: 'same-origin' });
+      const response = await fetch(`${runtime.apiBaseUrl}/exports/events`, { method: 'POST', headers: { Accept: 'text/csv', 'Content-Type': 'application/json', 'X-Correlation-ID': correlationId, ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(request), signal: merged.signal, credentials: 'same-origin' });
       if (!response.ok) throw new ApiError({ code: `HTTP_${response.status}`, message: 'The export could not be generated.', status: response.status, correlationId: response.headers.get('X-Correlation-ID') ?? correlationId });
       return await response.blob();
     } catch (error) { throw asApiError(error, correlationId); } finally { merged.cleanup(); }
