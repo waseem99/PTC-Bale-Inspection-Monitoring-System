@@ -13,6 +13,7 @@ interface RouterValue {
 
 type NavigationBlocker = () => string | null;
 let activeNavigationBlocker: NavigationBlocker | null = null;
+let restoringHistory = false;
 
 const RouterContext = createContext<RouterValue | null>(null);
 
@@ -21,10 +22,24 @@ function getLocationSnapshot() {
 }
 
 function subscribeToLocation(callback: () => void) {
-  window.addEventListener('popstate', callback);
+  const handlePopState = () => {
+    if (restoringHistory) {
+      restoringHistory = false;
+      callback();
+      return;
+    }
+    const message = activeNavigationBlocker?.();
+    if (message && !window.confirm(message)) {
+      restoringHistory = true;
+      window.history.forward();
+      return;
+    }
+    callback();
+  };
+  window.addEventListener('popstate', handlePopState);
   window.addEventListener('ptc:navigate', callback);
   return () => {
-    window.removeEventListener('popstate', callback);
+    window.removeEventListener('popstate', handlePopState);
     window.removeEventListener('ptc:navigate', callback);
   };
 }
