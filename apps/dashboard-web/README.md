@@ -21,7 +21,9 @@ Backend-dependent integrations remain separate: real authentication validation, 
 
 Users: `viewer`, `supervisor`, `admin`.
 
-Local development uses `PTC-Demo-2026!` when `VITE_DEMO_PASSWORD` is not supplied. Any shared or production-hosted mock build must set a private `VITE_DEMO_PASSWORD`; the fallback is intentionally disabled for production builds.
+Local development uses `PTC-Demo-2026!` when `VITE_DEMO_PASSWORD` is not supplied. A production mock build requires either an explicit `VITE_DEMO_PASSWORD` or the deliberate CI/demo-credential flag.
+
+Mock credentials are compiled into the frontend and only exercise application roles. They do not secure a shared deployment. Use hosting-platform authentication, VPN/reverse-proxy access control, or the container's runtime Basic Authentication.
 
 ## Commands
 
@@ -34,16 +36,30 @@ pnpm --filter @ptc-bale/dashboard-web test:e2e
 
 Dashboard: `http://localhost:4173`
 
-## Container deployment
+## Protected container deployment
 
 Build from the repository root:
 
 ```bash
-docker build --file apps/dashboard-web/Dockerfile --tag ptc-bale-dashboard:demo .
-docker run --detach --name ptc-bale-dashboard --publish 8080:8080 ptc-bale-dashboard:demo
+docker build \
+  --file apps/dashboard-web/Dockerfile \
+  --build-arg 'VITE_DEMO_PASSWORD=<demo-only-password>' \
+  --tag ptc-bale-dashboard:demo \
+  .
 ```
 
-The container serves the SPA on port `8080` and exposes `GET /healthz`. For a shared demo, place it behind an approved HTTPS ingress or reverse proxy and follow `docs/25-frontend-deployment-runbook.md`.
+Run with hosting-layer access control:
+
+```bash
+docker run --detach \
+  --name ptc-bale-dashboard \
+  --env 'DEMO_BASIC_AUTH_USER=<reviewer-user>' \
+  --env 'DEMO_BASIC_AUTH_PASSWORD=<strong-hosting-password>' \
+  --publish 8080:8080 \
+  ptc-bale-dashboard:demo
+```
+
+The container serves the SPA on port `8080` and exposes unprotected `GET /healthz` for the approved health monitor. Place it behind HTTPS and follow `docs/25-frontend-deployment-runbook.md` before sharing the URL.
 
 ## Production controls
 
