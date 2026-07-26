@@ -10,17 +10,20 @@ This checklist is the final field-delivery gate for the PTC Bale Inspection dash
 - [ ] Build version is visible in the portal.
 - [ ] Environment label is correct.
 - [ ] Data mode is clearly shown as mock or live.
-- [ ] Approved PTC source logo and visual assets are installed.
-- [ ] No screenshot-derived placeholder asset remains in the external release.
+- [ ] Supplied PTC visual reference has been converted into the approved scalable release asset.
+- [ ] No screenshot-crop or temporary placeholder asset remains in the external release.
 
 ## Installation and security
 
 - [ ] Production build completes without source maps.
 - [ ] HTTPS is enabled.
+- [ ] Hosting-platform, VPN, reverse-proxy, or container Basic Authentication restricts the shared demo before the application login screen.
+- [ ] Unauthenticated requests to the shared portal are rejected while `/healthz` remains available to the approved health monitor.
 - [ ] SPA route fallback works on direct links and refresh.
-- [ ] CSP, frame-ancestors, referrer, content-type, permissions and opener headers are present.
-- [ ] Production mock password is supplied privately through deployment configuration.
-- [ ] No password, token, RTSP URL, camera credential, production IP or evidence file exists in the bundle.
+- [ ] CSP, frame-ancestors, referrer, content-type, permissions and opener headers are present on HTML and static responses.
+- [ ] Production mock workflow password is supplied through deployment configuration and is not reused from any real account.
+- [ ] No real password, deployment token, RTSP URL, camera credential, production IP, private key, database string, or evidence file exists in the bundle.
+- [ ] Reviewers understand that frontend mock credentials exercise UI roles only and are not a security boundary.
 - [ ] Service worker does not cache `/api`, evidence or authenticated media.
 - [ ] Browser storage contains only approved mock session/review data in mock mode.
 - [ ] Live mode does not persist access tokens in browser storage when secure-cookie authentication is used.
@@ -162,6 +165,9 @@ Record the approved matrix before release:
 - [ ] Provider and query-cache tests pass.
 - [ ] Production build passes.
 - [ ] Production bundle security scan passes.
+- [ ] Static deployment artifact is generated.
+- [ ] Deployment container builds successfully.
+- [ ] Container `/healthz`, SPA fallback, and security-header smoke tests pass.
 - [ ] Playwright supervisor workflow passes.
 - [ ] Automated accessibility checks pass.
 - [ ] CI run URL and artifacts are attached to the release record.
