@@ -49,6 +49,7 @@ This is the implementation backlog created from the awarded scope. Each child is
 ## M4 — Local MERN application, approved Azure management plane, and CI/CD
 
 - #5 — Epic: local MERN application and approved Azure management plane
+- #68 — Deliver the first backend/API vertical slice with persistent seeded demo data
 - #35 — Initialize application packages and shared contracts from the approved monorepo scaffold
 - #36 — Implement local MongoDB data model, indexes, migrations, and Azure-compatible persistence
 - #37 — Implement secure idempotent local event and health ingestion API
@@ -68,6 +69,11 @@ This is the implementation backlog created from the awarded scope. Each child is
 - #47 — Build event detail, evidence review, and supervisor feedback flow
 - #48 — Complete reports, resilience states, accessibility, tests, and demo deployment readiness
 - #61 — Provision isolated development portal hosting and demo configuration
+- #63 — Make the dashboard frontend production-ready before live API integration
+- #64 — Add production frontend architecture, routing, typed API client, and query caching
+- #65 — Implement server-compatible pagination, filtering, sorting, exports, and mutation UX
+- #66 — Complete frontend resilience, accessibility, responsive behavior, and performance hardening
+- #67 — Add frontend automated tests, security controls, CI gates, and release readiness
 
 ## M6 — MVP integration and release
 
@@ -94,7 +100,8 @@ This is the implementation backlog created from the awarded scope. Each child is
 #15/#19/#59 -> #27 -> #28 -> #29 -> #30 -> #31/#32 -> #33 -> #34
 #20 -> #21/#22/#23 -> #24/#25 -> #26
 #60 -> #35 -> #41/#44 -> #45/#46/#47 -> #48 -> #61
-#11/#35 -> #36 -> #37/#38/#39/#40 -> #42/#43
+#68 -> #35/#36/#41 -> #39/#40 -> frontend live-mode integration
+#68 accepted -> #37/#38 -> Python edge/evidence integration -> #42/#43
 #49 -> #50/#51 -> #52 -> #53 -> #54 -> #55/#56 -> #57
 ```
 
@@ -102,10 +109,22 @@ This is the implementation backlog created from the awarded scope. Each child is
 
 ### Client and architecture queue
 
-Start with #59, #14, #9, #11, #12, #13, #15, #16 and #17.
+Continue #59, #14, #9, #11, #12, #13, #15, #16 and #17 in parallel with work that does not depend on final SOP interpretation.
 
-### Pre-visit dashboard queue
+### Frontend release queue
 
-Run #60 first, then #35, #41/#44, #45/#46/#47, #48 and #61. This work may proceed with synthetic data and approved sample media without waiting for final camera, AI or SOP implementation, provided all unresolved fields are clearly marked as placeholders.
+Complete #61 and #67, then close #63 after the protected demo and objective validation gates pass.
 
-Do not begin final annotation definitions, compliance logic, camera approval, or acceptance commitments until the Bangladesh-reference mapping, PTC SOP, violation taxonomy, and PTC-specific UAT basis are sufficiently resolved.
+### Backend/API vertical-slice queue
+
+Use #68 as the controlling execution issue:
+
+1. #35 — initialize the Node.js/Express package, contracts and local startup;
+2. #36 — implement MongoDB schemas, indexes and deterministic seed/reset tooling;
+3. #41 — implement fixed-user server-side authentication and authorization;
+4. #39 — implement paginated event, detail, review and audit APIs;
+5. #40 — implement dashboard summary, cameras, health and filtered CSV export;
+6. switch the existing frontend to live mode and run end-to-end tests against the seeded API;
+7. after acceptance, proceed to #37 edge ingestion and #38 real evidence handling.
+
+This queue intentionally uses synthetic persisted data first. It does not wait for camera installation, PTC footage or final AI models, and it does not treat the synthetic outcomes as client acceptance evidence.
