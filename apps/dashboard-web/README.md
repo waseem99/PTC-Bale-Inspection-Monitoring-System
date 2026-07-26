@@ -34,6 +34,17 @@ pnpm --filter @ptc-bale/dashboard-web test:e2e
 
 Dashboard: `http://localhost:4173`
 
+## Container deployment
+
+Build from the repository root:
+
+```bash
+docker build --file apps/dashboard-web/Dockerfile --tag ptc-bale-dashboard:demo .
+docker run --detach --name ptc-bale-dashboard --publish 8080:8080 ptc-bale-dashboard:demo
+```
+
+The container serves the SPA on port `8080` and exposes `GET /healthz`. For a shared demo, place it behind an approved HTTPS ingress or reverse proxy and follow `docs/25-frontend-deployment-runbook.md`.
+
 ## Production controls
 
 - memory cache with stale times, request deduplication, abort and safe retries;
@@ -45,10 +56,10 @@ Dashboard: `http://localhost:4173`
 - live session restoration through `/auth/me` with secure-cookie compatibility;
 - no live access token persisted in browser storage by the cookie-backed provider;
 - no credentials, tokens, evidence or media cached by the service worker;
-- SPA fallback and security headers supplied for Azure Static Web Apps and compatible hosts;
+- SPA fallback and security headers supplied for static hosting and the included Nginx runtime;
 - source maps disabled and CI scans for obvious secrets;
 - direct RTSP URLs and camera credentials prohibited in browser code;
 - responsive, keyboard-operable and WCAG-oriented screen behavior;
-- unit, component, provider, route and Playwright workflow tests.
-
-The approved source logo asset must replace the screenshot-derived placeholder before final external client deployment.
+- unit, component, provider, route and Playwright workflow tests;
+- deployable static artifact and container smoke-test gates in CI;
+- scalable PTC brand asset and favicon derived from the supplied reference.
