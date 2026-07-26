@@ -8,12 +8,15 @@ services:
         VITE_ENVIRONMENT_NAME: Isolated Development Demo
         VITE_BUILD_VERSION: ${DASHBOARD_BUILD_VERSION:-local-demo}
         VITE_API_BASE_URL: /api
-        VITE_DEMO_PASSWORD: ${VITE_DEMO_PASSWORD:?Set VITE_DEMO_PASSWORD for a shared demo build}
+        VITE_DEMO_PASSWORD: ${VITE_DEMO_PASSWORD:?Set VITE_DEMO_PASSWORD for the frontend workflow}
         VITE_ALLOW_DEMO_CREDENTIALS: ${VITE_ALLOW_DEMO_CREDENTIALS:-false}
         VITE_MOCK_LATENCY_MS: ${VITE_MOCK_LATENCY_MS:-250}
         VITE_MOCK_FAILURE_RATE: '0'
     image: ptc-bale-dashboard:${DASHBOARD_BUILD_VERSION:-local-demo}
     restart: unless-stopped
+    environment:
+      DEMO_BASIC_AUTH_USER: ${DEMO_BASIC_AUTH_USER:?Set DEMO_BASIC_AUTH_USER for hosting-layer access control}
+      DEMO_BASIC_AUTH_PASSWORD: ${DEMO_BASIC_AUTH_PASSWORD:?Set DEMO_BASIC_AUTH_PASSWORD for hosting-layer access control}
     ports:
       - '${DASHBOARD_PORT:-8080}:8080'
     healthcheck:
