@@ -62,17 +62,17 @@ This is the implementation backlog created from the awarded scope. Each child is
 ## M5 — Dashboard and development demo
 
 - #6 — Epic: local supervisor dashboard and approved central access
-- #44 — Build React portal shell, fixed-user PoC authentication, and mock/live API adapter
-- #45 — Build operations overview, four-camera monitoring, and system-status views
-- #46 — Build inspection event list, violation filters, and demo data states
-- #47 — Build event detail, evidence review, and supervisor feedback flow
-- #48 — Complete reports, resilience states, accessibility, tests, and demo deployment readiness
-- #61 — Provision isolated development portal hosting and demo configuration
-- #63 — Epic: make the dashboard frontend production-ready before live API integration
-- #64 — Add production frontend architecture, routing, typed API client, and query caching
-- #65 — Implement server-compatible pagination, filtering, sorting, exports, and mutation UX
-- #66 — Complete frontend resilience, accessibility, responsive behavior, and performance hardening
-- #67 — Add frontend automated tests, security controls, CI gates, and release readiness
+- #44 — Build React portal shell, fixed-user PoC authentication, and mock/live API adapter — **implemented**
+- #45 — Build operations overview, four-camera monitoring, and system-status views — **implemented**
+- #46 — Build inspection event list, violation filters, and demo data states — **implemented**
+- #47 — Build event detail, evidence review, and supervisor feedback flow — **implemented**
+- #48 — Complete reports, resilience states, accessibility, tests, and demo deployment readiness — **implemented**
+- #61 — Provision isolated development portal hosting and demo configuration — **deployment package complete; protected HTTPS endpoint pending**
+- #63 — Production-ready frontend epic — **implementation complete; release gates pending**
+- #64 — Routing, typed API client, runtime contracts, and query caching — **implemented**
+- #65 — Server-compatible pagination, filtering, sorting, exports, and mutation UX — **implemented**
+- #66 — Resilience, accessibility, responsive behavior, and performance — **implemented**
+- #67 — Automated tests, security controls, CI gates, and release readiness — **workflow/code complete; execution evidence pending GitHub runner restoration**
 
 ## M6 — MVP integration and release
 
@@ -98,8 +98,7 @@ This is the implementation backlog created from the awarded scope. Each child is
 #59 -> #15 -> #16/#17 -> #18 -> #19
 #15/#19/#59 -> #27 -> #28 -> #29 -> #30 -> #31/#32 -> #33 -> #34
 #20 -> #21/#22/#23 -> #24/#25 -> #26
-#60 -> #35 -> #41/#44 -> #45/#46/#47 -> #48
-#44/#45/#46/#47/#48 -> #63 -> #64 -> #65 -> #66 -> #67 -> #61
+#60 -> #35 -> #41/#44 -> #45/#46/#47 -> #48 -> #61
 #11/#35 -> #36 -> #37/#38/#39/#40 -> #42/#43
 #49 -> #50/#51 -> #52 -> #53 -> #54 -> #55/#56 -> #57
 ```
@@ -110,8 +109,8 @@ This is the implementation backlog created from the awarded scope. Each child is
 
 Start with #59, #14, #9, #11, #12, #13, #15, #16 and #17.
 
-### Frontend delivery queue
+### Frontend release queue
 
-The production frontend implementation is tracked by #63–#67. The mock provider, routes, cache, pagination, review workflow, resilience controls, automated tests and deployment configuration are completed in PR #62. Browser/CI validation and PM/UAT review must pass before merging and deploying under #61.
+The complete frontend implementation is in PR #62. Finish #61 by provisioning the protected HTTPS demo endpoint. Finish #67 by restoring GitHub Actions execution or attaching an approved self-hosted runner, passing all quality/container/E2E gates, and completing the browser UAT checklist.
 
 Do not begin final annotation definitions, compliance logic, camera approval, or acceptance commitments until the Bangladesh-reference mapping, PTC SOP, violation taxonomy, and PTC-specific UAT basis are sufficiently resolved.
