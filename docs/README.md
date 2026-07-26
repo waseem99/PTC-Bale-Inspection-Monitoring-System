@@ -27,6 +27,7 @@
 - [Edge deployment](08-edge-deployment.md)
 - [Azure deployment](09-azure-deployment.md)
 - [Security and privacy](10-security-and-privacy.md)
+- [Frontend deployment and rollback runbook](25-frontend-deployment-runbook.md)
 
 ## Delivery and operation
 
