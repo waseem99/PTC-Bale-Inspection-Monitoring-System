@@ -1,15 +1,30 @@
 name: Frontend CI
+
 on:
+  workflow_dispatch:
   pull_request:
-    paths: ['apps/dashboard-web/**','package.json','pnpm-workspace.yaml','.github/workflows/frontend-ci.yml']
+    paths:
+      - 'apps/dashboard-web/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - '.dockerignore'
+      - '.github/workflows/frontend-ci.yml'
   push:
     branches: [main, project-foundation]
-    paths: ['apps/dashboard-web/**','package.json','pnpm-workspace.yaml','.github/workflows/frontend-ci.yml']
+    paths:
+      - 'apps/dashboard-web/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - '.dockerignore'
+      - '.github/workflows/frontend-ci.yml'
+
 permissions:
   contents: read
+
 concurrency:
   group: frontend-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -17,20 +32,66 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with: { version: 9.15.4 }
+        with:
+          version: 9.15.4
       - uses: actions/setup-node@v4
-        with: { node-version: 20.18.1 }
+        with:
+          node-version: 20.18.1
+          cache: pnpm
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm --filter @ptc-bale/dashboard-web lint
       - run: pnpm --filter @ptc-bale/dashboard-web typecheck
       - run: pnpm --filter @ptc-bale/dashboard-web test
-      - run: pnpm --filter @ptc-bale/dashboard-web build
+      - name: Build production mock portal
+        run: pnpm --filter @ptc-bale/dashboard-web build
+        env:
+          VITE_DATA_MODE: mock
+          VITE_ENVIRONMENT_NAME: Isolated Development Demo
+          VITE_BUILD_VERSION: ${{ github.sha }}
+          VITE_ALLOW_DEMO_CREDENTIALS: 'true'
+          VITE_MOCK_LATENCY_MS: '120'
       - name: Scan production bundle
         shell: bash
         run: |
           test -d apps/dashboard-web/dist
           ! find apps/dashboard-web/dist -name '*.map' | grep -q .
           ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|mongodb\+srv://|rtsp://[^ ]+:[^ ]+@)' apps/dashboard-web/dist
+      - name: Upload deployable static portal
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptc-dashboard-static-${{ github.sha }}
+          path: apps/dashboard-web/dist
+          if-no-files-found: error
+          retention-days: 14
+
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build deployment container
+        run: |
+          docker build \
+            --file apps/dashboard-web/Dockerfile \
+            --build-arg VITE_DATA_MODE=mock \
+            --build-arg 'VITE_ENVIRONMENT_NAME=Isolated Development Demo' \
+            --build-arg VITE_BUILD_VERSION=${{ github.sha }} \
+            --build-arg VITE_ALLOW_DEMO_CREDENTIALS=true \
+            --tag ptc-bale-dashboard:${{ github.sha }} \
+            .
+      - name: Smoke-test container health and SPA fallback
+        shell: bash
+        run: |
+          docker run --detach --rm --name ptc-dashboard-ci -p 18080:8080 ptc-bale-dashboard:${{ github.sha }}
+          trap 'docker stop ptc-dashboard-ci >/dev/null 2>&1 || true' EXIT
+          for attempt in {1..20}; do
+            curl --fail --silent http://127.0.0.1:18080/healthz && break
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:18080/overview | grep -qi '<div id="root"></div>'
+          curl --fail --silent --head http://127.0.0.1:18080/ | grep -qi 'content-security-policy'
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -38,9 +99,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with: { version: 9.15.4 }
+        with:
+          version: 9.15.4
       - uses: actions/setup-node@v4
-        with: { node-version: 20.18.1 }
+        with:
+          node-version: 20.18.1
+          cache: pnpm
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
         working-directory: apps/dashboard-web
@@ -52,4 +116,7 @@ jobs:
           VITE_MOCK_LATENCY_MS: '40'
       - if: always()
         uses: actions/upload-artifact@v4
-        with: { name: dashboard-playwright-report, path: apps/dashboard-web/playwright-report, retention-days: 14 }
+        with:
+          name: dashboard-playwright-report
+          path: apps/dashboard-web/playwright-report
+          retention-days: 14
