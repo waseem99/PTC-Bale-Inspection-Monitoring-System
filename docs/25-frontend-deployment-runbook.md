@@ -12,7 +12,7 @@ The frontend is built once with either the mock or live provider. Vite environme
 
 The `Frontend CI` workflow produces `ptc-dashboard-static-<commit>` after lint, type-check, unit tests, production build, and bundle scanning succeed. Deploy the artifact contents as the web root of an HTTPS static host that supports SPA fallback to `index.html`.
 
-The repository includes `apps/dashboard-web/staticwebapp.config.json` for Azure Static Web Apps and `public/_headers` for compatible static hosts.
+The repository includes `apps/dashboard-web/staticwebapp.config.json` for Azure Static Web Apps and `public/_headers` for compatible static hosts. Enable the hosting provider's authentication/access restriction before sharing a static deployment.
 
 ### Container
 
@@ -30,23 +30,27 @@ docker build \
   .
 ```
 
-Run locally or behind an HTTPS reverse proxy/load balancer:
+Run behind an HTTPS reverse proxy/load balancer. The container can also enforce runtime Basic Authentication:
 
 ```bash
 docker run --detach \
   --name ptc-bale-dashboard \
   --restart unless-stopped \
+  --env 'DEMO_BASIC_AUTH_USER=<reviewer-user>' \
+  --env 'DEMO_BASIC_AUTH_PASSWORD=<strong-hosting-password>' \
   --publish 8080:8080 \
   ptc-bale-dashboard:demo
 ```
 
-Health endpoint:
+Both Basic Authentication variables must be supplied together. When neither is supplied the container starts in local/open mode and writes a warning; do not expose that mode publicly.
+
+Health endpoint (not protected by Basic Authentication so an approved load balancer can monitor it):
 
 ```text
 GET /healthz
 ```
 
-The included Nginx configuration supplies SPA fallback, cache controls, compression, CSP, anti-framing, content-type, referrer, permissions, and cross-origin isolation headers.
+The included Nginx configuration supplies SPA fallback, cache controls, compression, CSP, anti-framing, content-type, referrer, permissions, cross-origin headers, and optional hosting-layer Basic Authentication.
 
 ### Docker Compose
 
@@ -54,14 +58,18 @@ From `apps/dashboard-web/deploy`:
 
 ```bash
 VITE_DEMO_PASSWORD='<demo-only-password>' \
+DEMO_BASIC_AUTH_USER='<reviewer-user>' \
+DEMO_BASIC_AUTH_PASSWORD='<strong-hosting-password>' \
 DASHBOARD_BUILD_VERSION=$(git rev-parse --short HEAD) \
 DASHBOARD_PORT=8080 \
 docker compose --file docker-compose.demo.yml up --build --detach
 ```
 
+The shared-demo Compose profile refuses to start unless both frontend-demo and hosting-layer access credentials are supplied.
+
 ## Demo configuration
 
-Recommended isolated demo values:
+Recommended isolated demo build values:
 
 ```text
 VITE_DATA_MODE=mock
@@ -76,7 +84,7 @@ VITE_MOCK_FAILURE_RATE=0
 
 Demo users are `viewer`, `supervisor`, and `admin`. A production-mode mock build rejects login when neither `VITE_DEMO_PASSWORD` nor the explicit CI/demo-credential flag is configured.
 
-`VITE_DEMO_PASSWORD` is compiled into the browser bundle and is therefore not a security boundary. It exists only to exercise the complete frontend sign-in and role workflow before the real authentication API is connected. Protect every shared demo with hosting-platform authentication, an access-controlled VPN, or an authenticated reverse proxy. Do not commit deployment tokens, hostname credentials, reverse-proxy secrets, or any real PTC password.
+`VITE_DEMO_PASSWORD` is compiled into the browser bundle and is therefore not a security boundary. It exists only to exercise the complete frontend sign-in and role workflow before the real authentication API is connected. Protect every shared demo with hosting-platform authentication, an access-controlled VPN, or the container's runtime Basic Authentication. Do not commit deployment tokens, hostname credentials, reverse-proxy secrets, or any real PTC password.
 
 ## HTTPS and network boundary
 
@@ -91,8 +99,8 @@ Demo users are `viewer`, `supervisor`, and `admin`. A production-mode mock build
 Before sharing the URL:
 
 1. Confirm `/healthz` returns HTTP 200.
-2. Confirm the hosting-layer access restriction is enabled.
-3. Open `/login`, sign in with each intended role, and confirm permissions.
+2. Confirm unauthenticated requests to the portal receive HTTP 401 from the hosting layer.
+3. Open `/login`, sign in with each intended application role, and confirm permissions.
 4. Directly open `/overview`, `/live`, `/events`, an event-detail URL, `/health`, and `/reports` after authentication.
 5. Refresh each route and confirm the SPA fallback works.
 6. Confirm the environment label says `Isolated Development Demo` and the data state says mock/synthetic.
@@ -103,16 +111,22 @@ Before sharing the URL:
 
 ### Static host
 
-Retain the previous successful artifact. Roll back by redeploying that artifact and verify the hosting health check, login, overview, and one event-detail route.
+Retain the previous successful artifact. Roll back by redeploying that artifact and verify the hosting health check, access restriction, login, overview, and one event-detail route.
 
 ### Container host
 
-Tag every approved image with an immutable commit or release value. Roll back by replacing the running image tag:
+Tag every approved image with an immutable commit or release value. Roll back by replacing the running image tag while preserving the runtime Basic Authentication variables:
 
 ```bash
 docker pull <registry>/ptc-bale-dashboard:<previous-version>
 docker rm --force ptc-bale-dashboard
-docker run --detach --name ptc-bale-dashboard --restart unless-stopped --publish 8080:8080 <registry>/ptc-bale-dashboard:<previous-version>
+docker run --detach \
+  --name ptc-bale-dashboard \
+  --restart unless-stopped \
+  --env 'DEMO_BASIC_AUTH_USER=<reviewer-user>' \
+  --env 'DEMO_BASIC_AUTH_PASSWORD=<strong-hosting-password>' \
+  --publish 8080:8080 \
+  <registry>/ptc-bale-dashboard:<previous-version>
 ```
 
 ## Live API cutover
