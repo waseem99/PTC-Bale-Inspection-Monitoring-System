@@ -21,6 +21,7 @@
 - [Development foundation and dashboard plan](21-development-foundation-and-dashboard-plan.md)
 - [Frontend production readiness](22-frontend-production-readiness.md)
 - [Frontend/live API contract](23-frontend-api-contract.md)
+- [Backend API and persistent seeded data plan](27-backend-api-and-seeded-data-plan.md)
 
 ## Deployment and security
 
