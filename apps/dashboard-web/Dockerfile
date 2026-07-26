@@ -37,12 +37,16 @@ FROM nginx:1.27.3-alpine AS runtime
 LABEL org.opencontainers.image.title="PTC Bale Inspection Dashboard" \
       org.opencontainers.image.description="Isolated frontend runtime for the PTC Bale Inspection Monitoring PoC"
 
-RUN rm -f /etc/nginx/conf.d/default.conf
+RUN apk add --no-cache apache2-utils \
+  && rm -f /etc/nginx/conf.d/default.conf \
+  && mkdir -p /etc/nginx/snippets
+
 COPY apps/dashboard-web/deploy/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/dashboard-web/deploy/docker-entrypoint.sh /usr/local/bin/dashboard-entrypoint.sh
 COPY --from=build /workspace/apps/dashboard-web/dist /usr/share/nginx/html
 
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["sh", "/usr/local/bin/dashboard-entrypoint.sh"]
