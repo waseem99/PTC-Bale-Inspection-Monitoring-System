@@ -36,6 +36,7 @@
 - [Operations runbook](13-operations-runbook.md)
 - [GitHub workflow and issue planning](16-github-workflow.md)
 - [Frontend UAT and release checklist](24-frontend-uat-checklist.md)
+- [Frontend self-hosted validation fallback](26-frontend-self-hosted-validation.md)
 
 ## Documentation rules
 
