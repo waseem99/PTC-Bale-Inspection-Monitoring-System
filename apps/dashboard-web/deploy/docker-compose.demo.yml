@@ -1,0 +1,25 @@
+services:
+  dashboard:
+    build:
+      context: ../../..
+      dockerfile: apps/dashboard-web/Dockerfile
+      args:
+        VITE_DATA_MODE: mock
+        VITE_ENVIRONMENT_NAME: Isolated Development Demo
+        VITE_BUILD_VERSION: ${DASHBOARD_BUILD_VERSION:-local-demo}
+        VITE_API_BASE_URL: /api
+        VITE_ALLOW_DEMO_CREDENTIALS: ${VITE_ALLOW_DEMO_CREDENTIALS:-false}
+        VITE_MOCK_LATENCY_MS: ${VITE_MOCK_LATENCY_MS:-250}
+        VITE_MOCK_FAILURE_RATE: '0'
+    image: ptc-bale-dashboard:${DASHBOARD_BUILD_VERSION:-local-demo}
+    restart: unless-stopped
+    ports:
+      - '${DASHBOARD_PORT:-8080}:8080'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8080/healthz']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
