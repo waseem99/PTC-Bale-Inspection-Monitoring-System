@@ -19,6 +19,7 @@
 - [Data and event model](06-data-and-event-model.md)
 - [AI development and evaluation](07-ai-development-plan.md)
 - [Development foundation and dashboard plan](21-development-foundation-and-dashboard-plan.md)
+- [Backend API and persistent seeded data plan](27-backend-api-and-seeded-data-plan.md)
 
 ## Deployment and security
 
