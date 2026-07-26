@@ -24,6 +24,7 @@ docker build \
   --build-arg VITE_DATA_MODE=mock \
   --build-arg 'VITE_ENVIRONMENT_NAME=Isolated Development Demo' \
   --build-arg VITE_BUILD_VERSION=$(git rev-parse --short HEAD) \
+  --build-arg 'VITE_DEMO_PASSWORD=<demo-only-password>' \
   --build-arg VITE_ALLOW_DEMO_CREDENTIALS=false \
   --tag ptc-bale-dashboard:demo \
   .
@@ -52,6 +53,7 @@ The included Nginx configuration supplies SPA fallback, cache controls, compress
 From `apps/dashboard-web/deploy`:
 
 ```bash
+VITE_DEMO_PASSWORD='<demo-only-password>' \
 DASHBOARD_BUILD_VERSION=$(git rev-parse --short HEAD) \
 DASHBOARD_PORT=8080 \
 docker compose --file docker-compose.demo.yml up --build --detach
@@ -66,18 +68,21 @@ VITE_DATA_MODE=mock
 VITE_ENVIRONMENT_NAME=Isolated Development Demo
 VITE_BUILD_VERSION=<release-or-commit>
 VITE_API_BASE_URL=/api
+VITE_DEMO_PASSWORD=<demo-only-password>
 VITE_ALLOW_DEMO_CREDENTIALS=false
 VITE_MOCK_LATENCY_MS=250
 VITE_MOCK_FAILURE_RATE=0
 ```
 
-Demo users are `viewer`, `supervisor`, and `admin`. Set `VITE_DEMO_PASSWORD` during the build when a non-default demonstration password is required. Do not commit the selected password, deployment token, hostname credentials, or reverse-proxy secrets.
+Demo users are `viewer`, `supervisor`, and `admin`. A production-mode mock build rejects login when neither `VITE_DEMO_PASSWORD` nor the explicit CI/demo-credential flag is configured.
+
+`VITE_DEMO_PASSWORD` is compiled into the browser bundle and is therefore not a security boundary. It exists only to exercise the complete frontend sign-in and role workflow before the real authentication API is connected. Protect every shared demo with hosting-platform authentication, an access-controlled VPN, or an authenticated reverse proxy. Do not commit deployment tokens, hostname credentials, reverse-proxy secrets, or any real PTC password.
 
 ## HTTPS and network boundary
 
 - Terminate TLS at the approved static host, ingress, application gateway, or reverse proxy.
-- Do not expose the container directly to the internet without HTTPS and access controls.
-- Restrict the demo hostname to the agreed client/reviewer audience where the hosting platform supports it.
+- Do not expose the container directly to the internet without HTTPS and hosting-layer access controls.
+- Restrict the demo hostname to the agreed client/reviewer audience.
 - Keep the environment physically and logically separate from PTC cameras, edge hosts, databases, and evidence storage.
 - Do not add camera usernames/passwords or direct RTSP URLs to frontend configuration.
 
@@ -86,18 +91,19 @@ Demo users are `viewer`, `supervisor`, and `admin`. Set `VITE_DEMO_PASSWORD` dur
 Before sharing the URL:
 
 1. Confirm `/healthz` returns HTTP 200.
-2. Open `/login`, sign in with each intended role, and confirm permissions.
-3. Directly open `/overview`, `/live`, `/events`, an event-detail URL, `/health`, and `/reports` after authentication.
-4. Refresh each route and confirm the SPA fallback works.
-5. Confirm the environment label says `Isolated Development Demo` and the data state says mock/synthetic.
-6. Confirm no PTC operational footage, live event records, credentials, production IPs, or restricted documents are present.
-7. Run the checklist in `docs/24-frontend-uat-checklist.md` and attach the CI/build evidence to issue #67.
+2. Confirm the hosting-layer access restriction is enabled.
+3. Open `/login`, sign in with each intended role, and confirm permissions.
+4. Directly open `/overview`, `/live`, `/events`, an event-detail URL, `/health`, and `/reports` after authentication.
+5. Refresh each route and confirm the SPA fallback works.
+6. Confirm the environment label says `Isolated Development Demo` and the data state says mock/synthetic.
+7. Confirm no PTC operational footage, live event records, credentials, production IPs, or restricted documents are present.
+8. Run the checklist in `docs/24-frontend-uat-checklist.md` and attach the CI/build evidence to issue #67.
 
 ## Rollback
 
 ### Static host
 
-Retain the previous successful artifact. Roll back by redeploying that artifact and verify `/healthz` or the hosting health check, login, overview, and one event-detail route.
+Retain the previous successful artifact. Roll back by redeploying that artifact and verify the hosting health check, login, overview, and one event-detail route.
 
 ### Container host
 
