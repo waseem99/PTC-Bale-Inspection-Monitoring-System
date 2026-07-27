@@ -12,10 +12,21 @@ import {
 import { hashPassword } from './security';
 import { DATASET, seedCameras, seedEvents, seedHealth } from './seed-data';
 
-export async function resetSyntheticData(): Promise<void> {
+const SYNTHETIC_USER_IDS = ['usr-viewer', 'usr-supervisor', 'usr-admin'];
+
+export async function resetSyntheticData(config: AppConfig): Promise<void> {
+  if (config.nodeEnv === 'production') {
+    throw new Error('Synthetic reset is disabled when NODE_ENV=production.');
+  }
+  const eventIds = await InspectionEventModel.distinct('_id', { dataset: DATASET });
   await Promise.all([
-    SessionModel.deleteMany({}),
-    AuditModel.deleteMany({}),
+    SessionModel.deleteMany({ userId: { $in: SYNTHETIC_USER_IDS } }),
+    AuditModel.deleteMany({
+      $or: [
+        { actorId: { $in: SYNTHETIC_USER_IDS } },
+        { targetId: { $in: eventIds } },
+      ],
+    }),
     EvidenceModel.deleteMany({ dataset: DATASET }),
     InspectionEventModel.deleteMany({ dataset: DATASET }),
     HealthMetricModel.deleteMany({ dataset: DATASET }),
@@ -36,7 +47,7 @@ export async function seedSyntheticData(
   config: AppConfig,
   reset = false,
 ): Promise<{ users: number; cameras: number; health: number; events: number }> {
-  if (reset) await resetSyntheticData();
+  if (reset) await resetSyntheticData(config);
   await ensureIndexes();
   const passwords = requirePasswords(config);
   const userDefinitions = [
