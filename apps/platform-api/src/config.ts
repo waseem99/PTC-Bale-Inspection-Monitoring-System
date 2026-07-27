@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const booleanFromString = z.string().optional().transform((value) => value === 'true');
+const booleanFromString = z.enum(['true', 'false']).optional().transform((value) => value === 'true');
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
