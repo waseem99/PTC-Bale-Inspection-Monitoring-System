@@ -2,9 +2,7 @@
 
 ## Purpose
 
-This record separates implemented PostgreSQL/Prisma work from validation evidence that still requires an executable Linux environment with Node.js, pnpm, Docker, PostgreSQL and browser-test support.
-
-It prevents implementation review, runner availability and final release approval from being treated as the same activity.
+This record separates implemented PostgreSQL/Prisma work from objective release evidence and the remaining approval or recovery checks.
 
 ## Authoritative pull request
 
@@ -45,74 +43,97 @@ Repository cleanup completed in the active implementation includes:
 - removal of active Cosmos DB for MongoDB planning;
 - PostgreSQL/Prisma wording in the pull-request template and delivery issues;
 - closure of superseded pull requests;
+- removal of embedded PostgreSQL fallback credentials from source;
+- production test files excluded from the API build output;
 - removal of an accidental placeholder file.
 
 Historical decision records and acceptance checks may still name MongoDB/Mongoose only to state that the old direction was superseded or to verify that it is absent. Such references are not active implementation dependencies.
 
-## GitHub-hosted validation result
+## Restored GitHub-hosted validation
 
-The earlier backend run `30254000176` was retried and again failed before any step.
+GitHub-hosted execution is operational again.
 
-After workflow and repository cleanup, fresh runs were triggered from the current PR branch:
+### Frontend evidence
 
-- Backend CI run `30258171753`;
-- Frontend CI run `30258171756`.
+Frontend CI run `30289726687` completed successfully on commit `fd7b308f163d0c9892a21454bcb5cc30daad114f`.
 
-For both workflows, GitHub created the first `quality` job and failed it before checkout or any workflow step. Each job returned no step list and no downloadable logs. All dependent container and browser jobs were skipped.
+The successful workflow covered:
 
-Because no action, command, dependency installation, migration or test started, these results do not demonstrate an application, PostgreSQL, Prisma, frontend or workflow-code failure. They are treated as an external GitHub-hosted runner/account provisioning blocker until hosted execution is restored.
+- dependency installation;
+- ESLint;
+- strict TypeScript;
+- Vitest unit/component tests;
+- production mock build;
+- production bundle scan;
+- Nginx container build and health/SPA smoke test;
+- Playwright navigation, filtering, pagination, review persistence and accessibility checks.
 
-## Lockfile completion path
+### Backend and live-stack evidence
 
-The backend hosted and self-hosted workflows now:
+Backend CI run `30289726686` completed successfully on commit `fd7b308f163d0c9892a21454bcb5cc30daad114f`.
 
-- use `pnpm install --frozen-lockfile` automatically when `pnpm-lock.yaml` is present;
-- bootstrap with `--no-frozen-lockfile` only while the reviewed lockfile is absent;
-- require the generated lockfile to be non-empty;
-- upload `pnpm-lock.yaml` as a workflow artifact before database and test execution;
-- preserve the lockfile in the self-hosted validation artifact.
+The successful workflow covered:
 
-Once either runner executes, download the generated lockfile artifact, review it, commit it to the PR branch and rerun. Subsequent runs will enforce frozen installation.
+- dependency installation;
+- Prisma Client generation;
+- `prisma migrate deploy` against PostgreSQL 17;
+- ESLint;
+- strict TypeScript;
+- Jest/Supertest/PostgreSQL integration tests;
+- production build;
+- deterministic seed reset and status;
+- production-output secret scan;
+- API build-stage and runtime container construction;
+- runtime Prisma Client availability;
+- API readiness and health checks;
+- complete dashboard/API/PostgreSQL Docker Compose startup;
+- same-origin readiness;
+- Playwright execution against the real seeded PostgreSQL API.
 
-## Approved validation path
+## Committed lockfile
 
-Use one of these execution paths:
+The lockfile bootstrap workflow completed successfully and committed `pnpm-lock.yaml` to the PR branch.
 
-1. restore GitHub-hosted Actions execution; or
-2. attach an approved ephemeral Linux x64 self-hosted runner with the label `ptc-api`, then run **Backend CI Self Hosted**.
+The committed lockfile:
 
-The validation host requires:
+- uses lockfile format 9.0;
+- contains the dashboard and platform API dependency graph;
+- was checked for credential-like registry or authentication values before commit;
+- is now used by hosted workflows through `pnpm install --frozen-lockfile`.
 
-- Node.js 22.16.0 or the reviewed compatible version;
-- Corepack and pnpm 9.15.4;
-- Docker Engine and Docker Compose;
-- enough disk for PostgreSQL, browser and container artifacts;
-- outbound access required to install the reviewed dependencies and browser runtime;
-- no production credentials or client data.
+A new user-authored documentation commit was made after the bot-generated lockfile commit so the normal frontend and backend workflows execute again against the committed lockfile.
 
 ## Required execution evidence
 
-The PR remains draft until all applicable evidence is attached:
+Completed:
 
-- reviewed `pnpm-lock.yaml` committed;
-- clean `pnpm install --frozen-lockfile`;
-- Prisma Client generation;
-- `prisma migrate deploy` against a clean PostgreSQL database;
-- ESLint and strict TypeScript pass;
-- Jest/Supertest/PostgreSQL integration tests pass;
-- deterministic seed status reports 3 users, 4 cameras, 6 health metrics and 257 events;
-- production API build and container readiness pass;
-- React live mode works against the seeded PostgreSQL API;
-- Playwright login, navigation, filters, pagination, review persistence, conflict and accessibility checks pass;
-- API and PostgreSQL restart preserve committed events, reviews and audits;
-- normal seeding preserves human review state and event version;
-- stale review returns HTTP 409 without overwriting current data;
-- viewer, supervisor and administrator permissions are enforced server-side;
-- filtered CSV reconciles with PostgreSQL records;
-- controlled `pg_dump` and `pg_restore` restoration reconciles representative records;
-- static repository scan confirms no active MongoDB/Mongoose runtime, dependency, environment key, service or data volume;
-- no restricted client data, database dump, evidence file or production secret is present;
-- technical and Project Manager review are recorded.
+- [x] reviewed `pnpm-lock.yaml` committed;
+- [x] Prisma Client generation;
+- [x] `prisma migrate deploy` against a clean PostgreSQL database;
+- [x] frontend and backend ESLint;
+- [x] frontend and backend strict TypeScript;
+- [x] frontend Vitest tests;
+- [x] Jest/Supertest/PostgreSQL integration tests;
+- [x] deterministic seed reset/status execution;
+- [x] production frontend build and bundle scan;
+- [x] production frontend container health and SPA fallback;
+- [x] production API build and secret scan;
+- [x] production API image build and readiness;
+- [x] dashboard/API/PostgreSQL live-stack startup;
+- [x] Playwright against mock mode and the real seeded PostgreSQL API;
+- [x] server-side review, role and version-conflict behavior covered by integration tests;
+- [x] no active MongoDB/Mongoose runtime, dependency, environment key, service or data volume.
+
+Still required before final field-release approval:
+
+- [ ] frozen-install reruns complete successfully on the latest lockfile-containing commit;
+- [ ] API and PostgreSQL restart preserve representative committed reviews and audits in an explicit recovery test;
+- [ ] normal seed preserves human review state and event version in an explicit recovery test;
+- [ ] filtered CSV is reconciled against representative PostgreSQL records in the release record;
+- [ ] controlled `pg_dump` and `pg_restore` restoration reconciles representative records;
+- [ ] no restricted client data, database dump, evidence file or production secret is present;
+- [ ] technical review is recorded;
+- [ ] Project Manager review is recorded.
 
 ## Validation command sequence
 
@@ -121,8 +142,6 @@ From a clean checkout of the PR branch:
 ```bash
 corepack enable
 corepack prepare pnpm@9.15.4 --activate
-pnpm install --no-frozen-lockfile
-# Review and commit pnpm-lock.yaml before the release run.
 pnpm install --frozen-lockfile
 
 pnpm --filter @ptc-bale/platform-api db:generate
@@ -135,10 +154,10 @@ pnpm --filter @ptc-bale/platform-api seed:reset
 pnpm --filter @ptc-bale/platform-api seed:status
 ```
 
-Then execute the production-container, live Playwright, restart-persistence and backup/restore sections in `docs/28-backend-validation-and-local-runbook.md`.
+Then execute the restart-persistence and backup/restore sections in `docs/28-backend-validation-and-local-runbook.md`.
 
 ## Release rule
 
-Do not mark PR #69 ready, merge it, close issue #68 or tag a release solely because the implementation and documentation exist.
+Do not mark PR #69 ready, merge it, close issue #68 or tag a field release solely because the feature implementation exists.
 
-The release gate opens only after objective execution evidence is available or a named approver formally accepts a documented deviation. The absence of a runnable CI host is not an acceptable basis for recording tests as passed.
+The next release gates are the frozen-lockfile rerun, explicit restart/backup/restore evidence, restricted-data confirmation and recorded technical/Project Manager approval.
