@@ -14,9 +14,11 @@ Deliver a fixed-scope AI-assisted Proof of Concept that observes the approved PT
 - **Hypercare and improvements:** 5 weeks following PoC acceptance
 - **Core runtime:** local/offline at the PTC site
 - **Optional management plane:** client-approved Microsoft Azure components
-- **Application stack:** MERN for the local/approved cloud application and Python for edge/AI
+- **Application stack:** React/TypeScript dashboard, Node.js/Express API, local PostgreSQL/Prisma persistence, and Python edge/AI services
 - **Source control and delivery management:** private GitHub repository
 - **Primary client technology alignment:** Windows, Microsoft Azure, and Microsoft Entra ID where approved
+
+PostgreSQL runs locally on the supplied workstation and does not require a paid external database service. Azure Database for PostgreSQL remains an optional future managed path only where PTC approves it.
 
 ## Reference implementation context
 
@@ -33,7 +35,7 @@ The reference analysis and PTC mapping are maintained in `docs/20-bangladesh-ref
 5. Completed, missed, incomplete, unresolved, and operational-health outcomes are separated correctly.
 6. Events include camera/zone, timestamp, reason, configuration versions, snapshot, and short evidence clip.
 7. Supervisors can use the local intranet dashboard to view live feeds, review events, filter records, mark review status, add remarks, and export basic reports.
-8. Core AI, local event storage, local evidence, and local dashboard operation continue during internet or Azure outages.
+8. Core AI, local PostgreSQL event storage, local evidence, and local dashboard operation continue during internet or Azure outages.
 9. Approved event data synchronizes to Azure only where the client-approved topology requires it.
 10. The PoC is tested against a locked PTC-specific scenario set and handed over with documentation and training.
 
@@ -49,7 +51,7 @@ Success is measured against the awarded BOQ, the approved technical proposal, th
 - solution architecture and implementation;
 - camera and edge software integration;
 - PTC data preparation, model training, and evaluation;
-- local dashboard and API development;
+- local dashboard, API and PostgreSQL development;
 - approved Azure deployment/synchronization automation;
 - testing, calibration, documentation, and training;
 - hypercare and agreed improvement cycles.
@@ -75,4 +77,5 @@ Success is measured against the awarded BOQ, the approved technical proposal, th
 - PTC site footage is required for final training, calibration, and acceptance.
 - Site footage, evidence, reference media, and model artifacts are handled as restricted data outside GitHub.
 - The local PoC must remain functional without internet access.
+- Database migrations, backups and restores are controlled and documented.
 - Any requirement outside the approved scope enters documented change control.
