@@ -7,14 +7,13 @@ COPY apps/platform-api/package.json apps/platform-api/package.json
 RUN pnpm install --filter @ptc-bale/platform-api... --no-frozen-lockfile
 COPY apps/platform-api apps/platform-api
 RUN pnpm --filter @ptc-bale/platform-api build
-RUN pnpm --filter @ptc-bale/platform-api deploy --prod /runtime
+RUN pnpm --filter @ptc-bale/platform-api --prod deploy --legacy /runtime
 
 FROM node:22.16.0-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 RUN addgroup -S app && adduser -S -G app app
 COPY --from=build --chown=app:app /runtime ./
-COPY --from=build --chown=app:app /workspace/apps/platform-api/dist ./dist
 USER app
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
