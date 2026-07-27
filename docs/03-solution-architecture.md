@@ -6,7 +6,7 @@ The PoC is **local-first and Azure-aligned**.
 
 The awarded BOQ requires offline AI inference, local event/database storage, and a local intranet dashboard. Therefore the complete core inspection workflow must operate at the client site without internet access. Microsoft Azure may host approved management-plane services, remote access, identity, monitoring, or synchronized evidence, but those services must not become a hidden dependency for core PoC operation.
 
-The application layer uses the team's preferred **MERN + Python** stack and is packaged so the Node.js API, MongoDB-compatible metadata store, and React dashboard can run locally. The same application components can also be deployed to the client-approved Azure environment when issue #11 confirms the final boundary.
+The application layer uses React/TypeScript, Node.js/Express, PostgreSQL/Prisma and Python. The Node.js API, PostgreSQL database, React dashboard and Python services can all run locally on the supplied workstation. The same API and dashboard can later use an approved Azure Database for PostgreSQL instance where issue #11 confirms a managed central deployment.
 
 ## Required local PoC architecture
 
@@ -26,7 +26,7 @@ flowchart LR
         EVIDENCE[Evidence Builder]
         SPOOL[Durable Local Event Spool]
         API[Node.js / Express API]
-        DB[Local MongoDB-compatible Metadata Store]
+        DB[Local PostgreSQL Database]
         FILES[Local Evidence Storage]
         WEB[React Local Intranet Dashboard]
         LIVE[Protected Live-view Gateway]
@@ -51,7 +51,7 @@ flowchart LR
     WEB --> LIVE
 ```
 
-This local topology is the minimum operational baseline for the PoC.
+This local topology is the minimum operational baseline for the PoC. PostgreSQL is self-hosted on the workstation through the approved local container/service configuration and does not require a paid external database.
 
 ## Optional approved Azure management plane
 
@@ -63,7 +63,7 @@ flowchart LR
 
     subgraph AZURE[Client-approved Azure Environment]
         CLOUDAPI[Node.js / Express API]
-        MONGO[Azure Cosmos DB for MongoDB or Approved MongoDB]
+        PG[Azure Database for PostgreSQL]
         BLOB[Private Blob Evidence Storage]
         CLOUDWEB[React Dashboard]
         ENTRA[Microsoft Entra ID]
@@ -72,7 +72,7 @@ flowchart LR
     end
 
     LOCAL -->|Outbound-only secure synchronization| CLOUDAPI
-    CLOUDAPI --> MONGO
+    CLOUDAPI --> PG
     CLOUDAPI --> BLOB
     CLOUDAPI --> RT
     CLOUDWEB --> CLOUDAPI
@@ -94,18 +94,20 @@ The exact Azure resources, data synchronization policy, identity flow, and dashb
 - completed, missed, incomplete, unresolved, and health outcomes;
 - pre-event and post-event frame buffering;
 - snapshot and short clip creation;
-- local event metadata and evidence storage;
+- local PostgreSQL event, review, health and audit records;
+- protected local evidence files;
 - local browser dashboard and review workflow;
 - durable persistence during internet or Azure outage;
 - optional secure synchronization and duplicate prevention;
 - protected browser-compatible live-view delivery;
-- service watchdog and operational logs.
+- service watchdog and operational logs;
+- database migrations, backups and restores.
 
 ## Approved Azure responsibilities, where enabled
 
 - Microsoft Entra ID authentication for remote/central users;
 - synchronized event and health ingestion;
-- MongoDB-compatible event metadata, review, audit, and health records;
+- PostgreSQL event, review, audit, configuration, and health records;
 - private snapshot and short-clip storage in Azure Blob Storage;
 - remote event search, filters, review status, and remarks;
 - on-demand CSV/PDF export;
@@ -122,9 +124,22 @@ The exact Azure resources, data synchronization policy, identity flow, and dashb
 5. Zone logic and the SOP state machine evaluate the approved opening/frisking sequence.
 6. A completed, missed, incomplete, or unresolved event is created with a reason code and confidence metadata.
 7. The rolling buffer produces a snapshot and short evidence clip.
-8. The event is persisted locally through the Node.js API and local data/evidence stores.
+8. The event is persisted locally through the Node.js API into PostgreSQL, while evidence is stored in the protected local evidence area.
 9. The local React dashboard displays the event and supports review without internet access.
 10. Where Azure synchronization is approved, the durable sync process submits metadata and approved evidence using stable IDs and checksums.
+
+## PostgreSQL data principles
+
+- normalized relational tables are used for users, sessions, cameras, events, ordered SOP steps, evidence metadata, health and audit logs;
+- foreign keys protect relationships;
+- transactions keep review mutation and audit creation atomic;
+- event version numbers implement optimistic concurrency;
+- compound indexes support time, camera, outcome and review filters;
+- UTC timestamps are stored in PostgreSQL;
+- `JSONB` is used only for approved flexible AI/configuration payloads that do not justify a dedicated relational structure;
+- Prisma migrations are reviewed and committed;
+- production/shared environments use `prisma migrate deploy`;
+- local backup and restore use `pg_dump` and `pg_restore`.
 
 ## Reference-project boundary
 
@@ -149,7 +164,7 @@ See `docs/20-bangladesh-reference-poc-analysis.md`.
 
 ### Internet or Azure unavailable
 
-- continue camera processing, local event creation, evidence, and local dashboard access;
+- continue camera processing, local event creation, PostgreSQL persistence, evidence, and local dashboard access;
 - retain unsynchronized records in the durable local queue;
 - synchronize after connectivity returns;
 - use deterministic event IDs and checksums to prevent duplicates.
@@ -161,6 +176,15 @@ See `docs/20-bangladesh-reference-poc-analysis.md`.
 - restore local dashboard/API service;
 - replay pending records idempotently.
 
+### PostgreSQL unavailable
+
+- API readiness returns unavailable;
+- Python edge services retain pending events in the durable local spool;
+- restart PostgreSQL through the approved service/container manager;
+- verify volume integrity and available disk space;
+- restore from the latest approved backup if recovery is required;
+- replay pending events only after database readiness is restored.
+
 ### Edge service failure
 
 - run Python and Node components as managed Windows services or through an approved container runtime;
@@ -169,7 +193,7 @@ See `docs/20-bangladesh-reference-poc-analysis.md`.
 
 ## Deployment environments
 
-- **Local development:** simulated streams and non-sensitive sample events.
+- **Local development:** simulated streams and non-sensitive sample events using a dedicated PostgreSQL database.
 - **Integration:** controlled test cameras or approved recorded footage.
 - **Site UAT:** full local PoC stack on the approved workstation and four cameras.
 - **Azure non-production:** only after client approval, for synchronized application integration/UAT.
@@ -178,11 +202,11 @@ See `docs/20-bangladesh-reference-poc-analysis.md`.
 ## Architecture constraints
 
 - core PoC operation and local review cannot depend on internet availability;
-- no credentials or camera URLs in source control;
+- no credentials, database URLs or camera URLs in source control;
 - no continuous raw-video upload by default;
 - no permanent bale identity without an external identifier;
 - no face recognition or worker identification;
 - no direct browser access to camera RTSP credentials;
 - no scanner, RFID, custom IoT, or PLC integration without change approval;
-- final Azure networking, MongoDB service selection, and identity design depend on client approval;
+- final Azure networking, managed PostgreSQL selection, and identity design depend on client approval;
 - final camera fields of view depend on the PTC site survey, not the Bangladesh reference alone.
