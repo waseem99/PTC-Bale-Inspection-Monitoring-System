@@ -67,6 +67,7 @@ jobs:
           docker run --detach --name ptc-api-ci-app --network ptc-api-ci-network --publish 127.0.0.1:4001:4000 \
             --env NODE_ENV=production \
             --env MONGODB_URI=mongodb://ptc-api-ci-mongo:27017/ptc_container_smoke \
+            --env COOKIE_SECURE=false \
             --env ALLOWED_ORIGINS=http://localhost \
             ptc-platform-api:self-hosted
           for attempt in {1..30}; do
