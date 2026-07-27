@@ -3,16 +3,18 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import { createApp } from '../app';
 import { loadConfig } from '../config';
+import { AuditModel } from '../models';
 import { seedSyntheticData } from '../seed-service';
 
-let mongo: MongoMemoryServer;
+let mongo: MongoMemoryServer | undefined;
 const password = 'A-Strong-Test-Password-2026!';
+const externalMongoUri = process.env.MONGODB_URI;
 const config = loadConfig({
   ...process.env,
   NODE_ENV: 'test',
   COOKIE_SECURE: 'false',
   SEED_DEMO_PASSWORD: password,
-  MONGODB_URI: 'mongodb://placeholder/test',
+  MONGODB_URI: externalMongoUri ?? 'mongodb://placeholder/test',
   ALLOWED_ORIGINS: 'http://localhost',
 });
 const app = createApp(config);
@@ -28,14 +30,20 @@ async function login(username: string) {
 }
 
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
-  await mongoose.connect(mongo.getUri('ptc_test'));
+  if (externalMongoUri) {
+    await mongoose.connect(externalMongoUri);
+  } else {
+    mongo = await MongoMemoryServer.create();
+    await mongoose.connect(mongo.getUri('ptc_test'));
+  }
+  await mongoose.connection.db?.dropDatabase();
   await seedSyntheticData(config, true);
 });
 
 afterAll(async () => {
+  await mongoose.connection.db?.dropDatabase();
   await mongoose.disconnect();
-  await mongo.stop();
+  if (mongo) await mongo.stop();
 });
 
 it('reports health and readiness', async () => {
@@ -74,7 +82,15 @@ it('serves deterministic summary, cameras, health and paginated events', async (
   expect(events.body.items.every((item: { outcome: string }) => item.outcome === 'completed')).toBe(true);
 });
 
-it('enforces roles and persists a versioned review', async () => {
+it('validates date ranges and rejects unauthenticated access', async () => {
+  expect((await request(app).get('/api/events?page=1&pageSize=20')).status).toBe(401);
+  const agent = await login('viewer');
+  const invalidRange = await agent.get('/api/events?page=1&pageSize=20&from=2026-07-25&to=2026-07-20');
+  expect(invalidRange.status).toBe(400);
+  expect(invalidRange.body.code).toBe('INVALID_DATE_RANGE');
+});
+
+it('enforces roles and persists a versioned review with an audit record', async () => {
   const viewer = await login('viewer');
   const supervisor = await login('supervisor');
   const eventResponse = await supervisor.get('/api/events/EVT-2407-0257');
@@ -98,6 +114,7 @@ it('enforces roles and persists a versioned review', async () => {
   expect(updated.status).toBe(200);
   expect(updated.body.version).toBe(input.expectedVersion + 1);
   expect(updated.body.remarks).toBe(input.remarks);
+  expect(await AuditModel.countDocuments({ targetId: 'EVT-2407-0257' })).toBe(1);
 
   const conflict = await supervisor
     .patch('/api/events/EVT-2407-0257/review')
