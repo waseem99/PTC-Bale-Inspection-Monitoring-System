@@ -5,7 +5,7 @@ const booleanFromString = z.enum(['true', 'false']).optional().transform((value)
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
-  MONGODB_URI: z.string().min(1).default('mongodb://127.0.0.1:27017/ptc_bale'),
+  DATABASE_URL: z.string().startsWith('postgresql://').default('postgresql://ptc_app:ptc_local_change_me@127.0.0.1:5432/ptc_bale?schema=public'),
   SESSION_COOKIE_NAME: z.string().min(1).default('ptc_session'),
   SESSION_TTL_HOURS: z.coerce.number().positive().max(168).default(8),
   COOKIE_SECURE: booleanFromString,
@@ -20,7 +20,7 @@ const schema = z.object({
 export type AppConfig = {
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
-  mongodbUri: string;
+  databaseUrl: string;
   sessionCookieName: string;
   sessionTtlHours: number;
   cookieSecure: boolean;
@@ -41,7 +41,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
   return {
     nodeEnv: parsed.NODE_ENV,
     port: parsed.PORT,
-    mongodbUri: parsed.MONGODB_URI,
+    databaseUrl: parsed.DATABASE_URL,
     sessionCookieName: parsed.SESSION_COOKIE_NAME,
     sessionTtlHours: parsed.SESSION_TTL_HOURS,
     cookieSecure: parsed.COOKIE_SECURE,
