@@ -1,50 +1,71 @@
 services:
-  mongo:
-    image: mongo:8.0
+  postgres:
+    image: postgres:17-alpine
     restart: unless-stopped
-    command: ["mongod", "--bind_ip_all", "--quiet"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ptc_bale}
+      POSTGRES_USER: ${POSTGRES_USER:-ptc_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
     volumes:
-      - ptc-mongo-data:/data/db
+      - ptc-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ptc_app} -d ${POSTGRES_DB:-ptc_bale}"]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 15s
     networks: [ptc-local]
+    security_opt: ["no-new-privileges:true"]
 
-  seed:
+  migrate:
     build:
       context: ../..
       dockerfile: apps/platform-api/Dockerfile
-    image: ptc-bale-platform-api:${API_BUILD_VERSION:-local}
-    command: ["node", "dist/seed.js", "seed"]
+      target: build
+    image: ptc-bale-platform-api-build:${API_BUILD_VERSION:-local}
+    command: ["pnpm", "--filter", "@ptc-bale/platform-api", "db:migrate:deploy"]
     environment:
-      NODE_ENV: development
-      MONGODB_URI: mongodb://mongo:27017/ptc_bale
-      SEED_VIEWER_PASSWORD: ${SEED_VIEWER_PASSWORD:?Set SEED_VIEWER_PASSWORD}
-      SEED_SUPERVISOR_PASSWORD: ${SEED_SUPERVISOR_PASSWORD:?Set SEED_SUPERVISOR_PASSWORD}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD}
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ptc_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ptc_bale}?schema=public
     depends_on:
-      mongo:
+      postgres:
         condition: service_healthy
     networks: [ptc-local]
     restart: "no"
 
+  seed:
+    image: ptc-bale-platform-api-build:${API_BUILD_VERSION:-local}
+    command: ["pnpm", "--filter", "@ptc-bale/platform-api", "seed"]
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ptc_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ptc_bale}?schema=public
+      SEED_VIEWER_PASSWORD: ${SEED_VIEWER_PASSWORD:?Set SEED_VIEWER_PASSWORD}
+      SEED_SUPERVISOR_PASSWORD: ${SEED_SUPERVISOR_PASSWORD:?Set SEED_SUPERVISOR_PASSWORD}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [ptc-local]
+    restart: "no"
+
   api:
+    build:
+      context: ../..
+      dockerfile: apps/platform-api/Dockerfile
+      target: runtime
     image: ptc-bale-platform-api:${API_BUILD_VERSION:-local}
     restart: unless-stopped
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       PORT: 4000
-      MONGODB_URI: mongodb://mongo:27017/ptc_bale
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ptc_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ptc_bale}?schema=public
       SESSION_COOKIE_NAME: ptc_session
       SESSION_TTL_HOURS: 8
       COOKIE_SECURE: "false"
       TRUST_PROXY: "true"
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS}
     depends_on:
-      mongo:
+      postgres:
         condition: service_healthy
       seed:
         condition: service_completed_successfully
@@ -63,7 +84,7 @@ services:
       dockerfile: apps/dashboard-web/Dockerfile
       args:
         VITE_DATA_MODE: live
-        VITE_ENVIRONMENT_NAME: Local Seeded API
+        VITE_ENVIRONMENT_NAME: Local Seeded PostgreSQL API
         VITE_BUILD_VERSION: ${DASHBOARD_BUILD_VERSION:-local-api}
         VITE_API_BASE_URL: /api
         VITE_ALLOW_DEMO_CREDENTIALS: "false"
@@ -92,4 +113,4 @@ networks:
     driver: bridge
 
 volumes:
-  ptc-mongo-data:
+  ptc-postgres-data:
