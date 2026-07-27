@@ -12,7 +12,8 @@ Versioned interfaces shared by the React dashboard, Node.js platform API and fut
 - Interactive roles are `viewer`, `supervisor` and `admin` for the PoC.
 - Original AI outcome fields remain separate from human review fields.
 - Event review uses optimistic concurrency through `expectedVersion`.
-- The browser never receives RTSP credentials, MongoDB credentials or unrestricted local evidence paths.
+- The browser never receives RTSP credentials, PostgreSQL credentials or unrestricted local evidence paths.
+- Database schema changes are implemented through reviewed Prisma migrations.
 - Synthetic records are for workflow validation and are not client acceptance evidence.
 
 Future edge-ingestion, evidence-media and synchronization schemas will be added without changing the existing portal workflow contract unnecessarily.
