@@ -7,7 +7,7 @@ import {
   InspectionEventModel,
   SessionModel,
   UserModel,
-  syncIndexes,
+  ensureIndexes,
 } from './models';
 import { hashPassword } from './security';
 import { DATASET, seedCameras, seedEvents, seedHealth } from './seed-data';
@@ -37,7 +37,7 @@ export async function seedSyntheticData(
   reset = false,
 ): Promise<{ users: number; cameras: number; health: number; events: number }> {
   if (reset) await resetSyntheticData();
-  await syncIndexes();
+  await ensureIndexes();
   const passwords = requirePasswords(config);
   const userDefinitions = [
     { _id: 'usr-viewer', username: 'viewer', displayName: 'Viewer Demo', role: 'viewer', password: passwords.viewer },
