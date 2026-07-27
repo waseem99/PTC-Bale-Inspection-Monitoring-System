@@ -84,7 +84,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: backend-lint-${{ github.sha }}
-          path: backend-lint.log
+          path: |
+            backend-lint.log
+            apps/platform-api/src/app.ts
           if-no-files-found: ignore
           retention-days: 14
       - run: pnpm --filter @ptc-bale/platform-api typecheck
