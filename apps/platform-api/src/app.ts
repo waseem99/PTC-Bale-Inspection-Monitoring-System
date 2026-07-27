@@ -52,16 +52,27 @@ const eventQuerySchema = z.object({
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
-type EventRecord = InspectionEvent & { steps: EventStep[] };
+const routeParamSchema = z.string().trim().min(1).max(160);
+
+type EventRecord = InspectionEvent & { steps?: EventStep[] };
 
 type EventFilters = {
-  cameraId?: string;
-  outcome?: Outcome;
-  reviewStatus?: ReviewStatus;
-  search?: string;
-  from?: string;
-  to?: string;
+  cameraId?: string | undefined;
+  outcome?: Outcome | undefined;
+  reviewStatus?: ReviewStatus | undefined;
+  search?: string | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
 };
+
+function requiredRouteParam(value: string | string[] | undefined): string {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  const parsed = routeParamSchema.safeParse(candidate);
+  if (!parsed.success) {
+    throw new AppError(400, 'INVALID_ROUTE_PARAMETER', 'The requested route parameter is invalid.');
+  }
+  return parsed.data;
+}
 
 function asIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -86,7 +97,7 @@ function serializeEvent(value: EventRecord) {
     modelVersion: value.modelVersion,
     ruleVersion: value.ruleVersion,
     version: value.version,
-    steps: value.steps.map((step) => ({
+    steps: (value.steps ?? []).map((step) => ({
       label: step.label,
       state: step.state,
       ...(step.time ? { time: step.time } : {}),
@@ -141,12 +152,14 @@ function createFixedWindowLimiter(limit: number, windowMs: number) {
     const entry = entries.get(key);
     if (!entry || entry.resetAt <= now) {
       entries.set(key, { count: 1, resetAt: now + windowMs });
-      return next();
+      next();
+      return;
     }
     entry.count += 1;
     if (entry.count > limit) {
       response.setHeader('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
-      return next(new AppError(429, 'RATE_LIMITED', 'Too many requests. Try again shortly.'));
+      next(new AppError(429, 'RATE_LIMITED', 'Too many requests. Try again shortly.'));
+      return;
     }
     next();
   };
@@ -184,10 +197,14 @@ export function createApp(config: AppConfig) {
 
   app.use(express.json({ limit: '256kb', strict: true }));
   app.use((request, _response, next) => {
-    if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)) return next();
+    if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)) {
+      next();
+      return;
+    }
     const origin = request.header('origin');
     if (origin && !config.allowedOrigins.has(origin)) {
-      return next(new AppError(403, 'ORIGIN_NOT_ALLOWED', 'The request origin is not allowed.'));
+      next(new AppError(403, 'ORIGIN_NOT_ALLOWED', 'The request origin is not allowed.'));
+      return;
     }
     next();
   });
@@ -322,8 +339,9 @@ export function createApp(config: AppConfig) {
   }));
 
   app.get('/api/events/:eventId', asyncHandler(async (request, response) => {
+    const eventId = requiredRouteParam(request.params.eventId);
     const event = await prisma.inspectionEvent.findUnique({
-      where: { id: request.params.eventId },
+      where: { id: eventId },
       include: { steps: { orderBy: { sequence: 'asc' } } },
     });
     if (!event) throw new AppError(404, 'EVENT_NOT_FOUND', 'The requested event could not be found.');
@@ -331,13 +349,14 @@ export function createApp(config: AppConfig) {
   }));
 
   app.patch('/api/events/:eventId/review', requireRoles('supervisor', 'admin'), asyncHandler(async (request, response) => {
+    const eventId = requiredRouteParam(request.params.eventId);
     const input = reviewSchema.parse(request.body);
     const auth = authContext(response);
     const reviewedAt = new Date();
 
     const updated = await prisma.$transaction(async (transaction) => {
       const before = await transaction.inspectionEvent.findUnique({
-        where: { id: request.params.eventId },
+        where: { id: eventId },
         include: { steps: { orderBy: { sequence: 'asc' } } },
       });
       if (!before) throw new AppError(404, 'EVENT_NOT_FOUND', 'The requested event could not be found.');
@@ -351,7 +370,7 @@ export function createApp(config: AppConfig) {
       }
 
       const mutation = await transaction.inspectionEvent.updateMany({
-        where: { id: request.params.eventId, version: input.expectedVersion },
+        where: { id: eventId, version: input.expectedVersion },
         data: {
           reviewStatus: input.reviewStatus,
           remarks: input.remarks,
@@ -362,7 +381,7 @@ export function createApp(config: AppConfig) {
       });
       if (mutation.count !== 1) {
         const current = await transaction.inspectionEvent.findUnique({
-          where: { id: request.params.eventId },
+          where: { id: eventId },
           select: { version: true },
         });
         throw new AppError(
@@ -374,7 +393,7 @@ export function createApp(config: AppConfig) {
       }
 
       const after = await transaction.inspectionEvent.findUnique({
-        where: { id: request.params.eventId },
+        where: { id: eventId },
         include: { steps: { orderBy: { sequence: 'asc' } } },
       });
       if (!after) throw new AppError(404, 'EVENT_NOT_FOUND', 'The requested event could not be found.');
