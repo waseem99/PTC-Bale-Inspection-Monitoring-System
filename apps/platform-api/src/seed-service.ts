@@ -50,6 +50,7 @@ export async function seedSyntheticData(
   if (reset) await resetSyntheticData(config);
   await ensureIndexes();
   const passwords = requirePasswords(config);
+  await SessionModel.deleteMany({ userId: { $in: SYNTHETIC_USER_IDS } });
   const userDefinitions = [
     { _id: 'usr-viewer', username: 'viewer', displayName: 'Viewer Demo', role: 'viewer', password: passwords.viewer },
     { _id: 'usr-supervisor', username: 'supervisor', displayName: 'Supervisor Demo', role: 'supervisor', password: passwords.supervisor },
