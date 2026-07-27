@@ -39,6 +39,7 @@
 - [Frontend UAT and release checklist](24-frontend-uat-checklist.md)
 - [Frontend self-hosted validation fallback](26-frontend-self-hosted-validation.md)
 - [Backend/PostgreSQL validation and local runbook](28-backend-validation-and-local-runbook.md)
+- [PostgreSQL validation status and external runner gate](29-postgresql-validation-status.md)
 
 ## Documentation rules
 
