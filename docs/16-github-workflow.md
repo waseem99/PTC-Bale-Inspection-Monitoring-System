@@ -36,12 +36,21 @@ A pull request must:
 - explain scope and exclusions;
 - identify whether any behavior originated from the Bangladesh reference and show its PTC approval;
 - list local/offline tests performed;
-- identify model, contract, database, edge, local application, optional Azure, and documentation impact;
-- contain no secrets, client footage, production IPs, evidence, reference media, or model binaries;
+- identify model, contract, PostgreSQL schema/migration, edge, local application, optional Azure, and documentation impact;
+- contain no secrets, database URLs/dumps, client footage, production IPs, evidence, reference media, or model binaries;
 - pass required CI checks;
 - receive at least one appropriate technical review;
 - receive PM review when scope, client dependency, acceptance, delivery, or change control is affected;
 - remain small enough to review reliably.
+
+Database-changing PRs must additionally:
+
+- include the Prisma schema change and generated SQL migration;
+- explain data-loss, locking, index and compatibility impact;
+- define backup, rollback/compensation and restoration requirements;
+- prove migration deployment against a clean test database;
+- update database/version documentation;
+- avoid destructive reset commands for shared/field environments.
 
 ## Definition of ready
 
@@ -54,6 +63,7 @@ An issue is ready when:
 - required client decisions are available or explicitly tracked;
 - security and data impact are known;
 - local/offline behavior is understood;
+- database/migration impact is known where applicable;
 - it is within the approved PoC/MVP or hypercare scope.
 
 ## Definition of done
@@ -61,12 +71,13 @@ An issue is ready when:
 An issue is done when:
 
 - implementation and review are complete;
-- tests pass, including local/offline tests where applicable;
+- tests pass, including local/offline and PostgreSQL tests where applicable;
 - acceptance criteria are evidenced;
 - logs and failure behavior are considered;
 - documentation is updated;
 - no restricted data is committed;
-- related configuration, model, and migration changes are versioned;
+- related configuration, model, contract, Prisma schema and SQL migration changes are versioned;
+- database backup/restore impact is addressed;
 - deployment or release impact is recorded;
 - client/PM acceptance is recorded where required.
 
@@ -90,6 +101,7 @@ An issue is done when:
 - `area:edge`
 - `area:ai`
 - `area:backend`
+- `area:database`
 - `area:web`
 - `area:azure`
 - `area:security`
@@ -112,6 +124,7 @@ An issue is done when:
 - `dependency:reference-clarification`
 - `dependency:hardware`
 - `dependency:azure`
+- `dependency:database-migration`
 - `status:blocked`
 
 ## Recommended GitHub Project fields
@@ -120,7 +133,7 @@ An issue is done when:
 |---|---|
 | Status | Backlog, Ready, In Progress, Review, Blocked, Client Validation, Done |
 | Priority | P0, P1, P2, P3 |
-| Area | Scope, Reference, Site, Hardware, Edge, AI, Backend, Web, Azure, Security, QA, Docs |
+| Area | Scope, Reference, Site, Hardware, Edge, AI, Backend, Database, Web, Azure, Security, QA, Docs |
 | Delivery stage | PoC/MVP, Hypercare, Change Request |
 | Target week | W1 through W13 |
 | Client dependency | Yes, No |
@@ -136,9 +149,10 @@ An issue is done when:
 4. **Reference mapping:** Area Reference or dependency reference-clarification.
 5. **PM coordination:** PM coordination Required and Status not Done.
 6. **AI workstream:** Area AI, grouped by Status.
-7. **Site readiness:** Site and Hardware areas.
-8. **Hypercare:** delivery stage Hypercare.
-9. **Change requests:** scope change-request, excluded from PoC execution.
+7. **Database changes:** Area Database or dependency database-migration.
+8. **Site readiness:** Site and Hardware areas.
+9. **Hypercare:** delivery stage Hypercare.
+10. **Change requests:** scope change-request, excluded from PoC execution.
 
 ## Milestone structure
 
@@ -146,7 +160,7 @@ An issue is done when:
 - M1 Site and Hardware Ready
 - M2 Local Edge Video Platform Ready
 - M3 PTC AI Compliance Model Ready
-- M4 Local MERN and Approved Azure Management Plane Ready
+- M4 Local React/Node/PostgreSQL and Approved Azure Management Plane Ready
 - M5 Local Dashboard Ready
 - M6 PoC UAT and Release
 - M7 Hypercare and Final Stabilization
@@ -167,6 +181,7 @@ Issue titles use a milestone prefix:
 [M0] Confirm approved bale inspection SOP
 [M2] Implement RTSP camera ingestion and reconnect
 [M3] Implement inspection SOP state machine
+[M4] Add PostgreSQL migration for edge event ingestion
 [M6] Complete client UAT and sign-off
 ```
 
@@ -185,9 +200,12 @@ Issue bodies must include:
 
 ```text
 feat(edge): add RTSP reconnect policy
+feat(db): add inspection event migration
 fix(ai): prevent lost tracks from creating violations
+fix(db): preserve review audit transaction
+chore(db): remove obsolete MongoDB implementation
 docs(scope): clarify reference feature exclusion
-test(api): add local ingestion idempotency coverage
+test(api): add PostgreSQL ingestion idempotency coverage
 chore(ci): add dashboard build workflow
 ```
 
@@ -196,16 +214,22 @@ chore(ci): add dashboard build workflow
 - formatting and linting;
 - unit tests;
 - local Node API build and tests;
-- local MongoDB integration tests;
+- Prisma Client generation and migration validation;
+- PostgreSQL integration tests;
+- PostgreSQL container/startup and backup/restore smoke tests;
 - React dashboard build and tests;
 - Python tests and type/lint checks;
 - local/offline end-to-end tests;
 - contract compatibility checks;
 - dependency vulnerability checks;
-- secret scanning;
+- secret/database URL scan;
 - local installation/package validation;
 - optional Azure infrastructure validation;
 - container/package build where used.
+
+## Lockfile rule
+
+`pnpm` is the only approved Node package manager. A reviewed `pnpm-lock.yaml` must be committed before release. CI may use non-frozen installation only until the lockfile is generated and reviewed; release CI must use `--frozen-lockfile`.
 
 ## GitHub limitations and manual setup
 
