@@ -2,7 +2,7 @@
 
 ## Scope
 
-Azure is **conditional** for this PoC. The awarded solution must remain locally functional for camera processing, AI inference, event/evidence storage, and local intranet review. Azure hosts only the management-plane, synchronization, identity, evidence-copy, or monitoring components approved under issue #11.
+Azure is **conditional** for this PoC. The awarded solution must remain locally functional for camera processing, AI inference, PostgreSQL event/review storage, evidence storage, and local intranet review. Azure hosts only the management-plane, synchronization, identity, evidence-copy, or monitoring components approved under issue #11.
 
 Do not provision the full resource set simply because it is listed below. The final responsibility matrix must identify which resources are required within the fixed scope and who owns recurring Azure costs.
 
@@ -12,7 +12,7 @@ Do not provision the full resource set simply because it is listed below. The fi
 |---|---|
 | Azure App Service or approved container hosting | Central Node.js/Express API |
 | Azure Static Web Apps or App Service | Central React dashboard frontend |
-| Azure Cosmos DB for MongoDB or client-approved MongoDB | Synchronized event, review, camera, health, and audit metadata |
+| Azure Database for PostgreSQL | Synchronized event, review, camera, health, configuration and audit records |
 | Azure Blob Storage | Synchronized approved snapshots and short clips |
 | Azure Key Vault | Cloud application secrets and certificates |
 | Application Insights | Central API and frontend telemetry |
@@ -26,7 +26,7 @@ Final services depend on client subscription policy, networking, database standa
 
 - Python camera ingest, AI, tracking, SOP, evidence, and spool services;
 - local Node.js API;
-- local MongoDB-compatible event metadata;
+- local PostgreSQL event, review, health and audit data;
 - protected local evidence storage;
 - local React intranet dashboard and approved local access;
 - operation during internet, Entra, or Azure outage.
@@ -51,7 +51,7 @@ The templates must include:
 - resource tags and cost ownership;
 - managed identity where supported;
 - secure transport requirements;
-- database and storage network restrictions;
+- PostgreSQL and storage network restrictions;
 - Blob lifecycle configuration after retention approval;
 - diagnostic settings;
 - least-privilege access assignments;
@@ -93,7 +93,7 @@ Required decisions:
 - client proxy requirements;
 - DNS and certificate requirements;
 - whether the central dashboard is accessible only through the client network;
-- whether Cosmos DB/MongoDB access must use private networking;
+- whether managed PostgreSQL access must use private networking;
 - which metadata/evidence classes are permitted to leave the site.
 
 The design must not depend on inbound connections from Azure to the cameras or local workstation.
@@ -103,15 +103,16 @@ The design must not depend on inbound connections from Azure to the cameras or l
 GitHub Actions workflows for approved Azure components will:
 
 1. install pinned Node and Python dependencies;
-2. run formatting, linting, type checks, and unit tests;
-3. run API, contract, MongoDB integration, dashboard, and local/offline tests;
-4. scan for committed secrets and known dependency issues;
-5. package the local Node/React/Python release separately from Azure artifacts;
-6. validate approved Bicep modules;
-7. deploy through approved credentials and protected environments;
-8. run cloud database/index migration scripts where applicable;
-9. run synchronization and central-access smoke tests;
-10. record the integrated release version.
+2. generate Prisma Client and validate committed migrations;
+3. run formatting, linting, type checks, and unit tests;
+4. run API, contract, PostgreSQL integration, dashboard, and local/offline tests;
+5. scan for committed secrets and known dependency issues;
+6. package the local Node/React/Python release separately from Azure artifacts;
+7. validate approved Bicep modules;
+8. deploy through approved credentials and protected environments;
+9. run `prisma migrate deploy` through a protected migration job;
+10. run synchronization and central-access smoke tests;
+11. record the integrated release version.
 
 Production Azure deployment requires a protected GitHub environment and approval from an authorized reviewer.
 
@@ -119,21 +120,34 @@ Production Azure deployment requires a protected GitHub environment and approval
 
 - non-secret settings use environment configuration;
 - cloud secrets use Key Vault or approved deployment secrets;
-- local camera/application secrets remain in the approved local secret store;
+- local camera/application/database secrets remain in the approved local secret store;
 - no production connection string is committed;
 - environment-specific values are documented by key name, not actual value;
 - browser bundles contain only public Entra configuration and no confidential client secret.
 
-## MongoDB deployment and controlled changes
+## PostgreSQL deployment and controlled changes
 
-- local MongoDB is the primary PoC store unless issue #11 approves another topology;
-- Mongoose schemas are application validation, not a substitute for migration discipline;
-- local and cloud collection indexes use repeatable, reviewed scripts;
-- document schema versions are recorded where compatibility requires them;
-- data backfills/transforms are idempotent and tested before UAT/production execution;
-- destructive changes require explicit backup, compatibility, and rollback plans;
+- local PostgreSQL is the primary PoC store unless issue #11 approves a synchronized/central topology;
+- Prisma schema is the application data model and committed SQL migrations are the deployment record;
+- development migration generation occurs only against a dedicated developer database;
+- shared/UAT/production environments use `prisma migrate deploy`;
+- migration SQL is reviewed for destructive changes, long locks, index cost and data transformation risk;
+- backup is required before destructive or data-transforming migrations;
+- data backfills are idempotent and tested before UAT/production execution;
 - synchronization must preserve stable event IDs and original AI outcome;
-- backup, availability, capacity, and retention follow the selected local/cloud service policies.
+- backup, availability, capacity and retention follow the selected local/cloud service policies;
+- PostgreSQL major-version upgrades require a separate compatibility and restoration plan.
+
+## Local-to-Azure data pattern
+
+The preferred future pattern is not direct replication of the local database. The local synchronization service submits approved versioned API payloads using stable IDs. The central API persists them in Azure Database for PostgreSQL and stores approved evidence in Blob Storage.
+
+This approach:
+
+- preserves the local system as operational authority during outages;
+- prevents cloud database credentials from being placed on cameras or in the browser;
+- supports idempotency and explicit data-class approval;
+- avoids coupling the PoC to a database-level replication topology before the client approves it.
 
 ## Blob paths
 
@@ -152,14 +166,15 @@ Minimum cloud signals where enabled:
 - central API availability and response time;
 - failed synchronization requests;
 - authentication and authorization failures;
-- MongoDB/Cosmos DB dependency failures and throttling;
+- PostgreSQL connection, query, storage and capacity failures;
+- failed or pending migrations;
 - Blob upload failures;
 - storage and retention job failures;
 - central dashboard errors;
 - real-time connection failures;
 - synchronized event rate and local backlog indicators.
 
-Local camera, AI, database, disk, evidence, and dashboard monitoring remains mandatory regardless of Azure use.
+Local camera, AI, PostgreSQL, disk, evidence, and dashboard monitoring remains mandatory regardless of Azure use.
 
 ## Azure inputs required from client
 
@@ -167,11 +182,12 @@ Local camera, AI, database, disk, evidence, and dashboard monitoring remains man
 - tenant and subscription details;
 - resource group and region;
 - naming, tagging, cost-governance, and recurring-cost ownership;
-- approved MongoDB service and capacity approach;
+- approved Azure Database for PostgreSQL service tier, capacity and high-availability approach;
 - identity groups and application-registration process;
 - network and private-endpoint requirements;
 - approved metadata/evidence synchronization classes;
 - Key Vault access model;
+- database backup/retention requirements;
 - log-retention requirements;
 - deployment-service connection or federated identity;
 - production approval process.
