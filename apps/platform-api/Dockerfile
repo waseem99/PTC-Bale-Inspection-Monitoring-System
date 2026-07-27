@@ -14,6 +14,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 RUN addgroup -S app && adduser -S -G app app
 COPY --from=build --chown=app:app /runtime ./
+COPY --from=build --chown=app:app /workspace/apps/platform-api/dist ./dist
 USER app
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
