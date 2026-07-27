@@ -1,0 +1,60 @@
+name: Bootstrap pnpm Lockfile
+
+on:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'apps/*/package.json'
+      - 'packages/*/package.json'
+      - '.github/workflows/lockfile-bootstrap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: lockfile-bootstrap-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  commit-lockfile:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the pull-request branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate lockfile only when absent
+        id: generate
+        shell: bash
+        run: |
+          if test -f pnpm-lock.yaml; then
+            echo 'created=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          pnpm install --lockfile-only --no-frozen-lockfile
+          test -s pnpm-lock.yaml
+          if grep -Eiq '(authToken|_auth=|password=|https?://[^/[:space:]]+:[^/[:space:]]+@)' pnpm-lock.yaml; then
+            echo 'Generated lockfile contains a credential-like value.' >&2
+            exit 1
+          fi
+          echo 'created=true' >> "$GITHUB_OUTPUT"
+      - name: Commit generated lockfile
+        if: steps.generate.outputs.created == 'true'
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pnpm-lock.yaml
+          git commit -m 'chore(deps): commit pnpm lockfile'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
