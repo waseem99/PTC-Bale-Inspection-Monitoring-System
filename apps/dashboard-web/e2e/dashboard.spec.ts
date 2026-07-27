@@ -6,8 +6,8 @@ const PASSWORD = process.env.E2E_PASSWORD ?? 'PTC-Demo-2026!';
 
 async function signIn(page: Page) {
   await page.goto('/login');
-  await page.getByLabel('Username').fill('supervisor');
-  await page.getByLabel('Password').fill(PASSWORD);
+  await page.getByLabel('Username', { exact: true }).fill('supervisor');
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/overview$/);
   await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
