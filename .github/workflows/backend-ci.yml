@@ -55,7 +55,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with: { version: 9.15.4 }
       - uses: actions/setup-node@v4
-        with: { node-version: 22.16.0 }
+        with: { node-version: '22' }
       - name: Install dependencies
         shell: bash
         run: |
@@ -89,8 +89,34 @@ jobs:
             apps/platform-api/src/app.ts
           if-no-files-found: ignore
           retention-days: 14
-      - run: pnpm --filter @ptc-bale/platform-api typecheck
-      - run: pnpm --filter @ptc-bale/platform-api test
+      - name: Typecheck backend
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @ptc-bale/platform-api typecheck 2>&1 | tee backend-typecheck.log
+      - name: Upload backend TypeScript diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-typecheck-${{ github.sha }}
+          path: backend-typecheck.log
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Test backend
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @ptc-bale/platform-api test 2>&1 | tee backend-test.log
+      - name: Upload backend test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-${{ github.sha }}
+          path: |
+            backend-test.log
+            apps/platform-api/coverage
+          if-no-files-found: ignore
+          retention-days: 14
       - run: pnpm --filter @ptc-bale/platform-api build
       - run: pnpm --filter @ptc-bale/platform-api seed:reset
       - run: pnpm --filter @ptc-bale/platform-api seed:status
@@ -163,7 +189,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with: { version: 9.15.4 }
       - uses: actions/setup-node@v4
-        with: { node-version: 22.16.0 }
+        with: { node-version: '22' }
       - name: Install dependencies
         shell: bash
         run: |
