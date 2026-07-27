@@ -1,20 +1,16 @@
-import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import { createApp } from '../app';
 import { loadConfig } from '../config';
-import { AuditModel } from '../models';
-import { seedSyntheticData } from '../seed-service';
+import { connectDatabase, disconnectDatabase, prisma } from '../db';
+import { resetSyntheticData, seedSyntheticData } from '../seed-service';
 
-let mongo: MongoMemoryServer | undefined;
 const password = 'A-Strong-Test-Password-2026!';
-const externalMongoUri = process.env.MONGODB_URI;
 const config = loadConfig({
   ...process.env,
   NODE_ENV: 'test',
   COOKIE_SECURE: 'false',
   SEED_DEMO_PASSWORD: password,
-  MONGODB_URI: externalMongoUri ?? 'mongodb://placeholder/test',
+  DATABASE_URL: process.env.DATABASE_URL ?? 'postgresql://ptc_app:ptc_local_change_me@127.0.0.1:5432/ptc_bale_test?schema=public',
   ALLOWED_ORIGINS: 'http://localhost',
 });
 const app = createApp(config);
@@ -30,20 +26,13 @@ async function login(username: string) {
 }
 
 beforeAll(async () => {
-  if (externalMongoUri) {
-    await mongoose.connect(externalMongoUri);
-  } else {
-    mongo = await MongoMemoryServer.create();
-    await mongoose.connect(mongo.getUri('ptc_test'));
-  }
-  await mongoose.connection.db?.dropDatabase();
+  await connectDatabase();
   await seedSyntheticData(config, true);
 });
 
 afterAll(async () => {
-  await mongoose.connection.db?.dropDatabase();
-  await mongoose.disconnect();
-  if (mongo) await mongo.stop();
+  await resetSyntheticData(config);
+  await disconnectDatabase();
 });
 
 it('reports health and readiness', async () => {
@@ -98,7 +87,7 @@ it('enforces roles, persists a versioned review, and preserves it during normal 
 
   const input = {
     reviewStatus: 'confirmed',
-    remarks: 'Validated by the integration test.',
+    remarks: 'Validated by the PostgreSQL integration test.',
     expectedVersion: eventResponse.body.version,
   };
   const forbidden = await viewer
@@ -114,7 +103,7 @@ it('enforces roles, persists a versioned review, and preserves it during normal 
   expect(updated.status).toBe(200);
   expect(updated.body.version).toBe(input.expectedVersion + 1);
   expect(updated.body.remarks).toBe(input.remarks);
-  expect(await AuditModel.countDocuments({ targetId: 'EVT-2407-0257' })).toBe(1);
+  expect(await prisma.auditLog.count({ where: { targetId: 'EVT-2407-0257' } })).toBe(1);
 
   const conflict = await supervisor
     .patch('/api/events/EVT-2407-0257/review')
