@@ -15,12 +15,43 @@ Run and validate the first persistent backend vertical slice for the PTC Bale In
 
 ## Prerequisites
 
+- Node.js 22.16.0 or the reviewed compatible version;
+- Corepack and pnpm 9.15.4;
 - Docker Engine and Docker Compose v2;
-- enough local disk space for PostgreSQL images, volume and backups;
+- enough local disk space for PostgreSQL images, volume, browser dependencies and backups;
 - repository access;
+- outbound package/browser installation access on the isolated validation host;
 - no service already using the selected dashboard port.
 
 No paid cloud database is required. PostgreSQL runs locally on the supplied workstation.
+
+## Lockfile bootstrap and release rule
+
+A release validation must use a reviewed and committed `pnpm-lock.yaml`.
+
+Where the lockfile is not yet present, use one clean bootstrap execution:
+
+```bash
+corepack enable
+corepack prepare pnpm@9.15.4 --activate
+pnpm install --no-frozen-lockfile
+```
+
+Then:
+
+1. verify `pnpm-lock.yaml` is non-empty;
+2. review the direct and resolved dependency changes;
+3. confirm the configured registry does not embed private credentials or an unintended private-only registry URL;
+4. commit the reviewed lockfile to the PR branch;
+5. rerun from a clean checkout with:
+
+```bash
+pnpm install --frozen-lockfile
+```
+
+The hosted and self-hosted backend workflows automatically upload the generated/validated lockfile as an artifact before database and test execution. Once the lockfile is committed, both workflows enforce frozen installation.
+
+Do not merge a release that relies only on an uncommitted workflow-generated lockfile.
 
 ## Configure
 
@@ -135,7 +166,8 @@ Rules:
 - commit the generated SQL migration;
 - use `prisma migrate deploy` for shared, UAT and field environments;
 - never run destructive schema-reset commands against a field database;
-- back up the database before any migration that changes or removes existing data.
+- back up the database before any migration that changes or removes existing data;
+- record the applied migration version in the release manifest.
 
 ## Back up PostgreSQL
 
@@ -172,7 +204,8 @@ After restoration:
 2. check `/api/readyz`;
 3. confirm event totals;
 4. open a reviewed event and verify its audit/review fields;
-5. capture the restoration test record.
+5. confirm the Prisma migration history is consistent;
+6. capture the restoration test record.
 
 ## Reset all synthetic state
 
@@ -194,10 +227,10 @@ The named PostgreSQL volume remains available for the next startup.
 
 ## Direct API package validation
 
-With a reachable PostgreSQL database and required environment variables:
+With a reachable PostgreSQL database, committed lockfile and required environment variables:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm --filter @ptc-bale/platform-api db:generate
 pnpm --filter @ptc-bale/platform-api db:migrate:deploy
 pnpm --filter @ptc-bale/platform-api lint
@@ -233,6 +266,7 @@ Use the browser for cookie-backed authentication. Do not put demonstration passw
 
 `.github/workflows/backend-ci.yml` runs:
 
+- lockfile bootstrap/artifact generation when absent, or frozen installation when present;
 - PostgreSQL service startup;
 - dependency installation and Prisma Client generation;
 - `prisma migrate deploy`;
@@ -244,6 +278,8 @@ Use the browser for cookie-backed authentication. Do not put demonstration passw
 - output secret scan;
 - production container build and health smoke test;
 - complete dashboard/API/PostgreSQL Playwright workflow.
+
+The lockfile artifact is named `pnpm-lockfile-<commit-sha>`.
 
 ### Self-hosted fallback
 
@@ -260,9 +296,12 @@ Runner requirements:
 - current security updates;
 - Node.js/Corepack;
 - Docker and Docker Compose;
+- outbound dependency and browser installation access;
 - no PTC credentials, footage, camera network access or production files;
 - an ephemeral or clean workspace;
 - runner removed after the validation record is captured.
+
+The self-hosted artifact contains the generated/validated lockfile plus available backend build, coverage and Playwright reports.
 
 ## Manual browser UAT against the real API
 
@@ -283,6 +322,8 @@ Runner requirements:
 
 Attach the following to issue #68 before declaring the first backend slice complete:
 
+- reviewed and committed `pnpm-lock.yaml`;
+- successful frozen installation result;
 - successful CI or approved self-hosted workflow URL;
 - migration-deploy result;
 - seed status showing 3 users, 4 cameras, 6 health metrics and 257 events;
@@ -290,8 +331,15 @@ Attach the following to issue #68 before declaring the first backend slice compl
 - browser UAT record against live API mode;
 - restart-persistence result;
 - backup/restore test result;
-- confirmation that no real PTC/Bangladesh footage, RTSP credentials, production IPs or evidence files are included;
+- restricted-data and obsolete-MongoDB-runtime scan result;
+- confirmation that no real PTC/Bangladesh footage, RTSP credentials, production IPs, database dumps or evidence files are included;
 - PM and technical-review decisions.
+
+## Current external blocker
+
+At the time of this record, fresh Backend CI and Frontend CI runs failed their first `quality` job before checkout or any workflow step. The jobs returned no step list and no logs, and dependent jobs were skipped.
+
+Do not interpret that pre-execution failure as a passed or failed application test. Follow `docs/29-postgresql-validation-status.md` and use the approved self-hosted path until GitHub-hosted execution is restored.
 
 ## Known scope boundary
 
