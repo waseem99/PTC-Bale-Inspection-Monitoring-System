@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
+    exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     css: true,
     coverage: {
       reporter: ['text', 'json-summary'],
@@ -15,8 +17,8 @@ export default defineConfig({
         statements: 70,
         branches: 60,
         functions: 70,
-        lines: 70
-      }
-    }
-  }
+        lines: 70,
+      },
+    },
+  },
 });
