@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 
@@ -31,6 +32,12 @@ export function errorHandler(error: unknown, request: Request, response: Respons
     appError = new AppError(400, 'VALIDATION_ERROR', 'The request contains invalid data.', {
       issues: error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
     });
+  } else if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    appError = new AppError(409, 'UNIQUE_CONFLICT', 'A record with the same unique value already exists.');
+  } else if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+    appError = new AppError(409, 'RELATION_CONFLICT', 'The operation conflicts with a related record.');
+  } else if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+    appError = new AppError(404, 'RECORD_NOT_FOUND', 'The requested record could not be found.');
   } else if (error instanceof SyntaxError && 'body' in error) {
     appError = new AppError(400, 'INVALID_JSON', 'The request body is not valid JSON.');
   } else {
