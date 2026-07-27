@@ -90,7 +90,7 @@ it('validates date ranges and rejects unauthenticated access', async () => {
   expect(invalidRange.body.code).toBe('INVALID_DATE_RANGE');
 });
 
-it('enforces roles and persists a versioned review with an audit record', async () => {
+it('enforces roles, persists a versioned review, and preserves it during normal reseeding', async () => {
   const viewer = await login('viewer');
   const supervisor = await login('supervisor');
   const eventResponse = await supervisor.get('/api/events/EVT-2407-0257');
@@ -125,6 +125,12 @@ it('enforces roles and persists a versioned review with an audit record', async 
 
   const reloaded = await supervisor.get('/api/events/EVT-2407-0257');
   expect(reloaded.body.remarks).toBe(input.remarks);
+
+  await seedSyntheticData(config, false);
+  const afterSeedAgent = await login('supervisor');
+  const afterSeed = await afterSeedAgent.get('/api/events/EVT-2407-0257');
+  expect(afterSeed.body.remarks).toBe(input.remarks);
+  expect(afterSeed.body.version).toBe(updated.body.version);
 });
 
 it('exports filtered CSV without evidence content', async () => {
