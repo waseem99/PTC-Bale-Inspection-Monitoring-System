@@ -2,8 +2,9 @@ import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } fr
 import { promisify } from 'node:util';
 import type { NextFunction, Request, Response } from 'express';
 import type { AppConfig } from './config';
+import { prisma } from './db';
+import type { Role } from './domain';
 import { AppError } from './errors';
-import { SessionModel, UserModel, type Role } from './models';
 
 const scrypt = promisify(scryptCallback);
 const KEY_LENGTH = 64;
@@ -51,7 +52,14 @@ function getPresentedToken(request: Request, config: AppConfig): string | undefi
 export async function createSession(userId: string, config: AppConfig): Promise<{ token: string; expiresAt: Date }> {
   const token = randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + config.sessionTtlHours * 60 * 60 * 1000);
-  await SessionModel.create({ tokenHash: hashToken(token), userId, expiresAt, lastSeenAt: new Date() });
+  await prisma.session.create({
+    data: {
+      tokenHash: hashToken(token),
+      userId,
+      expiresAt,
+      lastSeenAt: new Date(),
+    },
+  });
   return { token, expiresAt };
 }
 
@@ -79,24 +87,25 @@ export function authenticate(config: AppConfig) {
     try {
       const token = getPresentedToken(request, config);
       if (!token) throw new AppError(401, 'UNAUTHENTICATED', 'Sign in to continue.');
-      const session = await SessionModel.findOne({
-        tokenHash: hashToken(token),
-        revokedAt: { $exists: false },
-        expiresAt: { $gt: new Date() },
-      }).lean();
-      if (!session) throw new AppError(401, 'SESSION_EXPIRED', 'Your session has expired. Sign in again.');
-      const user = await UserModel.findOne({ _id: session.userId, enabled: true }).lean();
-      if (!user) throw new AppError(401, 'USER_DISABLED', 'This account is unavailable.');
+      const now = new Date();
+      const session = await prisma.session.findUnique({
+        where: { tokenHash: hashToken(token) },
+        include: { user: true },
+      });
+      if (!session || session.revokedAt || session.expiresAt <= now) {
+        throw new AppError(401, 'SESSION_EXPIRED', 'Your session has expired. Sign in again.');
+      }
+      if (!session.user.enabled) throw new AppError(401, 'USER_DISABLED', 'This account is unavailable.');
       response.locals.auth = {
         user: {
-          id: String(user._id),
-          username: user.username,
-          displayName: user.displayName,
-          role: user.role as Role,
+          id: session.user.id,
+          username: session.user.username,
+          displayName: session.user.displayName,
+          role: session.user.role,
         },
-        sessionId: String(session._id),
+        sessionId: session.id,
       } satisfies AuthContext;
-      await SessionModel.updateOne({ _id: session._id }, { $set: { lastSeenAt: new Date() } });
+      await prisma.session.update({ where: { id: session.id }, data: { lastSeenAt: now } });
       next();
     } catch (error) {
       next(error);
@@ -121,5 +130,9 @@ export function authContext(response: Response): AuthContext {
 
 export async function revokePresentedSession(request: Request, config: AppConfig): Promise<void> {
   const token = getPresentedToken(request, config);
-  if (token) await SessionModel.updateOne({ tokenHash: hashToken(token) }, { $set: { revokedAt: new Date() } });
+  if (!token) return;
+  await prisma.session.updateMany({
+    where: { tokenHash: hashToken(token), revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
 }
