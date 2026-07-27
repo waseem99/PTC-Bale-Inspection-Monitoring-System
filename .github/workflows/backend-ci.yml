@@ -27,19 +27,23 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     services:
-      mongo:
-        image: mongo:8.0
-        ports: ['27017:27017']
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: ptc_bale_ci
+          POSTGRES_USER: ptc_app
+          POSTGRES_PASSWORD: ci-postgres-password
+        ports: ['5432:5432']
         options: >-
-          --health-cmd "mongosh --quiet --eval \"db.adminCommand('ping').ok\""
+          --health-cmd "pg_isready -U ptc_app -d ptc_bale_ci"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 12
     env:
       NODE_ENV: test
-      MONGODB_URI: mongodb://127.0.0.1:27017/ptc_bale_ci
+      DATABASE_URL: postgresql://ptc_app:ci-postgres-password@127.0.0.1:5432/ptc_bale_ci?schema=public
       COOKIE_SECURE: 'false'
       ALLOWED_ORIGINS: http://localhost
       SEED_DEMO_PASSWORD: CI-Only-Strong-Password-2026!
@@ -50,6 +54,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22.16.0 }
       - run: pnpm install --no-frozen-lockfile
+      - run: pnpm --filter @ptc-bale/platform-api db:generate
+      - run: pnpm --filter @ptc-bale/platform-api db:migrate:deploy
       - run: pnpm --filter @ptc-bale/platform-api lint
       - run: pnpm --filter @ptc-bale/platform-api typecheck
       - run: pnpm --filter @ptc-bale/platform-api test
@@ -60,18 +66,43 @@ jobs:
         shell: bash
         run: |
           test -d apps/platform-api/dist
-          ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|mongodb\+srv://|rtsp://[^ ]+:[^ ]+@|CI-Only-Strong-Password)' apps/platform-api/dist
+          ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|postgresql://[^ ]+:[^ ]+@|rtsp://[^ ]+:[^ ]+@|CI-Only-Strong-Password)' apps/platform-api/dist
 
   container:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     needs: quality
     steps:
       - uses: actions/checkout@v4
       - run: docker network create ptc-api-smoke
-      - run: docker run --detach --name mongo-smoke --network ptc-api-smoke mongo:8.0 mongod --bind_ip_all --quiet
-      - run: docker build --file apps/platform-api/Dockerfile --tag ptc-platform-api:${{ github.sha }} .
-      - run: docker run --detach --name api-smoke --network ptc-api-smoke --publish 4000:4000 --env NODE_ENV=production --env MONGODB_URI=mongodb://mongo-smoke:27017/ptc_smoke --env COOKIE_SECURE=false --env ALLOWED_ORIGINS=http://localhost ptc-platform-api:${{ github.sha }}
+      - name: Start PostgreSQL
+        run: |
+          docker run --detach --name postgres-smoke --network ptc-api-smoke \
+            --env POSTGRES_DB=ptc_smoke \
+            --env POSTGRES_USER=ptc_app \
+            --env POSTGRES_PASSWORD=container-postgres-password \
+            postgres:17-alpine
+          for attempt in {1..30}; do
+            if docker exec postgres-smoke pg_isready -U ptc_app -d ptc_smoke >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker logs postgres-smoke
+          exit 1
+      - run: docker build --target build --file apps/platform-api/Dockerfile --tag ptc-platform-api-build:${{ github.sha }} .
+      - name: Apply Prisma migrations
+        run: |
+          docker run --rm --network ptc-api-smoke \
+            --env DATABASE_URL=postgresql://ptc_app:container-postgres-password@postgres-smoke:5432/ptc_smoke?schema=public \
+            ptc-platform-api-build:${{ github.sha }} \
+            pnpm --filter @ptc-bale/platform-api db:migrate:deploy
+      - run: docker build --target runtime --file apps/platform-api/Dockerfile --tag ptc-platform-api:${{ github.sha }} .
+      - run: |
+          docker run --detach --name api-smoke --network ptc-api-smoke --publish 4000:4000 \
+            --env NODE_ENV=production \
+            --env DATABASE_URL=postgresql://ptc_app:container-postgres-password@postgres-smoke:5432/ptc_smoke?schema=public \
+            --env COOKIE_SECURE=false \
+            --env ALLOWED_ORIGINS=http://localhost \
+            ptc-platform-api:${{ github.sha }}
       - name: Wait for readiness
         shell: bash
         run: |
@@ -83,11 +114,13 @@ jobs:
           exit 1
       - run: curl --fail --silent http://127.0.0.1:4000/healthz | grep -q '"status":"ok"'
       - if: always()
-        run: docker rm --force api-smoke mongo-smoke || true
+        run: docker rm --force api-smoke postgres-smoke || true
+      - if: always()
+        run: docker network rm ptc-api-smoke || true
 
   e2e-live:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     needs: [quality, container]
     env:
       E2E_PASSWORD: CI-Live-API-Password-2026!
@@ -105,14 +138,17 @@ jobs:
         run: |
           cat > infrastructure/local/.env <<'EOF'
           DASHBOARD_PORT=8080
-          API_BUILD_VERSION=ci-live
-          DASHBOARD_BUILD_VERSION=ci-live
+          API_BUILD_VERSION=ci-live-postgres
+          DASHBOARD_BUILD_VERSION=ci-live-postgres
           ALLOWED_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
+          POSTGRES_DB=ptc_bale
+          POSTGRES_USER=ptc_app
+          POSTGRES_PASSWORD=CI-Live-Postgres-Password-2026!
           SEED_VIEWER_PASSWORD=CI-Live-API-Password-2026!
           SEED_SUPERVISOR_PASSWORD=CI-Live-API-Password-2026!
           SEED_ADMIN_PASSWORD=CI-Live-API-Password-2026!
           EOF
-      - name: Start dashboard, API and MongoDB
+      - name: Start dashboard, API and PostgreSQL
         run: docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml up --build --detach
       - name: Wait for same-origin readiness
         shell: bash
@@ -131,7 +167,7 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: seeded-api-playwright-report-${{ github.sha }}
+          name: seeded-postgresql-api-playwright-report-${{ github.sha }}
           path: apps/dashboard-web/playwright-report
           if-no-files-found: ignore
           retention-days: 14
