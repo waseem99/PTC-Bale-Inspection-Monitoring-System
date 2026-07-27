@@ -10,7 +10,7 @@
 - event snapshots and clips;
 - site images and camera layouts.
 
-These artifacts must not be committed to GitHub.
+These artifacts must not be committed to GitHub and are not stored inside PostgreSQL.
 
 ### Application metadata
 
@@ -23,7 +23,7 @@ These artifacts must not be committed to GitHub.
 - system health and synchronization status;
 - model, rule, and configuration versions.
 
-## Proposed event contract
+## Proposed edge event contract
 
 ```json
 {
@@ -56,118 +56,165 @@ These artifacts must not be committed to GitHub.
 }
 ```
 
-The exact schema will be implemented through versioned JSON Schema/OpenAPI contracts and reviewed before coding.
+The edge-ingestion schema will be implemented through versioned JSON Schema/OpenAPI contracts and reviewed before issue #37 is developed.
 
-## MongoDB persistence design
+## PostgreSQL persistence design
 
-The preferred metadata store is **Azure Cosmos DB for MongoDB** or another client-approved MongoDB deployment. Mongoose schemas provide application validation, but API boundary validation remains independent through shared contracts.
+The operational metadata store is local **PostgreSQL**. Prisma supplies type-safe application access and committed SQL migrations. API boundary validation remains independent through Zod and shared OpenAPI/JSON Schema contracts.
 
-### `cameras` collection
+The initial implemented relational schema is in `apps/platform-api/prisma/schema.prisma`.
 
-- `_id`
-- `code`
-- `name`
-- `locationDescription`
-- `status`
-- `lastFrameAtUtc`
-- `configurationVersion`
-- `createdAtUtc`
-- `updatedAtUtc`
+### `users`
 
-Required indexes:
+- `id` — stable internal identifier;
+- `username` — unique login name;
+- `displayName`;
+- `role` — viewer, supervisor or admin;
+- `passwordHash`;
+- `enabled`;
+- `dataset` marker;
+- created/updated timestamps.
 
-- unique `code`;
-- `status`;
-- `lastFrameAtUtc`.
+Indexes and constraints:
 
-### `inspectionEvents` collection
+- primary key on `id`;
+- unique `username`;
+- index on `dataset`.
 
-- `_id`
-- `eventId` generated at the edge
-- `schemaVersion`
-- `eventType`
-- `occurredAtUtc`
-- `cameraId`
-- `inspectionSessionId`
-- `temporaryTrackId`
-- `outcome`
-- `reasonCode`
-- `confidence`
-- `modelVersion`
-- `ruleVersion`
-- `configurationVersion`
-- evidence metadata/references
-- latest review summary where denormalization is approved
-- `createdAtUtc`
-- `updatedAtUtc`
+### `sessions`
 
-Required indexes:
+- UUID `id`;
+- unique SHA-256 `tokenHash`;
+- `userId` foreign key;
+- `expiresAt`;
+- `lastSeenAt`;
+- optional `revokedAt`;
+- created/updated timestamps.
 
-- unique `eventId` for idempotency;
-- compound `cameraId + occurredAtUtc`;
-- compound `outcome + occurredAtUtc`;
-- compound `reviewStatus + occurredAtUtc`, if review status is denormalized;
-- `inspectionSessionId`.
+Indexes and constraints:
 
-### `eventReviews` collection
+- cascade delete when a user is removed;
+- unique token hash;
+- indexes on user, expiry and active-session lookup fields.
 
-- `_id`
-- `eventId`
-- `status`
-- `remarks`
-- `reviewedBy`
-- `reviewedAtUtc`
-- `createdAtUtc`
+PostgreSQL does not use MongoDB-style TTL indexes. Expired sessions are rejected by every authenticated request and may be removed by a controlled cleanup task after retention is approved.
 
-The original AI outcome remains immutable. Human review is a separate record or versioned review history.
+### `cameras`
 
-### `healthRecords` collection
+- `id`;
+- name and zone;
+- connection status;
+- AI status;
+- last-frame timestamp;
+- FPS and stream quality;
+- today's event count;
+- configuration version;
+- dataset marker and timestamps.
 
-- `_id`
-- `componentType`
-- `componentId`
-- `status`
-- `observedAtUtc`
-- `details`
-- `createdAtUtc`
+Indexes and constraints:
 
-A separate current-health summary may be maintained for dashboard speed while detailed history follows approved retention.
+- primary key on `id`;
+- non-negative FPS and event-count checks;
+- indexes on dataset and operational status.
 
-### `auditRecords` collection
+### `inspection_events`
 
-- `_id`
-- `actorId`
-- `action`
-- `entityType`
-- `entityId`
-- `occurredAtUtc`
-- `changeSummary`
-- `correlationId`
+- stable `id` generated at the edge for real events;
+- `cameraId` foreign key;
+- camera/zone display fields;
+- UTC timestamp;
+- outcome, reason and confidence;
+- review status and remarks;
+- reviewer and review timestamp;
+- model/rule versions;
+- optimistic-concurrency `version`;
+- contract/schema version;
+- dataset marker;
+- created/updated timestamps.
 
-### Evidence objects
+Indexes and constraints:
 
-Evidence binaries are not stored inside MongoDB. Metadata is associated with the event and points to private Azure Blob paths.
+- primary/unique event ID for idempotency;
+- foreign key to camera;
+- confidence check from 0 to 100;
+- version/schema-version checks greater than or equal to 1;
+- compound timestamp/ID pagination index;
+- camera/time, outcome/time and review/time indexes;
+- combined camera/outcome/review/time index for common portal filters.
 
-Evidence metadata includes:
+The original automated outcome remains immutable through the review endpoint. Human review fields are updated transactionally and produce an audit record.
 
-- evidence type;
-- Blob path or object key;
-- MIME type;
-- start/end timestamps;
-- size;
-- checksum;
-- upload/status fields.
+### `event_steps`
+
+- UUID `id`;
+- `eventId` foreign key;
+- explicit `sequence`;
+- label;
+- state;
+- optional observed time.
+
+Constraints:
+
+- cascade delete with the event;
+- unique event/sequence pair;
+- ordered retrieval by sequence.
+
+### `health_metrics`
+
+- component `id`;
+- label, value and detail;
+- health state;
+- checked timestamp;
+- source and dataset fields;
+- created/updated timestamps.
+
+A future health-history table may be added after retention and reporting requirements are confirmed. The current table represents the latest dashboard health state.
+
+### `evidence_metadata`
+
+- stable metadata `id`;
+- unique event foreign key;
+- available, unavailable or pending state;
+- snapshot, clip or none type;
+- MIME type, size and checksum where real evidence exists;
+- protected storage key where approved;
+- dataset marker and timestamps.
+
+Evidence binaries are stored in the protected local filesystem and optionally Azure Blob Storage. PostgreSQL stores only safe metadata and protected references.
+
+### `audit_logs`
+
+- UUID row ID and unique action ID;
+- actor ID, display name and role;
+- action and target;
+- safe before/after `JSONB` summaries;
+- correlation ID;
+- UTC occurrence timestamp;
+- created timestamp.
+
+The before/after JSON fields are intentionally limited to audit-safe summaries. They are not a general-purpose replacement for relational schema.
 
 ## Schema and migration management
 
-MongoDB does not remove the need for controlled schema changes.
+- Prisma schema and migrations are version-controlled;
+- the initial PostgreSQL migration includes tables, enum types, foreign keys, indexes and check constraints;
+- new migrations are generated only against a dedicated developer database;
+- shared/UAT/field environments use `prisma migrate deploy`;
+- migration SQL is reviewed for data loss, lock duration, index impact and rollback/recovery needs;
+- database backup is required before destructive or data-transforming migrations;
+- application code supports staged compatibility where UAT and field versions may briefly differ;
+- one reviewed `pnpm-lock.yaml` is authoritative before release.
 
-- every document includes a schema or contract version where relevant;
-- Mongoose schemas and shared contract schemas are version-controlled;
-- indexes are created through repeatable migration/setup scripts;
-- data transformations are idempotent and tested against representative fixtures;
-- destructive or irreversible changes require a rollback and backup plan;
-- application code supports staged compatibility where UAT and production versions may briefly differ.
+## JSONB policy
+
+PostgreSQL `JSONB` may be used for:
+
+- versioned AI diagnostic details;
+- flexible configuration snapshots;
+- audit before/after summaries;
+- external integration payload archives where approved.
+
+It must not be used to avoid normal tables for users, sessions, cameras, events, evidence, health or reviews.
 
 ## API boundaries
 
@@ -189,19 +236,30 @@ MongoDB does not remove the need for controlled schema changes.
 - export filtered records;
 - provide KPI summaries derived from persisted events.
 
-## Idempotency
+## Idempotency and concurrency
 
 - event IDs are generated at the edge;
-- the API enforces a unique `eventId` index and treats repeated submissions as the same event;
-- evidence uploads use stable object paths and checksums;
-- sync retries must not create duplicate events or evidence records.
+- PostgreSQL primary/unique constraints enforce idempotency;
+- duplicate edge submissions resolve to the existing event rather than creating another row;
+- evidence uses one-to-one event metadata plus stable storage keys and checksums;
+- sync retries must not create duplicate events or evidence records;
+- review mutations require `expectedVersion` and use a transaction;
+- stale review writes return `409 VERSION_CONFLICT` without overwriting current data.
 
 ## Time handling
 
-- store all application timestamps in UTC using BSON Date values where applicable;
+- store all application timestamps in PostgreSQL as UTC `DateTime` values;
 - display local site time in the dashboard;
-- synchronize camera, edge workstation, and application clocks to an approved time source;
+- synchronize camera, edge workstation, API and database hosts to an approved time source;
 - retain original camera timestamps where needed for diagnostics.
+
+## Backup and recovery
+
+- use `pg_dump` for protected local backups;
+- use `pg_restore` for controlled restoration tests;
+- store backups outside Git and outside unrestricted user folders;
+- verify event totals, a reviewed event and an audit record after restoration;
+- retain the durable edge spool until database recovery and replay are confirmed.
 
 ## Retention
 
@@ -214,6 +272,8 @@ Retention periods are not assumed. The client must approve separate periods for:
 - annotated datasets;
 - audit records;
 - health history;
-- local offline spool.
+- sessions;
+- local offline spool;
+- database backups.
 
-Deletion jobs, TTL indexes where appropriate, Blob lifecycle rules, and storage sizing will be implemented only after those periods are approved. Unsynchronized edge records must never be removed by routine retention cleanup.
+Scheduled SQL cleanup, evidence lifecycle rules, backup rotation and storage sizing will be implemented only after those periods are approved. Unsynchronized edge records must never be removed by routine retention cleanup.
