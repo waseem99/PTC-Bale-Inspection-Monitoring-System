@@ -51,11 +51,28 @@ Historical decision records and acceptance checks may still name MongoDB/Mongoos
 
 ## GitHub-hosted validation result
 
-Backend CI workflow run `30254000176` was retried.
+The earlier backend run `30254000176` was retried and again failed before any step.
 
-GitHub created the `quality` job but failed it before executing a workflow step. The job returned no step list and no downloadable job logs. The dependent container and live-browser jobs were skipped.
+After workflow and repository cleanup, fresh runs were triggered from the current PR branch:
 
-Because no action, command, migration or test started, this result does not demonstrate an application, PostgreSQL, Prisma or workflow-code failure. It is treated as an external runner/account provisioning blocker until GitHub-hosted execution is restored.
+- Backend CI run `30258171753`;
+- Frontend CI run `30258171756`.
+
+For both workflows, GitHub created the first `quality` job and failed it before checkout or any workflow step. Each job returned no step list and no downloadable logs. All dependent container and browser jobs were skipped.
+
+Because no action, command, dependency installation, migration or test started, these results do not demonstrate an application, PostgreSQL, Prisma, frontend or workflow-code failure. They are treated as an external GitHub-hosted runner/account provisioning blocker until hosted execution is restored.
+
+## Lockfile completion path
+
+The backend hosted and self-hosted workflows now:
+
+- use `pnpm install --frozen-lockfile` automatically when `pnpm-lock.yaml` is present;
+- bootstrap with `--no-frozen-lockfile` only while the reviewed lockfile is absent;
+- require the generated lockfile to be non-empty;
+- upload `pnpm-lock.yaml` as a workflow artifact before database and test execution;
+- preserve the lockfile in the self-hosted validation artifact.
+
+Once either runner executes, download the generated lockfile artifact, review it, commit it to the PR branch and rerun. Subsequent runs will enforce frozen installation.
 
 ## Approved validation path
 
