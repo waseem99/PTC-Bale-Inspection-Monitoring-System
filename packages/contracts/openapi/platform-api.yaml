@@ -1,0 +1,281 @@
+openapi: 3.1.0
+info:
+  title: PTC Bale Inspection Platform API
+  version: 1.0.0
+  description: Local-first PoC workflow API. Synthetic seeded data is not client acceptance evidence.
+servers:
+  - url: /api
+security:
+  - sessionCookie: []
+paths:
+  /auth/login:
+    post:
+      security: []
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [username, password]
+              properties:
+                username: { type: string, minLength: 1, maxLength: 100 }
+                password: { type: string, minLength: 1, maxLength: 256 }
+      responses:
+        '200':
+          description: Authenticated session
+          headers:
+            Set-Cookie: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '401': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /auth/me:
+    get:
+      operationId: currentSession
+      responses:
+        '200':
+          description: Active session
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/logout:
+    post:
+      operationId: logout
+      responses:
+        '204': { description: Session revoked }
+  /dashboard/summary:
+    get:
+      operationId: dashboardSummary
+      responses:
+        '200':
+          description: Dashboard KPI summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KpiSummary' }
+  /cameras:
+    get:
+      operationId: listCameras
+      responses:
+        '200':
+          description: Camera status list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Camera' }
+  /health:
+    get:
+      operationId: systemHealth
+      responses:
+        '200':
+          description: System health metrics
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/HealthMetric' }
+  /events:
+    get:
+      operationId: listEvents
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, enum: [10, 20, 50, 100], default: 20 } }
+        - { name: cameraId, in: query, schema: { type: string } }
+        - { name: outcome, in: query, schema: { $ref: '#/components/schemas/Outcome' } }
+        - { name: reviewStatus, in: query, schema: { $ref: '#/components/schemas/ReviewStatus' } }
+        - { name: search, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: sortBy, in: query, schema: { type: string, enum: [timestamp, outcome, confidence, reviewStatus, cameraName], default: timestamp } }
+        - { name: sortDirection, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Paginated inspection events
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventPage' }
+  /events/{eventId}:
+    parameters:
+      - { name: eventId, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getEvent
+      responses:
+        '200':
+          description: Inspection event
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InspectionEvent' }
+        '404': { $ref: '#/components/responses/Error' }
+  /events/{eventId}/review:
+    parameters:
+      - { name: eventId, in: path, required: true, schema: { type: string } }
+    patch:
+      operationId: reviewEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reviewStatus, remarks, expectedVersion]
+              properties:
+                reviewStatus: { type: string, enum: [confirmed, dismissed] }
+                remarks: { type: string, maxLength: 1000 }
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Updated event
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InspectionEvent' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /exports/events:
+    post:
+      operationId: exportEvents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [format]
+              properties:
+                cameraId: { type: string }
+                outcome: { $ref: '#/components/schemas/Outcome' }
+                reviewStatus: { $ref: '#/components/schemas/ReviewStatus' }
+                from: { type: string, format: date }
+                to: { type: string, format: date }
+                format: { type: string, const: csv }
+      responses:
+        '200':
+          description: Filtered CSV without evidence media
+          content:
+            text/csv:
+              schema: { type: string }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ptc_session
+  responses:
+    Error:
+      description: Stable API error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+  schemas:
+    Role: { type: string, enum: [viewer, supervisor, admin] }
+    Outcome: { type: string, enum: [completed, missed, incomplete, unresolved] }
+    ReviewStatus: { type: string, enum: [unreviewed, confirmed, dismissed] }
+    User:
+      type: object
+      required: [id, username, displayName, role]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        displayName: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+    Session:
+      type: object
+      required: [token, user, expiresAt]
+      properties:
+        token: { type: string, description: Empty for cookie-backed sessions }
+        user: { $ref: '#/components/schemas/User' }
+        expiresAt: { type: string, format: date-time }
+    EventStep:
+      type: object
+      required: [label, state]
+      properties:
+        label: { type: string }
+        state: { type: string, enum: [complete, failed, unknown] }
+        time: { type: string }
+    InspectionEvent:
+      type: object
+      required: [id, cameraId, cameraName, zone, timestamp, outcome, reason, confidence, reviewStatus, summary, evidenceAvailable, modelVersion, ruleVersion, version, steps]
+      properties:
+        id: { type: string }
+        cameraId: { type: string }
+        cameraName: { type: string }
+        zone: { type: string }
+        timestamp: { type: string, format: date-time }
+        outcome: { $ref: '#/components/schemas/Outcome' }
+        reason: { type: string }
+        confidence: { type: number, minimum: 0, maximum: 100 }
+        reviewStatus: { $ref: '#/components/schemas/ReviewStatus' }
+        summary: { type: string }
+        evidenceAvailable: { type: boolean }
+        remarks: { type: string }
+        reviewedBy: { type: string }
+        reviewedAt: { type: string, format: date-time }
+        modelVersion: { type: string }
+        ruleVersion: { type: string }
+        version: { type: integer, minimum: 1 }
+        steps:
+          type: array
+          items: { $ref: '#/components/schemas/EventStep' }
+    EventPage:
+      type: object
+      required: [items, page, pageSize, total, totalPages, hasNextPage, hasPreviousPage, generatedAt]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/InspectionEvent' } }
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer }
+        totalPages: { type: integer }
+        hasNextPage: { type: boolean }
+        hasPreviousPage: { type: boolean }
+        generatedAt: { type: string, format: date-time }
+    Camera:
+      type: object
+      required: [id, name, zone, status, aiStatus, lastFrameAt, fps, streamQuality, todayEvents]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        zone: { type: string }
+        status: { type: string, enum: [online, warning, offline] }
+        aiStatus: { type: string, enum: [processing, degraded, stopped] }
+        lastFrameAt: { type: string, format: date-time }
+        fps: { type: number }
+        streamQuality: { type: string }
+        todayEvents: { type: integer }
+    HealthMetric:
+      type: object
+      required: [id, label, value, detail, state, checkedAt]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        value: { type: string }
+        detail: { type: string }
+        state: { type: string, enum: [healthy, warning, critical, neutral] }
+        checkedAt: { type: string, format: date-time }
+    KpiSummary:
+      type: object
+      required: [total, completed, violations, unresolved, unreviewed, completedRate, periodLabel, generatedAt]
+      properties:
+        total: { type: integer }
+        completed: { type: integer }
+        violations: { type: integer }
+        unresolved: { type: integer }
+        unreviewed: { type: integer }
+        completedRate: { type: number }
+        periodLabel: { type: string }
+        generatedAt: { type: string, format: date-time }
+    ApiError:
+      type: object
+      required: [code, message, status, correlationId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        status: { type: integer }
+        correlationId: { type: string }
+        details: { type: object, additionalProperties: true }
