@@ -48,7 +48,19 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
-          pnpm install --no-frozen-lockfile
+          if test -f pnpm-lock.yaml; then
+            pnpm install --frozen-lockfile
+          else
+            pnpm install --no-frozen-lockfile
+          fi
+          test -s pnpm-lock.yaml
+      - name: Upload generated or validated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: pnpm-lockfile-self-hosted-${{ github.sha }}
+          path: pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 14
       - run: pnpm --filter @ptc-bale/platform-api db:generate
       - run: pnpm --filter @ptc-bale/platform-api db:migrate:deploy
       - run: pnpm --filter @ptc-bale/platform-api lint
@@ -130,6 +142,7 @@ jobs:
         with:
           name: backend-postgresql-self-hosted-validation-${{ github.sha }}
           path: |
+            pnpm-lock.yaml
             apps/platform-api/dist
             apps/platform-api/coverage
             apps/dashboard-web/playwright-report
