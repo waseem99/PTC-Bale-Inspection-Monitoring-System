@@ -10,7 +10,11 @@ RUN pnpm install --filter @ptc-bale/platform-api... --no-frozen-lockfile
 COPY apps/platform-api apps/platform-api
 RUN pnpm --filter @ptc-bale/platform-api db:generate
 RUN pnpm --filter @ptc-bale/platform-api build
-RUN pnpm --filter @ptc-bale/platform-api --prod deploy /runtime
+# Deploy with development tooling temporarily so Prisma can generate into the
+# deployed package's own node_modules tree, then prune back to production deps.
+RUN pnpm --filter @ptc-bale/platform-api deploy /runtime
+RUN cd /runtime && pnpm exec prisma generate
+RUN cd /runtime && pnpm prune --prod
 
 FROM node:22.16.0-alpine AS runtime
 ENV NODE_ENV=production
