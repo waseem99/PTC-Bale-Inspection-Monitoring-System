@@ -1,0 +1,244 @@
+name: Backend Recovery CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/platform-api/**'
+      - 'apps/dashboard-web/**'
+      - 'infrastructure/local/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/backend-recovery-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-recovery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BASE_URL: http://127.0.0.1:8080
+      POSTGRES_DB: ptc_bale
+      POSTGRES_USER: ptc_app
+      POSTGRES_PASSWORD: Recovery-Postgres-Password-2026!
+      SUPERVISOR_PASSWORD: Recovery-Supervisor-Password-2026!
+      VIEWER_PASSWORD: Recovery-Viewer-Password-2026!
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure isolated recovery stack
+        shell: bash
+        run: |
+          cat > infrastructure/local/.env <<'EOF'
+          DASHBOARD_PORT=8080
+          API_BUILD_VERSION=recovery-postgres
+          DASHBOARD_BUILD_VERSION=recovery-postgres
+          ALLOWED_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
+          POSTGRES_DB=ptc_bale
+          POSTGRES_USER=ptc_app
+          POSTGRES_PASSWORD=Recovery-Postgres-Password-2026!
+          SEED_VIEWER_PASSWORD=Recovery-Viewer-Password-2026!
+          SEED_SUPERVISOR_PASSWORD=Recovery-Supervisor-Password-2026!
+          SEED_ADMIN_PASSWORD=Recovery-Admin-Password-2026!
+          EOF
+      - name: Start dashboard, API, migrations, seed and PostgreSQL
+        shell: bash
+        run: docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml up --build --detach
+      - name: Wait for live-stack readiness
+        shell: bash
+        run: |
+          for attempt in {1..90}; do
+            if curl --fail --silent "$BASE_URL/api/readyz" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml ps
+          docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml logs
+          exit 1
+      - name: Validate authorization, optimistic concurrency and reseed preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMPOSE="docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml"
+          EVENT_ID='EVT-2407-0253'
+          MARKER="Recovery validation ${GITHUB_SHA}"
+          SUPERVISOR_COOKIE=/tmp/supervisor.cookies
+          VIEWER_COOKIE=/tmp/viewer.cookies
+
+          curl --fail --silent --show-error \
+            --cookie-jar "$SUPERVISOR_COOKIE" \
+            --header 'Origin: http://127.0.0.1:8080' \
+            --header 'Content-Type: application/json' \
+            --data "{\"username\":\"supervisor\",\"password\":\"$SUPERVISOR_PASSWORD\"}" \
+            "$BASE_URL/api/auth/login" >/tmp/supervisor-login.json
+
+          curl --fail --silent --show-error \
+            --cookie-jar "$VIEWER_COOKIE" \
+            --header 'Origin: http://127.0.0.1:8080' \
+            --header 'Content-Type: application/json' \
+            --data "{\"username\":\"viewer\",\"password\":\"$VIEWER_PASSWORD\"}" \
+            "$BASE_URL/api/auth/login" >/tmp/viewer-login.json
+
+          curl --fail --silent --show-error --cookie "$SUPERVISOR_COOKIE" \
+            "$BASE_URL/api/events/$EVENT_ID" >/tmp/event-before.json
+          VERSION=$(jq -er '.version' /tmp/event-before.json)
+
+          REVIEW_BODY=$(jq -nc \
+            --arg status confirmed \
+            --arg remarks "$MARKER" \
+            --argjson version "$VERSION" \
+            '{reviewStatus:$status,remarks:$remarks,expectedVersion:$version}')
+
+          VIEWER_STATUS=$(curl --silent --show-error --output /tmp/viewer-review.json --write-out '%{http_code}' \
+            --cookie "$VIEWER_COOKIE" \
+            --header 'Origin: http://127.0.0.1:8080' \
+            --header 'Content-Type: application/json' \
+            --request PATCH --data "$REVIEW_BODY" \
+            "$BASE_URL/api/events/$EVENT_ID/review")
+          test "$VIEWER_STATUS" = '403'
+
+          REVIEW_STATUS=$(curl --silent --show-error --output /tmp/review.json --write-out '%{http_code}' \
+            --cookie "$SUPERVISOR_COOKIE" \
+            --header 'Origin: http://127.0.0.1:8080' \
+            --header 'Content-Type: application/json' \
+            --request PATCH --data "$REVIEW_BODY" \
+            "$BASE_URL/api/events/$EVENT_ID/review")
+          test "$REVIEW_STATUS" = '200'
+          jq -e --arg marker "$MARKER" '.remarks == $marker and .reviewStatus == "confirmed"' /tmp/review.json >/dev/null
+          UPDATED_VERSION=$(jq -er '.version' /tmp/review.json)
+          test "$UPDATED_VERSION" -eq "$((VERSION + 1))"
+
+          STALE_STATUS=$(curl --silent --show-error --output /tmp/stale-review.json --write-out '%{http_code}' \
+            --cookie "$SUPERVISOR_COOKIE" \
+            --header 'Origin: http://127.0.0.1:8080' \
+            --header 'Content-Type: application/json' \
+            --request PATCH --data "$REVIEW_BODY" \
+            "$BASE_URL/api/events/$EVENT_ID/review")
+          test "$STALE_STATUS" = '409'
+          jq -e '.code == "VERSION_CONFLICT"' /tmp/stale-review.json >/dev/null
+
+          AUDIT_COUNT=$($COMPOSE exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At \
+            -c "SELECT count(*) FROM audit_logs WHERE \"targetId\" = '$EVENT_ID' AND action = 'event.review.updated';")
+          test "$AUDIT_COUNT" -eq 1
+
+          $COMPOSE run --rm seed >/tmp/reseed.log
+          curl --fail --silent --show-error --cookie "$SUPERVISOR_COOKIE" \
+            "$BASE_URL/api/events/$EVENT_ID" >/tmp/event-after-reseed.json
+          jq -e --arg marker "$MARKER" --argjson version "$UPDATED_VERSION" \
+            '.remarks == $marker and .version == $version' /tmp/event-after-reseed.json >/dev/null
+
+          {
+            echo "viewer_review_status=$VIEWER_STATUS"
+            echo "successful_review_status=$REVIEW_STATUS"
+            echo "stale_review_status=$STALE_STATUS"
+            echo "review_version=$UPDATED_VERSION"
+            echo "audit_count=$AUDIT_COUNT"
+            echo 'normal_reseed_preserved_review=true'
+          } > recovery-validation.log
+      - name: Validate API and PostgreSQL restart persistence
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMPOSE="docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml"
+          EVENT_ID='EVT-2407-0253'
+          MARKER="Recovery validation ${GITHUB_SHA}"
+          SUPERVISOR_COOKIE=/tmp/supervisor.cookies
+
+          $COMPOSE restart api
+          for attempt in {1..45}; do
+            if curl --fail --silent "$BASE_URL/api/readyz" >/dev/null; then break; fi
+            sleep 2
+          done
+          curl --fail --silent --show-error --cookie "$SUPERVISOR_COOKIE" \
+            "$BASE_URL/api/events/$EVENT_ID" >/tmp/event-after-api-restart.json
+          jq -e --arg marker "$MARKER" '.remarks == $marker' /tmp/event-after-api-restart.json >/dev/null
+
+          $COMPOSE restart postgres
+          for attempt in {1..45}; do
+            if $COMPOSE exec -T postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          $COMPOSE restart api
+          for attempt in {1..45}; do
+            if curl --fail --silent "$BASE_URL/api/readyz" >/dev/null; then break; fi
+            sleep 2
+          done
+          curl --fail --silent --show-error --cookie "$SUPERVISOR_COOKIE" \
+            "$BASE_URL/api/events/$EVENT_ID" >/tmp/event-after-postgres-restart.json
+          jq -e --arg marker "$MARKER" '.remarks == $marker' /tmp/event-after-postgres-restart.json >/dev/null
+
+          {
+            echo 'api_restart_preserved_review=true'
+            echo 'postgres_restart_preserved_review=true'
+          } >> recovery-validation.log
+      - name: Reconcile filtered CSV with PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMPOSE="docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml"
+          SUPERVISOR_COOKIE=/tmp/supervisor.cookies
+          curl --fail --silent --show-error \
+            --cookie "$SUPERVISOR_COOKIE" \
+            --header 'Origin: http://127.0.0.1:8080' \
+            --header 'Content-Type: application/json' \
+            --data '{"format":"csv","outcome":"missed"}' \
+            "$BASE_URL/api/exports/events" >/tmp/missed-events.csv
+          CSV_ROWS=$(tail -n +2 /tmp/missed-events.csv | tr -d '\r' | grep -c . || true)
+          DB_ROWS=$($COMPOSE exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At \
+            -c "SELECT count(*) FROM inspection_events WHERE outcome = 'missed';")
+          test "$CSV_ROWS" -eq "$DB_ROWS"
+          {
+            echo "missed_csv_rows=$CSV_ROWS"
+            echo "missed_database_rows=$DB_ROWS"
+            echo 'filtered_csv_reconciled=true'
+          } >> recovery-validation.log
+      - name: Validate pg_dump and pg_restore recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMPOSE="docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml"
+          EVENT_ID='EVT-2407-0253'
+          MARKER="Recovery validation ${GITHUB_SHA}"
+
+          $COMPOSE exec -T postgres pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc >/tmp/ptc-bale-recovery.dump
+          test -s /tmp/ptc-bale-recovery.dump
+          $COMPOSE exec -T postgres dropdb --if-exists -U "$POSTGRES_USER" ptc_bale_restore
+          $COMPOSE exec -T postgres createdb -U "$POSTGRES_USER" ptc_bale_restore
+          cat /tmp/ptc-bale-recovery.dump | $COMPOSE exec -T postgres \
+            pg_restore -U "$POSTGRES_USER" -d ptc_bale_restore --no-owner --no-privileges
+
+          SOURCE_EVENTS=$($COMPOSE exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At \
+            -c 'SELECT count(*) FROM inspection_events;')
+          RESTORED_EVENTS=$($COMPOSE exec -T postgres psql -U "$POSTGRES_USER" -d ptc_bale_restore -At \
+            -c 'SELECT count(*) FROM inspection_events;')
+          test "$SOURCE_EVENTS" -eq 257
+          test "$RESTORED_EVENTS" -eq "$SOURCE_EVENTS"
+
+          RESTORED_REMARKS=$($COMPOSE exec -T postgres psql -U "$POSTGRES_USER" -d ptc_bale_restore -At \
+            -c "SELECT remarks FROM inspection_events WHERE id = '$EVENT_ID';")
+          test "$RESTORED_REMARKS" = "$MARKER"
+          RESTORED_AUDITS=$($COMPOSE exec -T postgres psql -U "$POSTGRES_USER" -d ptc_bale_restore -At \
+            -c "SELECT count(*) FROM audit_logs WHERE \"targetId\" = '$EVENT_ID';")
+          test "$RESTORED_AUDITS" -eq 1
+
+          {
+            echo "source_event_count=$SOURCE_EVENTS"
+            echo "restored_event_count=$RESTORED_EVENTS"
+            echo "restored_audit_count=$RESTORED_AUDITS"
+            echo 'pg_dump_restore_reconciled=true'
+          } >> recovery-validation.log
+      - name: Upload sanitized recovery record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgresql-recovery-validation-${{ github.sha }}
+          path: recovery-validation.log
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml down --volumes >/dev/null 2>&1 || true
