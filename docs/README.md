@@ -16,17 +16,17 @@
 - [Solution architecture](03-solution-architecture.md)
 - [Technical stack](04-technical-stack.md)
 - [SOP and domain model](05-sop-and-domain-model.md)
-- [Data and event model](06-data-and-event-model.md)
+- [PostgreSQL data and event model](06-data-and-event-model.md)
 - [AI development and evaluation](07-ai-development-plan.md)
 - [Development foundation and dashboard plan](21-development-foundation-and-dashboard-plan.md)
 - [Frontend production readiness](22-frontend-production-readiness.md)
 - [Frontend/live API contract](23-frontend-api-contract.md)
-- [Backend API and persistent seeded data plan](27-backend-api-and-seeded-data-plan.md)
+- [Backend API and persistent seeded PostgreSQL plan](27-backend-api-and-seeded-data-plan.md)
 
 ## Deployment and security
 
-- [Edge deployment](08-edge-deployment.md)
-- [Azure deployment](09-azure-deployment.md)
+- [Edge and local PostgreSQL deployment](08-edge-deployment.md)
+- [Azure management-plane deployment](09-azure-deployment.md)
 - [Security and privacy](10-security-and-privacy.md)
 - [Frontend deployment and rollback runbook](25-frontend-deployment-runbook.md)
 
@@ -38,13 +38,14 @@
 - [GitHub workflow and issue planning](16-github-workflow.md)
 - [Frontend UAT and release checklist](24-frontend-uat-checklist.md)
 - [Frontend self-hosted validation fallback](26-frontend-self-hosted-validation.md)
-- [Backend validation and local stack runbook](28-backend-validation-and-local-runbook.md)
+- [Backend/PostgreSQL validation and local runbook](28-backend-validation-and-local-runbook.md)
 
 ## Documentation rules
 
 1. The awarded proposal, BOQ, approved SOP, and signed change requests are authoritative.
 2. Reference-project media informs design but does not add PTC scope without written confirmation.
-3. Site-sensitive details and restricted media must not be committed even though the repository is private.
+3. Site-sensitive details, database URLs/backups and restricted media must not be committed even though the repository is private.
 4. Architecture decisions must be recorded in the decision log.
-5. An issue is not complete until its acceptance criteria and documentation impact are addressed.
-6. Raw footage, datasets, evidence clips, credentials, production IPs, and model binaries remain outside Git.
+5. PostgreSQL schema changes require reviewed Prisma migrations and recovery impact.
+6. An issue is not complete until its acceptance criteria and documentation impact are addressed.
+7. Raw footage, datasets, evidence clips, credentials, production IPs, database dumps, and model binaries remain outside Git.
