@@ -1,11 +1,11 @@
-import mongoose from 'mongoose';
+import { connectDatabase, disconnectDatabase } from './db';
 import { loadConfig } from './config';
 import { resetSyntheticData, seedStatus, seedSyntheticData } from './seed-service';
 
 async function main(): Promise<void> {
   const command = process.argv[2] ?? 'seed';
   const config = loadConfig();
-  await mongoose.connect(config.mongodbUri);
+  await connectDatabase();
   try {
     if (command === 'reset') console.log(JSON.stringify(await seedSyntheticData(config, true)));
     else if (command === 'seed') console.log(JSON.stringify(await seedSyntheticData(config, false)));
@@ -15,7 +15,7 @@ async function main(): Promise<void> {
       console.log(JSON.stringify({ cleared: true }));
     } else throw new Error(`Unknown seed command: ${command}`);
   } finally {
-    await mongoose.disconnect();
+    await disconnectDatabase();
   }
 }
 
