@@ -7,14 +7,16 @@ on:
       - 'apps/dashboard-web/**'
       - 'package.json'
       - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
       - '.dockerignore'
       - '.github/workflows/frontend-ci.yml'
   push:
-    branches: [main, project-foundation]
+    branches: [main]
     paths:
       - 'apps/dashboard-web/**'
       - 'package.json'
       - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
       - '.dockerignore'
       - '.github/workflows/frontend-ci.yml'
 
@@ -36,9 +38,23 @@ jobs:
           version: 9.15.4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.18.1
-          cache: pnpm
-      - run: pnpm install --no-frozen-lockfile
+          node-version: 22.16.0
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if test -f pnpm-lock.yaml; then
+            pnpm install --frozen-lockfile
+          else
+            pnpm install --no-frozen-lockfile
+          fi
+          test -s pnpm-lock.yaml
+      - name: Upload generated or validated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: pnpm-lockfile-frontend-${{ github.sha }}
+          path: pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 14
       - run: pnpm --filter @ptc-bale/dashboard-web lint
       - run: pnpm --filter @ptc-bale/dashboard-web typecheck
       - run: pnpm --filter @ptc-bale/dashboard-web test
@@ -55,7 +71,7 @@ jobs:
         run: |
           test -d apps/dashboard-web/dist
           ! find apps/dashboard-web/dist -name '*.map' | grep -q .
-          ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|mongodb\+srv://|rtsp://[^ ]+:[^ ]+@)' apps/dashboard-web/dist
+          ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|postgresql://[^ ]+:[^ ]+@|mongodb\+srv://|rtsp://[^ ]+:[^ ]+@)' apps/dashboard-web/dist
       - name: Upload deployable static portal
         uses: actions/upload-artifact@v4
         with:
@@ -103,9 +119,15 @@ jobs:
           version: 9.15.4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.18.1
-          cache: pnpm
-      - run: pnpm install --no-frozen-lockfile
+          node-version: 22.16.0
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if test -f pnpm-lock.yaml; then
+            pnpm install --frozen-lockfile
+          else
+            pnpm install --no-frozen-lockfile
+          fi
       - run: pnpm exec playwright install --with-deps chromium
         working-directory: apps/dashboard-web
       - run: pnpm test:e2e
