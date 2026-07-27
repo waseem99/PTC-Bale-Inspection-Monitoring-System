@@ -49,31 +49,31 @@ This is the implementation backlog created from the awarded scope. Each child is
 ## M4 — Local MERN application, approved Azure management plane, and CI/CD
 
 - #5 — Epic: local MERN application and approved Azure management plane
-- #68 — Deliver the first backend/API vertical slice with persistent seeded demo data
-- #35 — Initialize application packages and shared contracts from the approved monorepo scaffold
-- #36 — Implement local MongoDB data model, indexes, migrations, and Azure-compatible persistence
-- #37 — Implement secure idempotent local event and health ingestion API
-- #38 — Implement secure local evidence storage, retrieval, retention, and optional Azure synchronization
-- #39 — Implement event list, detail, filters, review status, remarks, and audit APIs
-- #40 — Implement KPI summaries, health APIs, real-time notifications, and basic exports
-- #41 — Implement simple fixed-user PoC access control and preserve a future Entra adapter
-- #42 — Define and deploy the approved Azure management plane with Bicep
-- #43 — Implement GitHub Actions CI, security checks, local packages, and approved Azure deployment workflows
+- #68 — First backend/API vertical slice with persistent seeded data — **implementation complete; objective validation pending**
+- #35 — Node.js platform API, shared contracts, and local stack — **implemented within #68**
+- #36 — MongoDB models, indexes and deterministic seed tooling — **first-slice implementation complete; migration/Azure validation remains**
+- #37 — Secure idempotent edge event and health ingestion API — **next integration**
+- #38 — Real evidence storage, retrieval, retention and optional Azure synchronization — **next integration**
+- #39 — Event list, detail, review, remarks and audit APIs — **implemented within #68; validation pending**
+- #40 — KPI, camera, health and CSV APIs — **REST slice implemented; Socket.IO/PDF remain follow-on**
+- #41 — Fixed-user PoC authentication and future Entra adapter — **local fixed-user slice implemented; Entra remains follow-on**
+- #42 — Approved Azure management plane with Bicep
+- #43 — CI, security checks, local packages, and approved Azure workflows
 
 ## M5 — Dashboard and development demo
 
 - #6 — Epic: local supervisor dashboard and approved central access
-- #44 — Build React portal shell, fixed-user PoC authentication, and mock/live API adapter — **implemented**
-- #45 — Build operations overview, four-camera monitoring, and system-status views — **implemented**
-- #46 — Build inspection event list, violation filters, and demo data states — **implemented**
-- #47 — Build event detail, evidence review, and supervisor feedback flow — **implemented**
-- #48 — Complete reports, resilience states, accessibility, tests, and demo deployment readiness — **implemented**
-- #61 — Provision isolated development portal hosting and demo configuration — **deployment package complete; protected HTTPS endpoint pending**
+- #44 — Portal shell, fixed-user PoC authentication and mock/live adapter — **implemented**
+- #45 — Overview, camera monitoring and system status — **implemented**
+- #46 — Event list, filters and demo states — **implemented**
+- #47 — Event detail, evidence review and supervisor feedback — **implemented**
+- #48 — Reports, resilience, accessibility, tests and demo readiness — **implemented**
+- #61 — Isolated development portal hosting — **deployment package complete; protected HTTPS endpoint pending**
 - #63 — Production-ready frontend epic — **implementation complete; release gates pending**
-- #64 — Routing, typed API client, runtime contracts, and query caching — **implemented**
-- #65 — Server-compatible pagination, filtering, sorting, exports, and mutation UX — **implemented**
-- #66 — Resilience, accessibility, responsive behavior, and performance — **implemented**
-- #67 — Automated tests, security controls, CI gates, and release readiness — **workflow/code complete; execution evidence pending GitHub runner restoration**
+- #64 — Routing, typed API client, runtime contracts and query caching — **implemented**
+- #65 — Pagination, filtering, sorting, exports and mutation UX — **implemented**
+- #66 — Resilience, accessibility, responsive behavior and performance — **implemented**
+- #67 — Automated tests, security controls, CI gates and release readiness — **workflow/code complete; execution evidence pending runner restoration**
 
 ## M6 — MVP integration and release
 
@@ -100,8 +100,7 @@ This is the implementation backlog created from the awarded scope. Each child is
 #15/#19/#59 -> #27 -> #28 -> #29 -> #30 -> #31/#32 -> #33 -> #34
 #20 -> #21/#22/#23 -> #24/#25 -> #26
 #60 -> #35 -> #41/#44 -> #45/#46/#47 -> #48 -> #61
-#68 -> #35/#36/#41 -> #39/#40 -> frontend live-mode integration
-#68 accepted -> #37/#38 -> Python edge/evidence integration -> #42/#43
+#68 validation -> #37/#38 -> Python edge/evidence integration -> #42/#43
 #49 -> #50/#51 -> #52 -> #53 -> #54 -> #55/#56 -> #57
 ```
 
@@ -113,20 +112,25 @@ Continue #59, #14, #9, #11, #12, #13, #15, #16 and #17 in parallel with work tha
 
 ### Frontend release queue
 
-The complete frontend implementation is in PR #62. Finish #61 by provisioning the protected HTTPS demo endpoint. Finish #67 by restoring GitHub Actions execution or attaching an approved self-hosted runner, passing all quality/container/E2E gates, and completing the browser UAT checklist.
+The complete frontend implementation is in PR #62. Finish #61 by provisioning the protected HTTPS demo endpoint. Finish #67 by restoring GitHub Actions execution or attaching an approved self-hosted runner, passing all quality/container/E2E gates, and completing browser UAT.
 
-### Backend/API vertical-slice queue
+### Backend/API validation queue
 
-Use #68 as the controlling execution issue:
+The first REST and seeded-data implementation is in PR #69. Complete #68 by:
 
-1. #35 — initialize the Node.js/Express package, shared contracts and local startup;
-2. #36 — implement MongoDB schemas, indexes and deterministic seed/reset tooling;
-3. #41 — implement fixed-user server-side authentication and authorization;
-4. #39 — implement paginated event, detail, review and audit APIs;
-5. #40 — implement dashboard summary, cameras, health and filtered CSV export;
-6. switch the existing frontend to live mode and run end-to-end tests against the seeded API;
-7. after acceptance, proceed to #37 edge ingestion and #38 real evidence handling.
+1. restoring GitHub-hosted Actions or attaching the `ptc-api` self-hosted runner;
+2. passing backend lint, strict TypeScript, Jest/Supertest/MongoDB tests and production build;
+3. passing API container health checks;
+4. running the production frontend against the seeded live API through Playwright;
+5. completing the manual browser/API checklist in `docs/28-backend-validation-and-local-runbook.md`.
 
-This queue intentionally uses synthetic persisted data first. It does not wait for camera installation, PTC footage or final AI models, and it does not treat synthetic outcomes as client acceptance evidence.
+### Next backend integrations
 
-Do not begin final annotation definitions, compliance logic, camera approval, or acceptance commitments until the Bangladesh-reference mapping, PTC SOP, violation taxonomy, and PTC-specific UAT basis are sufficiently resolved.
+After #68 validation:
+
+1. #37 — Python edge service authentication, idempotent event/health ingestion and spool acknowledgement;
+2. #38 — real snapshot/clip storage, authorized retrieval and retention;
+3. Socket.IO event and health updates;
+4. approved Azure synchronization and Entra ID only where confirmed.
+
+Do not treat synthetic records as client acceptance evidence. Do not finalize annotation definitions, compliance logic, camera approval or AI acceptance commitments until the Bangladesh-reference mapping, PTC SOP, violation taxonomy and PTC-specific UAT basis are sufficiently resolved.
