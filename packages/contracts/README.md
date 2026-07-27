@@ -1,15 +1,18 @@
 # Shared Contracts
 
-Planned source of truth for versioned interfaces shared by Python services, the Node.js API and the React dashboard.
+Versioned interfaces shared by the React dashboard, Node.js platform API and future Python edge services.
 
-## Planned contracts
+## Implemented
 
-- inspection event;
-- camera/service/GPU/storage health;
-- evidence metadata;
-- review status and remarks;
-- authentication/session response;
-- synchronization status;
-- API errors.
+- `openapi/platform-api.yaml` — authentication, dashboard summary, cameras, health, paginated events, event detail, versioned review mutations, CSV exports and stable API errors.
 
-OpenAPI and JSON Schema will be introduced during implementation. No production payloads or restricted data belong here.
+## Contract rules
+
+- Timestamps are ISO 8601 UTC values.
+- Interactive roles are `viewer`, `supervisor` and `admin` for the PoC.
+- Original AI outcome fields remain separate from human review fields.
+- Event review uses optimistic concurrency through `expectedVersion`.
+- The browser never receives RTSP credentials, MongoDB credentials or unrestricted local evidence paths.
+- Synthetic records are for workflow validation and are not client acceptance evidence.
+
+Future edge-ingestion, evidence-media and synchronization schemas will be added without changing the existing portal workflow contract unnecessarily.
