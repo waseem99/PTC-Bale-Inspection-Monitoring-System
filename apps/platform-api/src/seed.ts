@@ -11,7 +11,7 @@ async function main(): Promise<void> {
     else if (command === 'seed') console.log(JSON.stringify(await seedSyntheticData(config, false)));
     else if (command === 'status') console.log(JSON.stringify(await seedStatus()));
     else if (command === 'clear') {
-      await resetSyntheticData();
+      await resetSyntheticData(config);
       console.log(JSON.stringify({ cleared: true }));
     } else throw new Error(`Unknown seed command: ${command}`);
   } finally {
