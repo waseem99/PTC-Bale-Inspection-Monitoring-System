@@ -75,7 +75,6 @@ jobs:
             --data "{\"username\":\"supervisor\",\"password\":\"$SUPERVISOR_PASSWORD\"}" \
             "$BASE_URL/api/auth/login" >/tmp/supervisor-login.json
           jq -e '.user.role == "supervisor"' /tmp/supervisor-login.json >/dev/null
-
           curl --fail --silent --show-error \
             --cookie-jar /tmp/viewer.cookies \
             --header 'Origin: http://127.0.0.1:8080' \
@@ -142,20 +141,26 @@ jobs:
           test "$STATUS" = '409'
           jq -e '.code == "VERSION_CONFLICT"' /tmp/stale-review.json >/dev/null
           echo "stale_review_status=$STATUS" >> recovery-validation.log
-      - name: Verify audit record and normal reseed preservation
+      - name: Verify transactional audit record
         shell: bash
         run: |
           set -euo pipefail
           compose() { docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml "$@"; }
           AUDIT_COUNT=$(compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At \
-            -c "SELECT count(*) FROM audit_logs WHERE \"targetId\" = '$EVENT_ID' AND action = 'event.review.updated';")
-          test "$AUDIT_COUNT" -eq 1
-          compose run --rm seed >/tmp/reseed.log
+            -c "SELECT count(*) FROM audit_logs WHERE \"targetId\" = '$EVENT_ID' AND action = 'event.review.updated';" | tr -d '[:space:]')
+          echo "audit_count_observed=$AUDIT_COUNT" >> recovery-validation.log
+          test "$AUDIT_COUNT" = '1'
+          echo 'transactional_audit_verified=true' >> recovery-validation.log
+      - name: Verify normal reseed preserves human review
+        shell: bash
+        run: |
+          set -euo pipefail
+          compose() { docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml "$@"; }
+          compose run --rm --no-deps seed >/tmp/reseed.log
           curl --fail --silent --show-error --cookie /tmp/supervisor.cookies \
             "$BASE_URL/api/events/$EVENT_ID" >/tmp/event-after-reseed.json
           jq -e --arg marker "$MARKER" --argjson version "$UPDATED_VERSION" \
             '.remarks == $marker and .version == $version' /tmp/event-after-reseed.json >/dev/null
-          echo "audit_count=$AUDIT_COUNT" >> recovery-validation.log
           echo 'normal_reseed_preserved_review=true' >> recovery-validation.log
       - name: Validate API and PostgreSQL restart persistence
         shell: bash
@@ -170,7 +175,6 @@ jobs:
           curl --fail --silent --show-error --cookie /tmp/supervisor.cookies \
             "$BASE_URL/api/events/$EVENT_ID" >/tmp/event-after-api-restart.json
           jq -e --arg marker "$MARKER" '.remarks == $marker' /tmp/event-after-api-restart.json >/dev/null
-
           compose restart postgres
           for attempt in {1..45}; do
             if compose exec -T postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then break; fi
@@ -191,15 +195,12 @@ jobs:
         run: |
           set -euo pipefail
           compose() { docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml "$@"; }
-          curl --fail --silent --show-error \
-            --cookie /tmp/supervisor.cookies \
-            --header 'Origin: http://127.0.0.1:8080' \
-            --header 'Content-Type: application/json' \
-            --data '{"format":"csv","outcome":"missed"}' \
-            "$BASE_URL/api/exports/events" >/tmp/missed-events.csv
+          curl --fail --silent --show-error --cookie /tmp/supervisor.cookies \
+            --header 'Origin: http://127.0.0.1:8080' --header 'Content-Type: application/json' \
+            --data '{"format":"csv","outcome":"missed"}' "$BASE_URL/api/exports/events" >/tmp/missed-events.csv
           CSV_ROWS=$(tail -n +2 /tmp/missed-events.csv | tr -d '\r' | grep -c . || true)
           DB_ROWS=$(compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At \
-            -c "SELECT count(*) FROM inspection_events WHERE outcome = 'missed';")
+            -c "SELECT count(*) FROM inspection_events WHERE outcome = 'missed';" | tr -d '[:space:]')
           test "$CSV_ROWS" -eq "$DB_ROWS"
           echo "missed_csv_rows=$CSV_ROWS" >> recovery-validation.log
           echo "missed_database_rows=$DB_ROWS" >> recovery-validation.log
@@ -215,19 +216,18 @@ jobs:
           compose exec -T postgres createdb -U "$POSTGRES_USER" ptc_bale_restore
           cat /tmp/ptc-bale-recovery.dump | compose exec -T postgres \
             pg_restore -U "$POSTGRES_USER" -d ptc_bale_restore --no-owner --no-privileges
-
           SOURCE_EVENTS=$(compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At \
-            -c 'SELECT count(*) FROM inspection_events;')
+            -c 'SELECT count(*) FROM inspection_events;' | tr -d '[:space:]')
           RESTORED_EVENTS=$(compose exec -T postgres psql -U "$POSTGRES_USER" -d ptc_bale_restore -At \
-            -c 'SELECT count(*) FROM inspection_events;')
-          test "$SOURCE_EVENTS" -eq 257
-          test "$RESTORED_EVENTS" -eq "$SOURCE_EVENTS"
+            -c 'SELECT count(*) FROM inspection_events;' | tr -d '[:space:]')
+          test "$SOURCE_EVENTS" = '257'
+          test "$RESTORED_EVENTS" = "$SOURCE_EVENTS"
           RESTORED_REMARKS=$(compose exec -T postgres psql -U "$POSTGRES_USER" -d ptc_bale_restore -At \
             -c "SELECT remarks FROM inspection_events WHERE id = '$EVENT_ID';")
           test "$RESTORED_REMARKS" = "$MARKER"
           RESTORED_AUDITS=$(compose exec -T postgres psql -U "$POSTGRES_USER" -d ptc_bale_restore -At \
-            -c "SELECT count(*) FROM audit_logs WHERE \"targetId\" = '$EVENT_ID';")
-          test "$RESTORED_AUDITS" -eq 1
+            -c "SELECT count(*) FROM audit_logs WHERE \"targetId\" = '$EVENT_ID';" | tr -d '[:space:]')
+          test "$RESTORED_AUDITS" = '1'
           echo "source_event_count=$SOURCE_EVENTS" >> recovery-validation.log
           echo "restored_event_count=$RESTORED_EVENTS" >> recovery-validation.log
           echo "restored_audit_count=$RESTORED_AUDITS" >> recovery-validation.log
