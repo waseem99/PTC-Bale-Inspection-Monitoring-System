@@ -9,10 +9,10 @@ concurrency:
 jobs:
   validate:
     runs-on: [self-hosted, linux, x64, ptc-api]
-    timeout-minutes: 60
+    timeout-minutes: 70
     env:
       NODE_ENV: test
-      MONGODB_URI: mongodb://127.0.0.1:27028/ptc_bale_self_hosted
+      DATABASE_URL: postgresql://ptc_app:self-hosted-postgres-password@127.0.0.1:55432/ptc_bale_self_hosted?schema=public
       COOKIE_SECURE: 'false'
       ALLOWED_ORIGINS: http://localhost
       SEED_DEMO_PASSWORD: Self-Hosted-CI-Only-Password-2026!
@@ -28,16 +28,20 @@ jobs:
           corepack --version
           docker --version
           docker compose version
-      - name: Start isolated MongoDB
+      - name: Start isolated PostgreSQL
         shell: bash
         run: |
-          docker rm --force ptc-api-ci-mongo >/dev/null 2>&1 || true
-          docker run --detach --name ptc-api-ci-mongo --publish 127.0.0.1:27028:27017 mongo:8.0 mongod --bind_ip_all --quiet
+          docker rm --force ptc-api-ci-postgres >/dev/null 2>&1 || true
+          docker run --detach --name ptc-api-ci-postgres --publish 127.0.0.1:55432:5432 \
+            --env POSTGRES_DB=ptc_bale_self_hosted \
+            --env POSTGRES_USER=ptc_app \
+            --env POSTGRES_PASSWORD=self-hosted-postgres-password \
+            postgres:17-alpine
           for attempt in {1..30}; do
-            if docker exec ptc-api-ci-mongo mongosh --quiet --eval "db.adminCommand('ping').ok" | grep -q 1; then exit 0; fi
+            if docker exec ptc-api-ci-postgres pg_isready -U ptc_app -d ptc_bale_self_hosted >/dev/null; then exit 0; fi
             sleep 2
           done
-          docker logs ptc-api-ci-mongo
+          docker logs ptc-api-ci-postgres
           exit 1
       - name: Install pnpm and dependencies
         shell: bash
@@ -45,6 +49,8 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
           pnpm install --no-frozen-lockfile
+      - run: pnpm --filter @ptc-bale/platform-api db:generate
+      - run: pnpm --filter @ptc-bale/platform-api db:migrate:deploy
       - run: pnpm --filter @ptc-bale/platform-api lint
       - run: pnpm --filter @ptc-bale/platform-api typecheck
       - run: pnpm --filter @ptc-bale/platform-api test
@@ -55,18 +61,23 @@ jobs:
         shell: bash
         run: |
           test -d apps/platform-api/dist
-          ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|mongodb\+srv://|rtsp://[^ ]+:[^ ]+@|Self-Hosted-CI-Only-Password)' apps/platform-api/dist
+          ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|postgresql://[^ ]+:[^ ]+@|rtsp://[^ ]+:[^ ]+@|Self-Hosted-CI-Only-Password)' apps/platform-api/dist
       - name: Validate production API container
         shell: bash
         run: |
           docker network rm ptc-api-ci-network >/dev/null 2>&1 || true
           docker network create ptc-api-ci-network
-          docker network connect ptc-api-ci-network ptc-api-ci-mongo
+          docker network connect ptc-api-ci-network ptc-api-ci-postgres
           docker rm --force ptc-api-ci-app >/dev/null 2>&1 || true
-          docker build --file apps/platform-api/Dockerfile --tag ptc-platform-api:self-hosted .
+          docker build --target build --file apps/platform-api/Dockerfile --tag ptc-platform-api-build:self-hosted .
+          docker run --rm --network ptc-api-ci-network \
+            --env DATABASE_URL=postgresql://ptc_app:self-hosted-postgres-password@ptc-api-ci-postgres:5432/ptc_bale_self_hosted?schema=public \
+            ptc-platform-api-build:self-hosted \
+            pnpm --filter @ptc-bale/platform-api db:migrate:deploy
+          docker build --target runtime --file apps/platform-api/Dockerfile --tag ptc-platform-api:self-hosted .
           docker run --detach --name ptc-api-ci-app --network ptc-api-ci-network --publish 127.0.0.1:4001:4000 \
             --env NODE_ENV=production \
-            --env MONGODB_URI=mongodb://ptc-api-ci-mongo:27017/ptc_container_smoke \
+            --env DATABASE_URL=postgresql://ptc_app:self-hosted-postgres-password@ptc-api-ci-postgres:5432/ptc_bale_self_hosted?schema=public \
             --env COOKIE_SECURE=false \
             --env ALLOWED_ORIGINS=http://localhost \
             ptc-platform-api:self-hosted
@@ -80,21 +91,24 @@ jobs:
       - name: Stop API smoke resources before end-to-end stack
         shell: bash
         run: |
-          docker rm --force ptc-api-ci-app ptc-api-ci-mongo >/dev/null 2>&1 || true
+          docker rm --force ptc-api-ci-app ptc-api-ci-postgres >/dev/null 2>&1 || true
           docker network rm ptc-api-ci-network >/dev/null 2>&1 || true
       - name: Configure seeded live stack
         shell: bash
         run: |
           cat > infrastructure/local/.env <<'EOF'
           DASHBOARD_PORT=8080
-          API_BUILD_VERSION=self-hosted-live
-          DASHBOARD_BUILD_VERSION=self-hosted-live
+          API_BUILD_VERSION=self-hosted-live-postgres
+          DASHBOARD_BUILD_VERSION=self-hosted-live-postgres
           ALLOWED_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
+          POSTGRES_DB=ptc_bale
+          POSTGRES_USER=ptc_app
+          POSTGRES_PASSWORD=Self-Hosted-Live-Postgres-Password-2026!
           SEED_VIEWER_PASSWORD=Self-Hosted-Live-Password-2026!
           SEED_SUPERVISOR_PASSWORD=Self-Hosted-Live-Password-2026!
           SEED_ADMIN_PASSWORD=Self-Hosted-Live-Password-2026!
           EOF
-      - name: Start dashboard, API and MongoDB
+      - name: Start dashboard, API and PostgreSQL
         run: docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml up --build --detach
       - name: Wait for same-origin readiness
         shell: bash
@@ -114,7 +128,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-self-hosted-validation-${{ github.sha }}
+          name: backend-postgresql-self-hosted-validation-${{ github.sha }}
           path: |
             apps/platform-api/dist
             apps/platform-api/coverage
@@ -126,5 +140,5 @@ jobs:
         shell: bash
         run: |
           docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml down --volumes >/dev/null 2>&1 || true
-          docker rm --force ptc-api-ci-app ptc-api-ci-mongo >/dev/null 2>&1 || true
+          docker rm --force ptc-api-ci-app ptc-api-ci-postgres >/dev/null 2>&1 || true
           docker network rm ptc-api-ci-network >/dev/null 2>&1 || true
