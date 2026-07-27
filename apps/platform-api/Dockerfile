@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1.7
 FROM node:22.16.0-alpine AS build
 WORKDIR /workspace
+# Prisma Client generation validates the datasource URL but does not connect during image build.
+ENV DATABASE_URL=postgresql://ptc_build:build-only@127.0.0.1:5432/ptc_build?schema=public
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 COPY package.json pnpm-workspace.yaml ./
 COPY apps/platform-api/package.json apps/platform-api/package.json
