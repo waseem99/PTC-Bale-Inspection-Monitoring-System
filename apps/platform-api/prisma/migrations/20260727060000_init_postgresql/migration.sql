@@ -18,8 +18,8 @@ CREATE TABLE "users" (
   "passwordHash" TEXT NOT NULL,
   "enabled" BOOLEAN NOT NULL DEFAULT true,
   "dataset" VARCHAR(64) NOT NULL,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL,
+  "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMPTZ(3) NOT NULL,
   CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
 
@@ -27,11 +27,11 @@ CREATE TABLE "sessions" (
   "id" UUID NOT NULL,
   "tokenHash" CHAR(64) NOT NULL,
   "userId" VARCHAR(64) NOT NULL,
-  "expiresAt" TIMESTAMP(3) NOT NULL,
-  "lastSeenAt" TIMESTAMP(3) NOT NULL,
-  "revokedAt" TIMESTAMP(3),
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL,
+  "expiresAt" TIMESTAMPTZ(3) NOT NULL,
+  "lastSeenAt" TIMESTAMPTZ(3) NOT NULL,
+  "revokedAt" TIMESTAMPTZ(3),
+  "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMPTZ(3) NOT NULL,
   CONSTRAINT "sessions_pkey" PRIMARY KEY ("id")
 );
 
@@ -41,14 +41,14 @@ CREATE TABLE "cameras" (
   "zone" VARCHAR(160) NOT NULL,
   "status" "CameraStatus" NOT NULL,
   "aiStatus" "AiStatus" NOT NULL,
-  "lastFrameAt" TIMESTAMP(3) NOT NULL,
+  "lastFrameAt" TIMESTAMPTZ(3) NOT NULL,
   "fps" DOUBLE PRECISION NOT NULL,
   "streamQuality" VARCHAR(64) NOT NULL,
   "todayEvents" INTEGER NOT NULL,
   "configVersion" VARCHAR(64) NOT NULL,
   "dataset" VARCHAR(64) NOT NULL,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL,
+  "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMPTZ(3) NOT NULL,
   CONSTRAINT "cameras_pkey" PRIMARY KEY ("id")
 );
 
@@ -57,7 +57,7 @@ CREATE TABLE "inspection_events" (
   "cameraId" VARCHAR(64) NOT NULL,
   "cameraName" VARCHAR(160) NOT NULL,
   "zone" VARCHAR(160) NOT NULL,
-  "timestamp" TIMESTAMP(3) NOT NULL,
+  "timestamp" TIMESTAMPTZ(3) NOT NULL,
   "outcome" "Outcome" NOT NULL,
   "reason" TEXT NOT NULL,
   "confidence" INTEGER NOT NULL,
@@ -66,14 +66,14 @@ CREATE TABLE "inspection_events" (
   "evidenceAvailable" BOOLEAN NOT NULL,
   "remarks" VARCHAR(1000),
   "reviewedBy" VARCHAR(160),
-  "reviewedAt" TIMESTAMP(3),
+  "reviewedAt" TIMESTAMPTZ(3),
   "modelVersion" VARCHAR(64) NOT NULL,
   "ruleVersion" VARCHAR(64) NOT NULL,
   "version" INTEGER NOT NULL DEFAULT 1,
   "schemaVersion" INTEGER NOT NULL DEFAULT 1,
   "dataset" VARCHAR(64) NOT NULL,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL,
+  "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMPTZ(3) NOT NULL,
   CONSTRAINT "inspection_events_pkey" PRIMARY KEY ("id")
 );
 
@@ -93,11 +93,11 @@ CREATE TABLE "health_metrics" (
   "value" VARCHAR(160) NOT NULL,
   "detail" TEXT NOT NULL,
   "state" "HealthState" NOT NULL,
-  "checkedAt" TIMESTAMP(3) NOT NULL,
+  "checkedAt" TIMESTAMPTZ(3) NOT NULL,
   "source" VARCHAR(64) NOT NULL,
   "dataset" VARCHAR(64) NOT NULL,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL,
+  "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMPTZ(3) NOT NULL,
   CONSTRAINT "health_metrics_pkey" PRIMARY KEY ("id")
 );
 
@@ -111,8 +111,8 @@ CREATE TABLE "evidence_metadata" (
   "checksum" VARCHAR(160),
   "storageKey" TEXT,
   "dataset" VARCHAR(64) NOT NULL,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL,
+  "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMPTZ(3) NOT NULL,
   CONSTRAINT "evidence_metadata_pkey" PRIMARY KEY ("id")
 );
 
@@ -128,8 +128,8 @@ CREATE TABLE "audit_logs" (
   "before" JSONB,
   "after" JSONB,
   "correlationId" VARCHAR(128) NOT NULL,
-  "occurredAt" TIMESTAMP(3) NOT NULL,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "occurredAt" TIMESTAMPTZ(3) NOT NULL,
+  "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
 );
 
