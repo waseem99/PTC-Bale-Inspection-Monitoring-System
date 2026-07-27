@@ -5,7 +5,7 @@ Record material architecture, scope, security, deployment, and AI decisions here
 ## ADR-001 — Use one monorepo for the MVP
 
 - **Status:** Accepted
-- **Decision:** Keep dashboard, API, edge agent, AI inference, compliance engine, infrastructure, contracts, tests, and documentation in this repository.
+- **Decision:** Keep dashboard, API, edge agent, AI inference, compliance engine, infrastructure, contracts, tests, database migrations, and documentation in this repository.
 - **Reason:** The fixed-scope eight-week MVP requires coordinated event contracts and one integrated release. Multiple repositories would add access, release, and dependency overhead without a current operational benefit.
 - **Revisit when:** client access segregation, independent vendors, multi-site productization, or separate release ownership is introduced.
 
@@ -14,14 +14,14 @@ Record material architecture, scope, security, deployment, and AI decisions here
 - **Status:** Accepted
 - **Decision:** Decode camera streams, run AI inference, evaluate SOP rules, and generate evidence on the site workstation.
 - **Reason:** Reduces latency, avoids continuous raw-video upload, and preserves core operation during internet interruptions.
-- **Consequence:** Edge deployment, service recovery, local buffering, GPU drivers, and storage health are production concerns.
+- **Consequence:** Edge deployment, service recovery, local buffering, GPU drivers, PostgreSQL availability, and storage health are production concerns.
 
 ## ADR-003 — Use Azure for approved management-plane services
 
 - **Status:** Proposed pending client environment confirmation
-- **Decision:** Host approved dashboard/API, metadata, evidence objects, identity integration, secrets, and monitoring services in the client-approved Azure environment while retaining the locally functional edge pipeline and local intranet capability committed in the BOQ.
+- **Decision:** Host approved dashboard/API, PostgreSQL metadata, evidence objects, identity integration, secrets, and monitoring services in the client-approved Azure environment while retaining the locally functional edge pipeline, local PostgreSQL database, and local intranet capability committed in the BOQ.
 - **Reason:** Aligns with the client's Microsoft/Azure environment while retaining edge processing and offline operation.
-- **Pending:** tenant, subscription, networking, identity, data residency, MongoDB service, local-versus-Azure dashboard boundary, and deployment approvals.
+- **Pending:** tenant, subscription, networking, identity, data residency, Azure Database for PostgreSQL service/tier, local-versus-Azure dashboard boundary, and deployment approvals.
 
 ## ADR-004 — No permanent bale identity in MVP
 
@@ -45,7 +45,7 @@ Record material architecture, scope, security, deployment, and AI decisions here
 ## ADR-007 — Keep raw datasets and production models outside Git
 
 - **Status:** Accepted
-- **Decision:** Store footage, annotations, evidence, and model binaries in approved restricted storage. Git contains code, schemas, manifests, checksums, and documentation only.
+- **Decision:** Store footage, annotations, evidence, database backups, and model binaries in approved restricted storage. Git contains code, schemas, migrations, manifests, checksums, and documentation only.
 - **Reason:** Protects client data and avoids repository-size and access-control problems.
 
 ## ADR-008 — Use performance-based accuracy acceptance
@@ -54,20 +54,20 @@ Record material architecture, scope, security, deployment, and AI decisions here
 - **Decision:** Define numerical AI acceptance thresholds only after representative footage and client-approved scenarios are available.
 - **Reason:** The proposal does not support a universal accuracy guarantee independent of lighting, camera placement, occlusion, and SOP consistency.
 
-## ADR-009 — Use MERN and Python rather than .NET
+## ADR-009 — Use React, Node.js and Python rather than .NET
 
-- **Status:** Accepted
+- **Status:** Accepted; persistence portion superseded by ADR-012
 - **Date:** 2026-07-23
 - **Owner:** Codistan technical leadership
-- **Context:** The client uses Microsoft and Azure, but the Codistan delivery team's established application stack is MERN and its AI/edge stack is Python. Azure hosting and Microsoft Entra ID do not require ASP.NET application code.
+- **Context:** The client uses Microsoft and Azure, but the Codistan delivery team's established application stack is React/Node.js/TypeScript and its AI/edge stack is Python. Azure hosting and Microsoft Entra ID do not require ASP.NET application code.
 - **Options considered:**
   1. .NET/ASP.NET Core, Azure SQL, Entity Framework Core, and SignalR;
-  2. Node.js/Express/TypeScript, React, MongoDB-compatible persistence, and Python edge/AI;
+  2. React/TypeScript, Node.js/Express/TypeScript, a locally hosted open-source database, and Python edge/AI;
   3. Python-only application and AI stack.
-- **Decision:** Use React/TypeScript for the dashboard, Node.js/Express/TypeScript for the platform API, Azure Cosmos DB for MongoDB or another client-approved MongoDB deployment for metadata, and Python for edge camera, AI, evidence, synchronization, and SOP services. Use Socket.IO by default or Azure Web PubSub where client governance requires a managed real-time service.
-- **Reason:** This matches existing team capability, reduces delivery risk within the eight-week MVP, preserves one JavaScript/TypeScript application ecosystem, and remains fully deployable within Azure with Entra ID, Key Vault, Blob Storage, Application Insights, Bicep, and GitHub Actions.
-- **Consequences:** .NET, EF Core, Azure SQL, and SignalR are not part of the MVP unless the client mandates them through an approved architecture change. MongoDB schema versions, indexes, and data transformations require explicit migration discipline.
-- **Follow-up issues:** #5, #35, #36, #37, #39, #40, #41, #42, #43, #44, #49, #53.
+- **Decision:** Use React/TypeScript for the dashboard, Node.js/Express/TypeScript for the platform API, and Python for edge camera, AI, evidence, synchronization, and SOP services. Use Socket.IO by default or Azure Web PubSub where client governance requires a managed real-time service. The original MongoDB choice was replaced by PostgreSQL under ADR-012.
+- **Reason:** This matches existing team capability, reduces delivery risk within the eight-week MVP, preserves one TypeScript application ecosystem, and remains deployable within Azure with Entra ID, Key Vault, Blob Storage, Application Insights, Bicep, and GitHub Actions.
+- **Consequences:** .NET, EF Core, Azure SQL, and SignalR are not part of the MVP unless the client mandates them through an approved architecture change.
+- **Follow-up issues:** #5, #35, #36, #37, #39, #40, #41, #42, #43, #44, #49, #53 and #68.
 
 ## ADR-010 — Treat the Bangladesh implementation as a benchmark, not the PTC specification
 
@@ -90,6 +90,22 @@ Record material architecture, scope, security, deployment, and AI decisions here
 - **Reason:** Site-specific domain shift can materially affect detection, tracking, interaction recognition, and violation classification.
 - **Consequences:** PTC footage permission, collection, staging, annotation, and acceptance-set separation remain critical-path client dependencies. Bangladesh data cannot be used to claim PTC accuracy.
 - **Follow-up issues:** #13, #15, #27, #28, #29, #30, #34 and #51.
+
+## ADR-012 — Use local PostgreSQL and Prisma for application persistence
+
+- **Status:** Accepted
+- **Date:** 2026-07-27
+- **Owner:** Codistan technical leadership
+- **Context:** The PoC data domain is primarily structured and relational: users own sessions; cameras own events; events own ordered SOP steps and evidence metadata; review mutations must create audit records atomically; dashboards require indexed filters, pagination, exports, backups and recovery. The database must run locally on the supplied workstation without recurring external hosting cost.
+- **Options considered:**
+  1. local MongoDB with Mongoose;
+  2. local PostgreSQL with Prisma;
+  3. cloud-only managed database;
+  4. embedded SQLite as the primary application database.
+- **Decision:** Use PostgreSQL Community locally, Prisma ORM for type-safe Node.js access, Prisma Migrate with committed SQL migrations, and PostgreSQL-native `pg_dump`/`pg_restore` for backup and recovery. Use explicit relational tables and constraints, with `JSONB` only for approved flexible AI/configuration payloads. Azure Database for PostgreSQL is the optional future managed equivalent.
+- **Reason:** PostgreSQL provides stronger relational integrity, transactions, auditability, reporting/filtering, migration control, backup/recovery and long-term maintainability while remaining free to self-host locally.
+- **Consequences:** MongoDB, Mongoose, Cosmos DB for MongoDB, Mongo-specific test tooling, collection/index scripts and `MONGODB_URI` are removed. Review updates and audit creation occur in one PostgreSQL transaction. Prisma schema/migrations and a reviewed `pnpm-lock.yaml` become release-controlled artifacts. Database migrations and restoration tests are mandatory release concerns.
+- **Follow-up issues:** #5, #35, #36, #37, #38, #39, #40, #42, #43, #49 and #68.
 
 ## ADR template
 
