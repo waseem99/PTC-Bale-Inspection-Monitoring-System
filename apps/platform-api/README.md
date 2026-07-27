@@ -1,6 +1,6 @@
 # Platform API
 
-Local-first Node.js, Express, TypeScript and MongoDB API for the PTC Bale Inspection & Monitoring PoC.
+Local-first Node.js, Express, TypeScript, Prisma and PostgreSQL API for the PTC Bale Inspection & Monitoring PoC.
 
 ## Implemented vertical slice
 
@@ -10,11 +10,11 @@ Local-first Node.js, Express, TypeScript and MongoDB API for the PTC Bale Inspec
 - paginated, filtered and sorted inspection events;
 - event detail;
 - versioned supervisor review and remarks;
-- audit records;
+- relational audit records;
 - filtered CSV export;
 - deterministic persistent synthetic seed data;
 - health and readiness endpoints;
-- Jest/Supertest integration tests.
+- Jest/Supertest integration tests against PostgreSQL.
 
 The first slice intentionally does not include live cameras, Python edge ingestion, real evidence files, Azure synchronization or Entra ID.
 
@@ -24,25 +24,29 @@ From the repository root:
 
 ```bash
 cp infrastructure/local/.env.example infrastructure/local/.env
-# Replace every placeholder password.
-docker compose --env-file infrastructure/local/.env -f infrastructure/local/docker-compose.api.yml up --build
+# Replace the PostgreSQL and fixed-user password placeholders.
+pnpm stack:up
 ```
 
 Portal: `http://localhost:8080`
 
 API readiness through the portal proxy: `http://localhost:8080/api/readyz`
 
+The compose stack starts PostgreSQL, applies committed Prisma migrations, loads the deterministic synthetic dataset, starts the API, and then starts the dashboard.
+
 ## Direct package commands
 
 ```bash
 pnpm install
+pnpm --filter @ptc-bale/platform-api db:generate
+pnpm --filter @ptc-bale/platform-api db:migrate:deploy
 pnpm --filter @ptc-bale/platform-api build
 pnpm --filter @ptc-bale/platform-api test
 pnpm --filter @ptc-bale/platform-api seed:reset
 pnpm --filter @ptc-bale/platform-api dev
 ```
 
-Set `MONGODB_URI` and the seed password variables before running seed commands.
+Set `DATABASE_URL` and the seed password variables before running migrations, tests or seed commands.
 
 ## API routes
 
@@ -64,12 +68,21 @@ Operational routes:
 - `GET /healthz`
 - `GET /readyz`
 
+## Persistence and migration rules
+
+- PostgreSQL runs locally on the supplied workstation and has no database licence fee.
+- Prisma schema and SQL migrations are committed under `prisma/`.
+- Production startup uses `prisma migrate deploy`; it must never use destructive development reset commands.
+- Review updates use a relational transaction and optimistic version check.
+- Flexible AI metadata can be added through explicit relational columns or PostgreSQL `JSONB` fields under controlled migrations.
+- Local backups use PostgreSQL-native `pg_dump`/`pg_restore` procedures documented in the runbook.
+
 ## Security boundaries
 
-- Seed passwords are never committed.
-- The browser receives no MongoDB credentials, camera credentials, RTSP URLs or unrestricted evidence paths.
+- Database and seed passwords are never committed.
+- The browser receives no PostgreSQL credentials, camera credentials, RTSP URLs or unrestricted evidence paths.
 - Viewer access is read-only.
 - Review mutations require supervisor or administrator access.
-- Session tokens are random, stored as hashes in MongoDB and sent through an HttpOnly cookie.
+- Session tokens are random, stored as SHA-256 hashes in PostgreSQL and sent through an HttpOnly cookie.
 - Production deployments must use HTTPS and `COOKIE_SECURE=true`.
 - This seeded backend is for PoC workflow validation and is not PTC acceptance evidence.
