@@ -15,9 +15,9 @@ async function signIn(page: Page) {
 
 test('supervisor can navigate the operational dashboard', async ({ page }) => {
   await signIn(page);
-  await page.getByRole('link', { name: 'Live Monitoring' }).click();
+  await page.getByRole('link', { name: 'Live Monitoring', exact: true }).click();
   await expect(page).toHaveURL(/\/live$/);
-  await page.getByRole('link', { name: 'Events' }).click();
+  await page.getByRole('link', { name: 'Events', exact: true }).click();
   await expect(page).toHaveURL(/\/events/);
   await expect(page.getByRole('table')).toBeVisible();
 });
@@ -29,14 +29,16 @@ test('filters and pagination are encoded in URL', async ({ page }) => {
   await expect(page).toHaveURL(/outcome=missed/);
   await page.getByLabel('Rows').selectOption('10');
   await expect(page).toHaveURL(/pageSize=10/);
-  await page.getByRole('button', { name: 'Next page' }).click();
+  const nextPage = page.getByRole('button', { name: 'Next page' });
+  await expect(nextPage).toBeEnabled();
+  await nextPage.click();
   await expect(page).toHaveURL(/page=2/);
 });
 
 test('supervisor review persists across reload', async ({ page }) => {
   await signIn(page);
-  await page.goto('/events?reviewStatus=unreviewed&page=1&pageSize=20&sortBy=timestamp&sortDirection=desc');
-  await page.getByRole('link', { name: /Open EVT-/ }).first().click();
+  await page.goto('/events/EVT-2407-0253');
+  await expect(page.getByRole('heading', { name: 'EVT-2407-0253' })).toBeVisible();
   await page.getByLabel(/Dismiss/).check();
   await page.getByLabel('Supervisor remarks').fill('Reviewed during automated browser test.');
   await page.getByRole('button', { name: 'Save review' }).click();
