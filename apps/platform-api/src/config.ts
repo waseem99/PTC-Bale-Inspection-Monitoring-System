@@ -32,6 +32,9 @@ export type AppConfig = {
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = schema.parse(environment);
   const common = parsed.SEED_DEMO_PASSWORD;
+  const viewer = parsed.SEED_VIEWER_PASSWORD ?? common;
+  const supervisor = parsed.SEED_SUPERVISOR_PASSWORD ?? common;
+  const admin = parsed.SEED_ADMIN_PASSWORD ?? common;
   return {
     nodeEnv: parsed.NODE_ENV,
     port: parsed.PORT,
@@ -42,9 +45,9 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     allowedOrigins: new Set(parsed.ALLOWED_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean)),
     trustProxy: parsed.TRUST_PROXY,
     seedPasswords: {
-      ...(parsed.SEED_VIEWER_PASSWORD ?? common ? { viewer: parsed.SEED_VIEWER_PASSWORD ?? common } : {}),
-      ...(parsed.SEED_SUPERVISOR_PASSWORD ?? common ? { supervisor: parsed.SEED_SUPERVISOR_PASSWORD ?? common } : {}),
-      ...(parsed.SEED_ADMIN_PASSWORD ?? common ? { admin: parsed.SEED_ADMIN_PASSWORD ?? common } : {}),
+      ...(viewer ? { viewer } : {}),
+      ...(supervisor ? { supervisor } : {}),
+      ...(admin ? { admin } : {}),
     },
   };
 }
