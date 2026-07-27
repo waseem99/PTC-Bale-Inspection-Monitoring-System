@@ -46,19 +46,19 @@ This is the implementation backlog created from the awarded scope. Each child is
 - #33 — Implement versioned SOP state machine and violation reason codes
 - #34 — Build AI evaluation harness, export runtime model, and benchmark four-stream inference
 
-## M4 — Local MERN application, approved Azure management plane, and CI/CD
+## M4 — Local React/Node/PostgreSQL application, approved Azure management plane, and CI/CD
 
-- #5 — Epic: local MERN application and approved Azure management plane
-- #68 — First backend/API vertical slice with persistent seeded data — **implementation complete; objective validation pending**
-- #35 — Node.js platform API, shared contracts, and local stack — **implemented within #68**
-- #36 — MongoDB models, indexes and deterministic seed tooling — **first-slice implementation complete; migration/Azure validation remains**
+- #5 — Epic: local React/Node/PostgreSQL application and approved Azure management plane
+- #68 — PostgreSQL backend/API vertical slice — **implementation complete; objective validation pending**
+- #35 — Node.js/Express/Prisma platform API, shared contracts, and local stack — **implemented within #68**
+- #36 — PostgreSQL schema, Prisma migrations, indexes and deterministic seed tooling — **implementation complete; validation pending**
 - #37 — Secure idempotent edge event and health ingestion API — **next integration**
 - #38 — Real evidence storage, retrieval, retention and optional Azure synchronization — **next integration**
-- #39 — Event list, detail, review, remarks and audit APIs — **implemented within #68; validation pending**
+- #39 — Event list, detail, review, remarks and transactional audit APIs — **implemented within #68; validation pending**
 - #40 — KPI, camera, health and CSV APIs — **REST slice implemented; Socket.IO/PDF remain follow-on**
 - #41 — Fixed-user PoC authentication and future Entra adapter — **local fixed-user slice implemented; Entra remains follow-on**
-- #42 — Approved Azure management plane with Bicep
-- #43 — CI, security checks, local packages, and approved Azure workflows
+- #42 — Approved Azure management plane using Azure Database for PostgreSQL and Bicep
+- #43 — PostgreSQL-aware CI, migration, security, local packaging and approved Azure workflows
 
 ## M5 — Dashboard and development demo
 
@@ -78,8 +78,8 @@ This is the implementation backlog created from the awarded scope. Each child is
 ## M6 — MVP integration and release
 
 - #7 — Epic: integration, testing, calibration, training, and local PoC release
-- #49 — Deploy and validate the complete local PoC and approved Azure synchronization
-- #50 — Execute resilience, performance, security, and recovery test suite
+- #49 — Deploy and validate the complete local PoC, PostgreSQL persistence and approved Azure synchronization
+- #50 — Execute resilience, performance, security, database recovery and system recovery test suite
 - #51 — Perform live AI calibration and freeze the MVP model, SOP rules, and camera configuration
 - #52 — Execute client UAT and close release-blocking defects
 - #53 — Complete training, handover documentation, release manifest, and MVP tag
@@ -89,7 +89,7 @@ This is the implementation backlog created from the awarded scope. Each child is
 - #8 — Epic: five-week hypercare and final stabilization
 - #54 — Establish hypercare monitoring, review cadence, and production defect triage
 - #55 — Deliver controlled AI improvement cycle 1
-- #56 — Resolve production defects and tune performance, storage, evidence, and monitoring
+- #56 — Resolve production defects and tune performance, PostgreSQL, storage, evidence, and monitoring
 - #57 — Deliver AI improvement cycle 2, final regression, documentation, and closure release
 
 ## Critical dependency chain
@@ -100,7 +100,7 @@ This is the implementation backlog created from the awarded scope. Each child is
 #15/#19/#59 -> #27 -> #28 -> #29 -> #30 -> #31/#32 -> #33 -> #34
 #20 -> #21/#22/#23 -> #24/#25 -> #26
 #60 -> #35 -> #41/#44 -> #45/#46/#47 -> #48 -> #61
-#68 validation -> #37/#38 -> Python edge/evidence integration -> #42/#43
+#68 PostgreSQL validation -> #37/#38 -> Python edge/evidence integration -> #42/#43
 #49 -> #50/#51 -> #52 -> #53 -> #54 -> #55/#56 -> #57
 ```
 
@@ -114,15 +114,20 @@ Continue #59, #14, #9, #11, #12, #13, #15, #16 and #17 in parallel with work tha
 
 The complete frontend implementation is in PR #62. Finish #61 by provisioning the protected HTTPS demo endpoint. Finish #67 by restoring GitHub Actions execution or attaching an approved self-hosted runner, passing all quality/container/E2E gates, and completing browser UAT.
 
-### Backend/API validation queue
+### Backend/PostgreSQL validation queue
 
-The first REST and seeded-data implementation is in PR #69. Complete #68 by:
+The first REST, relational persistence and seeded-data implementation is in PR #69. Complete #68 by:
 
-1. restoring GitHub-hosted Actions or attaching the `ptc-api` self-hosted runner;
-2. passing backend lint, strict TypeScript, Jest/Supertest/MongoDB tests and production build;
-3. passing API container health checks;
-4. running the production frontend against the seeded live API through Playwright;
-5. completing the manual browser/API checklist in `docs/28-backend-validation-and-local-runbook.md`.
+1. generating and reviewing `pnpm-lock.yaml`;
+2. restoring GitHub-hosted Actions or attaching the `ptc-api` self-hosted runner;
+3. applying committed Prisma migrations against a clean PostgreSQL database;
+4. passing backend lint, strict TypeScript, Jest/Supertest/PostgreSQL tests and production build;
+5. confirming seed status of 3 users, 4 cameras, 6 health metrics and 257 events;
+6. passing API container and PostgreSQL readiness checks;
+7. running the production frontend against the seeded live API through Playwright;
+8. verifying persistence across API and PostgreSQL restarts;
+9. demonstrating `pg_dump` and `pg_restore` in a controlled environment;
+10. completing the manual browser/API checklist in `docs/28-backend-validation-and-local-runbook.md`.
 
 ### Next backend integrations
 
@@ -131,6 +136,6 @@ After #68 validation:
 1. #37 — Python edge service authentication, idempotent event/health ingestion and spool acknowledgement;
 2. #38 — real snapshot/clip storage, authorized retrieval and retention;
 3. Socket.IO event and health updates;
-4. approved Azure synchronization and Entra ID only where confirmed.
+4. approved Azure Database for PostgreSQL/Blob synchronization and Entra ID only where confirmed.
 
 Do not treat synthetic records as client acceptance evidence. Do not finalize annotation definitions, compliance logic, camera approval or AI acceptance commitments until the Bangladesh-reference mapping, PTC SOP, violation taxonomy and PTC-specific UAT basis are sufficiently resolved.
