@@ -157,11 +157,21 @@ jobs:
           set -euo pipefail
           compose() { docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml "$@"; }
           compose run --rm --no-deps seed >/tmp/reseed.log
+          # Seeding intentionally rotates fixed-user password hashes and revokes
+          # existing synthetic sessions, so establish a fresh supervisor session.
+          curl --fail --silent --show-error \
+            --cookie-jar /tmp/supervisor.cookies \
+            --header 'Origin: http://127.0.0.1:8080' \
+            --header 'Content-Type: application/json' \
+            --data "{\"username\":\"supervisor\",\"password\":\"$SUPERVISOR_PASSWORD\"}" \
+            "$BASE_URL/api/auth/login" >/tmp/supervisor-relogin.json
+          jq -e '.user.role == "supervisor"' /tmp/supervisor-relogin.json >/dev/null
           curl --fail --silent --show-error --cookie /tmp/supervisor.cookies \
             "$BASE_URL/api/events/$EVENT_ID" >/tmp/event-after-reseed.json
           jq -e --arg marker "$MARKER" --argjson version "$UPDATED_VERSION" \
             '.remarks == $marker and .version == $version' /tmp/event-after-reseed.json >/dev/null
           echo 'normal_reseed_preserved_review=true' >> recovery-validation.log
+          echo 'normal_reseed_rotated_sessions=true' >> recovery-validation.log
       - name: Validate API and PostgreSQL restart persistence
         shell: bash
         run: |
