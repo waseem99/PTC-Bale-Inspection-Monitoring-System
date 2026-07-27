@@ -158,14 +158,38 @@ jobs:
           done
           docker logs postgres-smoke
           exit 1
-      - run: docker build --target build --file apps/platform-api/Dockerfile --tag ptc-platform-api-build:${{ github.sha }} .
+      - name: Build API build stage
+        shell: bash
+        run: |
+          set -o pipefail
+          docker build --progress=plain --target build --file apps/platform-api/Dockerfile --tag ptc-platform-api-build:${{ github.sha }} . 2>&1 | tee backend-container-build.log
+      - name: Upload API build-stage diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-container-build-${{ github.sha }}
+          path: backend-container-build.log
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Apply Prisma migrations
         run: |
           docker run --rm --network ptc-api-smoke \
             --env DATABASE_URL=postgresql://ptc_app:container-postgres-password@postgres-smoke:5432/ptc_smoke?schema=public \
             ptc-platform-api-build:${{ github.sha }} \
             pnpm --filter @ptc-bale/platform-api db:migrate:deploy
-      - run: docker build --target runtime --file apps/platform-api/Dockerfile --tag ptc-platform-api:${{ github.sha }} .
+      - name: Build API runtime image
+        shell: bash
+        run: |
+          set -o pipefail
+          docker build --progress=plain --target runtime --file apps/platform-api/Dockerfile --tag ptc-platform-api:${{ github.sha }} . 2>&1 | tee backend-container-runtime.log
+      - name: Upload API runtime-image diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-container-runtime-${{ github.sha }}
+          path: backend-container-runtime.log
+          if-no-files-found: ignore
+          retention-days: 14
       - run: |
           docker run --detach --name api-smoke --network ptc-api-smoke --publish 4000:4000 \
             --env NODE_ENV=production \
