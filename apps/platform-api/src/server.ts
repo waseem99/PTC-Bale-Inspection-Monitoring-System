@@ -2,12 +2,12 @@ import http from 'node:http';
 import mongoose from 'mongoose';
 import { createApp } from './app';
 import { loadConfig } from './config';
-import { syncIndexes } from './models';
+import { ensureIndexes } from './models';
 
 async function main(): Promise<void> {
   const config = loadConfig();
   await mongoose.connect(config.mongodbUri);
-  await syncIndexes();
+  await ensureIndexes();
   const server = http.createServer(createApp(config));
   server.listen(config.port, () => {
     console.log(JSON.stringify({
