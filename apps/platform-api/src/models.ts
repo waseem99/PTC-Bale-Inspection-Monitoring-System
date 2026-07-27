@@ -116,14 +116,14 @@ export const HealthMetricModel = mongoose.models.HealthMetric ?? mongoose.model(
 export const EvidenceModel = mongoose.models.Evidence ?? mongoose.model('Evidence', evidenceSchema);
 export const AuditModel = mongoose.models.Audit ?? mongoose.model('Audit', auditSchema);
 
-export async function syncIndexes(): Promise<void> {
+export async function ensureIndexes(): Promise<void> {
   await Promise.all([
-    UserModel.syncIndexes(),
-    SessionModel.syncIndexes(),
-    CameraModel.syncIndexes(),
-    InspectionEventModel.syncIndexes(),
-    HealthMetricModel.syncIndexes(),
-    EvidenceModel.syncIndexes(),
-    AuditModel.syncIndexes(),
+    UserModel.createIndexes(),
+    SessionModel.createIndexes(),
+    CameraModel.createIndexes(),
+    InspectionEventModel.createIndexes(),
+    HealthMetricModel.createIndexes(),
+    EvidenceModel.createIndexes(),
+    AuditModel.createIndexes(),
   ]);
 }
