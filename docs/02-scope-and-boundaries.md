@@ -32,11 +32,13 @@
 - model, threshold, zone, camera-orientation, and configuration version tracking;
 - PTC-specific data collection, annotation, training, evaluation, live calibration, and locked UAT testing.
 
-### Local MERN application
+### Local React/Node/PostgreSQL application
 
 - locally deployed Node.js/Express API;
-- local MongoDB-compatible metadata database;
+- local PostgreSQL operational database;
+- Prisma schema, reviewed SQL migrations and indexed relational model;
 - protected local evidence storage;
+- PostgreSQL backup and restoration procedure;
 - local intranet React dashboard;
 - approved local/offline access control;
 - local live camera view;
@@ -45,9 +47,10 @@
 - event detail with evidence;
 - camera, date/time, event-type, outcome, and review-status filters;
 - reviewed/unreviewed status;
-- operator remarks and audit records;
+- operator remarks and transactionally created audit records;
+- optimistic-concurrency protection for review updates;
 - basic on-demand CSV and PDF export;
-- camera, service, storage, database, and synchronization health indicators.
+- camera, service, storage, PostgreSQL, migration, and synchronization health indicators.
 
 ### Approved Azure alignment
 
@@ -55,16 +58,17 @@ Only components approved through issue #11 are included, which may comprise:
 
 - outbound synchronization of approved event metadata and evidence;
 - Azure-hosted Node/React application components;
-- Azure Cosmos DB for MongoDB or another approved MongoDB service;
+- Azure Database for PostgreSQL;
 - private Azure Blob Storage;
 - Microsoft Entra ID for approved central/remote users;
 - Key Vault, Application Insights, Azure Web PubSub, and Bicep deployment where required.
 
-Core local AI, event storage, evidence, and dashboard operation must not depend on Azure availability.
+Core local AI, PostgreSQL event storage, evidence, and dashboard operation must not depend on Azure availability.
 
 ### Delivery and support
 
 - GitHub Actions CI/CD and local release packaging;
+- PostgreSQL migration, backup and recovery validation;
 - installation and commissioning;
 - PTC-specific testing and calibration;
 - UAT, user training, technical documentation, and release manifest;
@@ -94,6 +98,8 @@ Core local AI, event storage, evidence, and dashboard operation must not depend 
 - automated scheduled email delivery unless confirmed in writing;
 - granular enterprise role-based access beyond the approved PoC user model;
 - cloud disaster recovery or high-availability architecture beyond the agreed PoC;
+- MongoDB, Mongoose, Cosmos DB for MongoDB, or a second active operational database;
+- paid external database hosting for the local baseline;
 - infrastructure, licenses, or cloud services not stated in the BOQ or approved change request.
 
 ## Scope interpretation rules
@@ -107,4 +113,5 @@ Core local AI, event storage, evidence, and dashboard operation must not depend 
 7. AI accuracy targets must be defined against the agreed PTC test set and scenario definitions.
 8. Continuous raw-video retention is excluded unless an explicit retention policy, storage variation, and commercial approval are provided.
 9. Azure services are conditional on the approved responsibility matrix and cannot replace the committed local/offline capability.
-10. New requirements are recorded as `scope:change-request` and are not scheduled into the PoC without commercial and timeline approval.
+10. PostgreSQL schema changes use reviewed migrations, backup and controlled deployment; ad hoc database changes are not permitted.
+11. New requirements are recorded as `scope:change-request` and are not scheduled into the PoC without commercial and timeline approval.
