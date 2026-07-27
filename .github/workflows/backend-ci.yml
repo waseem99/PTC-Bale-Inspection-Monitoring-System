@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'apps/platform-api/**'
+      - 'apps/dashboard-web/**'
       - 'packages/contracts/**'
       - 'infrastructure/local/**'
       - 'package.json'
@@ -12,6 +13,7 @@ on:
     branches: [main, project-foundation]
     paths:
       - 'apps/platform-api/**'
+      - 'apps/dashboard-web/**'
       - 'packages/contracts/**'
       - 'infrastructure/local/**'
       - 'package.json'
@@ -82,3 +84,56 @@ jobs:
       - run: curl --fail --silent http://127.0.0.1:4000/healthz | grep -q '"status":"ok"'
       - if: always()
         run: docker rm --force api-smoke mongo-smoke || true
+
+  e2e-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: [quality, container]
+    env:
+      E2E_PASSWORD: CI-Live-API-Password-2026!
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.4 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22.16.0, cache: pnpm }
+      - run: pnpm install --no-frozen-lockfile
+      - name: Configure isolated live stack
+        shell: bash
+        run: |
+          cat > infrastructure/local/.env <<'EOF'
+          DASHBOARD_PORT=8080
+          API_BUILD_VERSION=ci-live
+          DASHBOARD_BUILD_VERSION=ci-live
+          ALLOWED_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
+          SEED_VIEWER_PASSWORD=CI-Live-API-Password-2026!
+          SEED_SUPERVISOR_PASSWORD=CI-Live-API-Password-2026!
+          SEED_ADMIN_PASSWORD=CI-Live-API-Password-2026!
+          EOF
+      - name: Start dashboard, API and MongoDB
+        run: docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml up --build --detach
+      - name: Wait for same-origin readiness
+        shell: bash
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:8080/api/readyz >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml ps
+          docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml logs
+          exit 1
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/dashboard-web
+      - run: pnpm test:e2e
+        working-directory: apps/dashboard-web
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seeded-api-playwright-report-${{ github.sha }}
+          path: apps/dashboard-web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: always()
+        run: docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml down --volumes
