@@ -204,8 +204,19 @@ jobs:
             if curl --fail --silent http://127.0.0.1:4000/readyz >/dev/null; then exit 0; fi
             sleep 2
           done
-          docker logs api-smoke
           exit 1
+      - name: Capture API runtime logs
+        if: always()
+        shell: bash
+        run: docker logs api-smoke > backend-container-app.log 2>&1 || true
+      - name: Upload API runtime logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-container-app-${{ github.sha }}
+          path: backend-container-app.log
+          if-no-files-found: ignore
+          retention-days: 14
       - run: curl --fail --silent http://127.0.0.1:4000/healthz | grep -q '"status":"ok"'
       - if: always()
         run: docker rm --force api-smoke postgres-smoke || true
