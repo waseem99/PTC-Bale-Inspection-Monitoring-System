@@ -6,7 +6,7 @@ on:
       ref:
         description: Branch, tag or commit to validate
         required: true
-        default: feature/44-dashboard-v1
+        default: feature/68-platform-api
       run_e2e:
         description: Install Chromium and run Playwright/axe checks
         required: true
@@ -34,9 +34,23 @@ jobs:
           version: 9.15.4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.18.1
-          cache: pnpm
-      - run: pnpm install --no-frozen-lockfile
+          node-version: 22.16.0
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if test -f pnpm-lock.yaml; then
+            pnpm install --frozen-lockfile
+          else
+            pnpm install --no-frozen-lockfile
+          fi
+          test -s pnpm-lock.yaml
+      - name: Upload generated or validated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: pnpm-lockfile-frontend-self-hosted-${{ github.run_id }}
+          path: pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 14
       - run: pnpm --filter @ptc-bale/dashboard-web lint
       - run: pnpm --filter @ptc-bale/dashboard-web typecheck
       - run: pnpm --filter @ptc-bale/dashboard-web test
@@ -53,7 +67,7 @@ jobs:
         run: |
           test -d apps/dashboard-web/dist
           ! find apps/dashboard-web/dist -name '*.map' | grep -q .
-          ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|mongodb\+srv://|rtsp://[^ ]+:[^ ]+@)' apps/dashboard-web/dist
+          ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|postgresql://[^ ]+:[^ ]+@|mongodb\+srv://|rtsp://[^ ]+:[^ ]+@)' apps/dashboard-web/dist
       - name: Build deployment container
         run: |
           docker build \
