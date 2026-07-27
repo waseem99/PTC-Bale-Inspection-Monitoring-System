@@ -1,6 +1,19 @@
-import type { Outcome, ReviewStatus } from './domain';
+import type {
+  EventStepRecord,
+  InspectionEventRecord,
+  Outcome,
+  ReviewStatus,
+} from './domain';
 
 export const DATASET = 'synthetic-v1';
+
+type SeedEvent = Omit<InspectionEventRecord, 'remarks' | 'reviewedBy' | 'reviewedAt'> & {
+  remarks?: string;
+  reviewedBy?: string;
+  reviewedAt?: Date;
+  schemaVersion: number;
+  dataset: string;
+};
 
 function stableHash(value: string): number {
   let hash = 2166136261;
@@ -62,11 +75,11 @@ export function seedHealth(anchor = new Date('2026-07-24T08:00:00.000Z')) {
   ] as const;
 }
 
-export function seedEvents(count = 257) {
+export function seedEvents(count = 257): SeedEvent[] {
   const cameraNames = ['Camera 01', 'Camera 02', 'Camera 03', 'Camera 04'];
   const zones = ['Bale Entry', 'Inspection Bay A', 'Inspection Bay B', 'Bale Exit'];
   const anchor = new Date('2026-07-24T08:00:00.000Z').getTime();
-  return Array.from({ length: count }, (_, index) => {
+  return Array.from({ length: count }, (_, index): SeedEvent => {
     const sequence = count - index;
     const cameraIndex = index % 4;
     const outcome = outcomeFor(index + 1);
@@ -78,6 +91,12 @@ export function seedEvents(count = 257) {
     const interaction = outcome === 'completed' || outcome === 'incomplete';
     const completed = outcome === 'completed';
     const unresolved = outcome === 'unresolved';
+    const steps: EventStepRecord[] = [
+      { label: 'Bale entered inspection zone', state: 'complete', time: '00:00:02' },
+      { label: 'Worker interaction observed', state: unresolved ? 'unknown' : interaction ? 'complete' : 'failed', ...(interaction ? { time: '00:00:14' } : {}) },
+      { label: 'Required check completed', state: unresolved ? 'unknown' : completed ? 'complete' : 'failed', ...(completed ? { time: '00:00:29' } : {}) },
+      { label: 'Bale exited inspection zone', state: 'complete', time: '00:00:41' },
+    ];
     return {
       id: eventId,
       cameraId: `CAM-0${cameraIndex + 1}`,
@@ -100,12 +119,7 @@ export function seedEvents(count = 257) {
       version: 1,
       schemaVersion: 1,
       dataset: DATASET,
-      steps: [
-        { label: 'Bale entered inspection zone', state: 'complete', time: '00:00:02' },
-        { label: 'Worker interaction observed', state: unresolved ? 'unknown' : interaction ? 'complete' : 'failed', ...(interaction ? { time: '00:00:14' } : {}) },
-        { label: 'Required check completed', state: unresolved ? 'unknown' : completed ? 'complete' : 'failed', ...(completed ? { time: '00:00:29' } : {}) },
-        { label: 'Bale exited inspection zone', state: 'complete', time: '00:00:41' },
-      ],
+      steps,
     };
   });
 }
