@@ -4,9 +4,34 @@ AI-assisted Proof of Concept for monitoring the PTC bale inspection process thro
 
 ## Current status
 
-The repository contains the approved project foundation, module boundaries, delivery documentation and GitHub issue plan. Application feature development has not started yet.
+The repository now contains:
 
-The next implementation phase is the simple PoC dashboard and authentication foundation described in [`docs/21-development-foundation-and-dashboard-plan.md`](docs/21-development-foundation-and-dashboard-plan.md).
+- the approved local-first architecture and delivery documentation;
+- a production-structured React/TypeScript dashboard with mock/live provider parity;
+- a real Node.js/Express/TypeScript platform API;
+- MongoDB persistence, indexes and deterministic seed/reset tooling;
+- fixed PoC users with server-side sessions and role authorization;
+- dashboard, camera, health, event, review, audit and CSV-export APIs;
+- a same-origin local Docker stack joining dashboard, API and MongoDB;
+- OpenAPI, Jest/Supertest and CI validation assets.
+
+The persisted dataset is synthetic and supports workflow/API validation before camera, Python AI and real evidence integration. It is not PTC acceptance evidence.
+
+## Run the seeded end-to-end stack
+
+```bash
+cp infrastructure/local/.env.example infrastructure/local/.env
+# Replace every password and confirm the allowed browser origins.
+pnpm stack:up
+```
+
+Portal:
+
+```text
+http://localhost:8080
+```
+
+See [`docs/28-backend-validation-and-local-runbook.md`](docs/28-backend-validation-and-local-runbook.md) for startup, reset, validation and UAT instructions.
 
 ## Delivery objective
 
@@ -49,9 +74,9 @@ Azure may later provide separately hosted development/central access, Microsoft 
 - **Portal API:** Node.js, Express and TypeScript
 - **Local metadata:** MongoDB-compatible persistence with Mongoose
 - **Camera/AI/edge:** Python, OpenCV, PyTorch training and ONNX Runtime CUDA deployment
-- **Local updates:** Socket.IO
+- **Local updates:** Socket.IO after the REST vertical slice
 - **Optional Azure:** Bicep, Entra ID, approved MongoDB/Cosmos DB, Blob Storage, Key Vault and Application Insights
-- **CI/CD:** GitHub Actions
+- **CI/CD:** GitHub Actions with self-hosted validation fallbacks
 
 No .NET, Entity Framework Core, Azure SQL or SignalR dependency is planned for the PoC.
 
@@ -69,6 +94,7 @@ packages/
   contracts/                  Shared OpenAPI/JSON Schema contracts
   ui-components/              Small reusable dashboard component layer
 infrastructure/
+  local/                      Seeded dashboard/API/MongoDB stack
   edge/                       Local GPU-workstation deployment assets
   azure/                      Optional approved Azure assets
 tests/
@@ -77,22 +103,29 @@ tests/
 docs/                         Project and technical documentation
 ```
 
-## Dashboard direction
+## Implemented portal/API workflows
 
-The PoC uses one custom operational React portal rather than Power Apps or Power BI as the primary interface.
-
-Initial portal scope:
-
-- simple fixed-user PoC login;
-- operations overview with large readable cards and status indicators;
-- four-camera monitoring screen;
-- event and violation list;
-- event detail, evidence, review status and remarks;
-- system health;
-- basic reports and exports;
-- separate demo, local and Azure synchronization states.
+- fixed viewer, supervisor and administrator login;
+- operations summary;
+- four-camera monitoring states;
+- system-health states;
+- paginated/filterable/sortable inspection events;
+- event detail and observed SOP steps;
+- supervisor confirm/dismiss decision and remarks;
+- optimistic concurrency and audit records;
+- filtered CSV export;
+- 257 deterministic persistent synthetic events.
 
 A future Microsoft Entra ID adapter may replace or extend the fixed-user login after client approval. Full user administration and enterprise RBAC are not part of the first PoC implementation.
+
+## Next integrations
+
+- Python edge-event ingestion and durable-spool acknowledgement;
+- real camera and stream gateway integration;
+- real snapshots and short evidence clips;
+- AI-generated event outcomes;
+- Socket.IO updates;
+- approved Azure synchronization and identity components.
 
 ## Source of truth
 
