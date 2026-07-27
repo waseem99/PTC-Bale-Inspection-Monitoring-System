@@ -19,6 +19,13 @@ models/*.onnx
 models/*.engine
 !models/README.md
 
+# Database backups and local state
+*.dump
+*.sql.gz
+backups/
+postgres-data/
+.prisma/
+
 # Python
 __pycache__/
 *.py[cod]
