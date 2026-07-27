@@ -31,6 +31,9 @@ export type AppConfig = {
 
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = schema.parse(environment);
+  if (parsed.NODE_ENV === 'production' && environment.COOKIE_SECURE === undefined) {
+    throw new Error('COOKIE_SECURE must be explicitly set for a production deployment. Use true behind HTTPS.');
+  }
   const common = parsed.SEED_DEMO_PASSWORD;
   const viewer = parsed.SEED_VIEWER_PASSWORD ?? common;
   const supervisor = parsed.SEED_SUPERVISOR_PASSWORD ?? common;
