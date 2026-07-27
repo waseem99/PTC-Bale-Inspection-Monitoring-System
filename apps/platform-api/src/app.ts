@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Prisma, type EventStep, type InspectionEvent } from '@prisma/client';
+import type { EventStep, InspectionEvent, Prisma } from '@prisma/client';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import type { AppConfig } from './config';
