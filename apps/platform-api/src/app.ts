@@ -1,19 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import { Prisma, type EventStep, type InspectionEvent } from '@prisma/client';
 import express, { type NextFunction, type Request, type Response } from 'express';
-import mongoose from 'mongoose';
 import { z } from 'zod';
 import type { AppConfig } from './config';
+import { databaseReady, prisma } from './db';
+import type { Outcome, ReviewStatus } from './domain';
 import { AppError, asyncHandler, errorHandler, notFound } from './errors';
-import {
-  AuditModel,
-  CameraModel,
-  HealthMetricModel,
-  InspectionEventModel,
-  SessionModel,
-  UserModel,
-  type Outcome,
-  type ReviewStatus,
-} from './models';
 import {
   authContext,
   authenticate,
@@ -60,35 +52,7 @@ const eventQuerySchema = z.object({
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
-type EventRecord = {
-  _id: string;
-  cameraId: string;
-  cameraName: string;
-  zone: string;
-  timestamp: Date;
-  outcome: Outcome;
-  reason: string;
-  confidence: number;
-  reviewStatus: ReviewStatus;
-  summary: string;
-  evidenceAvailable: boolean;
-  remarks?: string;
-  reviewedBy?: string;
-  reviewedAt?: Date;
-  modelVersion: string;
-  ruleVersion: string;
-  version: number;
-  steps: Array<{ label: string; state: 'complete' | 'failed' | 'unknown'; time?: string }>;
-};
-
-type UserRecord = {
-  _id: string;
-  username: string;
-  displayName: string;
-  role: 'viewer' | 'supervisor' | 'admin';
-  passwordHash: string;
-  enabled: boolean;
-};
+type EventRecord = InspectionEvent & { steps: EventStep[] };
 
 type EventFilters = {
   cameraId?: string;
@@ -105,7 +69,7 @@ function asIso(value: Date | string): string {
 
 function serializeEvent(value: EventRecord) {
   return {
-    id: String(value._id),
+    id: value.id,
     cameraId: value.cameraId,
     cameraName: value.cameraName,
     zone: value.zone,
@@ -130,33 +94,33 @@ function serializeEvent(value: EventRecord) {
   };
 }
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function dateRange(from?: string, to?: string): Record<string, Date> | undefined {
+function dateRange(from?: string, to?: string): Prisma.DateTimeFilter | undefined {
   if (!from && !to) return undefined;
   if (from && to && from > to) {
     throw new AppError(400, 'INVALID_DATE_RANGE', 'The start date must not be after the end date.');
   }
   return {
-    ...(from ? { $gte: new Date(`${from}T00:00:00+05:00`) } : {}),
-    ...(to ? { $lte: new Date(`${to}T23:59:59.999+05:00`) } : {}),
+    ...(from ? { gte: new Date(`${from}T00:00:00+05:00`) } : {}),
+    ...(to ? { lte: new Date(`${to}T23:59:59.999+05:00`) } : {}),
   };
 }
 
-function buildEventFilter(filters: EventFilters): Record<string, unknown> {
+function buildEventFilter(filters: EventFilters): Prisma.InspectionEventWhereInput {
   const timestamp = dateRange(filters.from, filters.to);
-  const filter: Record<string, unknown> = {};
-  if (filters.cameraId) filter.cameraId = filters.cameraId;
-  if (filters.outcome) filter.outcome = filters.outcome;
-  if (filters.reviewStatus) filter.reviewStatus = filters.reviewStatus;
-  if (timestamp) filter.timestamp = timestamp;
-  if (filters.search) {
-    const regex = new RegExp(escapeRegex(filters.search), 'i');
-    filter.$or = [{ _id: regex }, { cameraName: regex }, { zone: regex }, { reason: regex }];
-  }
-  return filter;
+  return {
+    ...(filters.cameraId ? { cameraId: filters.cameraId } : {}),
+    ...(filters.outcome ? { outcome: filters.outcome } : {}),
+    ...(filters.reviewStatus ? { reviewStatus: filters.reviewStatus } : {}),
+    ...(timestamp ? { timestamp } : {}),
+    ...(filters.search ? {
+      OR: [
+        { id: { contains: filters.search, mode: 'insensitive' } },
+        { cameraName: { contains: filters.search, mode: 'insensitive' } },
+        { zone: { contains: filters.search, mode: 'insensitive' } },
+        { reason: { contains: filters.search, mode: 'insensitive' } },
+      ],
+    } : {}),
+  };
 }
 
 function csvCell(value: unknown): string {
@@ -232,34 +196,33 @@ export function createApp(config: AppConfig) {
   app.get('/healthz', (_request, response) => response.json({
     status: 'ok',
     service: 'ptc-platform-api',
+    database: 'postgresql',
     time: new Date().toISOString(),
   }));
 
-  app.get('/readyz', (_request, response) => {
-    const ready = mongoose.connection.readyState === 1;
+  app.get('/readyz', asyncHandler(async (_request, response) => {
+    const ready = await databaseReady();
     response.status(ready ? 200 : 503).json({
       status: ready ? 'ready' : 'not-ready',
       database: ready ? 'connected' : 'disconnected',
+      databaseEngine: 'postgresql',
       time: new Date().toISOString(),
     });
-  });
+  }));
 
   app.post('/api/auth/login', createFixedWindowLimiter(10, 15 * 60_000), asyncHandler(async (request, response) => {
     const input = loginSchema.parse(request.body);
-    const user = await UserModel.findOne({
-      username: input.username.toLowerCase(),
-      enabled: true,
-    }).select('+passwordHash').lean() as unknown as UserRecord | null;
-    if (!user || !(await verifyPassword(input.password, user.passwordHash))) {
+    const user = await prisma.user.findUnique({ where: { username: input.username.toLowerCase() } });
+    if (!user?.enabled || !(await verifyPassword(input.password, user.passwordHash))) {
       throw new AppError(401, 'INVALID_CREDENTIALS', 'The username or password is incorrect.');
     }
-    const session = await createSession(String(user._id), config);
+    const session = await createSession(user.id, config);
     setSessionCookie(response, session.token, session.expiresAt, config);
     response.json({
       token: '',
       expiresAt: session.expiresAt.toISOString(),
       user: {
-        id: String(user._id),
+        id: user.id,
         username: user.username,
         displayName: user.displayName,
         role: user.role,
@@ -269,8 +232,10 @@ export function createApp(config: AppConfig) {
 
   app.get('/api/auth/me', authenticate(config), asyncHandler(async (_request, response) => {
     const auth = authContext(response);
-    const session = await SessionModel.findById(auth.sessionId).lean();
-    if (!session) throw new AppError(401, 'SESSION_EXPIRED', 'Your session has expired. Sign in again.');
+    const session = await prisma.session.findUnique({ where: { id: auth.sessionId } });
+    if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+      throw new AppError(401, 'SESSION_EXPIRED', 'Your session has expired. Sign in again.');
+    }
     response.json({ token: '', expiresAt: asIso(session.expiresAt), user: auth.user });
   }));
 
@@ -284,11 +249,11 @@ export function createApp(config: AppConfig) {
 
   app.get('/api/dashboard/summary', asyncHandler(async (_request, response) => {
     const [total, completed, violations, unresolved, unreviewed] = await Promise.all([
-      InspectionEventModel.countDocuments({}),
-      InspectionEventModel.countDocuments({ outcome: 'completed' }),
-      InspectionEventModel.countDocuments({ outcome: { $in: ['missed', 'incomplete'] } }),
-      InspectionEventModel.countDocuments({ outcome: 'unresolved' }),
-      InspectionEventModel.countDocuments({ reviewStatus: 'unreviewed' }),
+      prisma.inspectionEvent.count(),
+      prisma.inspectionEvent.count({ where: { outcome: 'completed' } }),
+      prisma.inspectionEvent.count({ where: { outcome: { in: ['missed', 'incomplete'] } } }),
+      prisma.inspectionEvent.count({ where: { outcome: 'unresolved' } }),
+      prisma.inspectionEvent.count({ where: { reviewStatus: 'unreviewed' } }),
     ]);
     response.json({
       total,
@@ -303,9 +268,9 @@ export function createApp(config: AppConfig) {
   }));
 
   app.get('/api/cameras', asyncHandler(async (_request, response) => {
-    const cameras = await CameraModel.find({}).sort({ _id: 1 }).lean();
+    const cameras = await prisma.camera.findMany({ orderBy: { id: 'asc' } });
     response.json(cameras.map((camera) => ({
-      id: String(camera._id),
+      id: camera.id,
       name: camera.name,
       zone: camera.zone,
       status: camera.status,
@@ -318,9 +283,9 @@ export function createApp(config: AppConfig) {
   }));
 
   app.get('/api/health', asyncHandler(async (_request, response) => {
-    const metrics = await HealthMetricModel.find({}).sort({ _id: 1 }).lean();
+    const metrics = await prisma.healthMetric.findMany({ orderBy: { id: 'asc' } });
     response.json(metrics.map((metric) => ({
-      id: String(metric._id),
+      id: metric.id,
       label: metric.label,
       value: metric.value,
       detail: metric.detail,
@@ -331,17 +296,19 @@ export function createApp(config: AppConfig) {
 
   app.get('/api/events', asyncHandler(async (request, response) => {
     const query = eventQuerySchema.parse(request.query);
-    const filter = buildEventFilter(query);
-    const direction = query.sortDirection === 'asc' ? 1 : -1;
-    const sort: Record<string, 1 | -1> = { [query.sortBy]: direction, _id: direction };
-    const total = await InspectionEventModel.countDocuments(filter);
+    const where = buildEventFilter(query);
+    const direction: Prisma.SortOrder = query.sortDirection;
+    const primarySort = { [query.sortBy]: direction } as Prisma.InspectionEventOrderByWithRelationInput;
+    const total = await prisma.inspectionEvent.count({ where });
     const totalPages = Math.max(1, Math.ceil(total / query.pageSize));
     const page = Math.min(query.page, totalPages);
-    const documents = await InspectionEventModel.find(filter)
-      .sort(sort)
-      .skip((page - 1) * query.pageSize)
-      .limit(query.pageSize)
-      .lean() as unknown as EventRecord[];
+    const documents = await prisma.inspectionEvent.findMany({
+      where,
+      orderBy: [primarySort, { id: direction }],
+      skip: (page - 1) * query.pageSize,
+      take: query.pageSize,
+      include: { steps: { orderBy: { sequence: 'asc' } } },
+    });
     response.json({
       items: documents.map(serializeEvent),
       page,
@@ -355,7 +322,10 @@ export function createApp(config: AppConfig) {
   }));
 
   app.get('/api/events/:eventId', asyncHandler(async (request, response) => {
-    const event = await InspectionEventModel.findById(request.params.eventId).lean() as unknown as EventRecord | null;
+    const event = await prisma.inspectionEvent.findUnique({
+      where: { id: request.params.eventId },
+      include: { steps: { orderBy: { sequence: 'asc' } } },
+    });
     if (!event) throw new AppError(404, 'EVENT_NOT_FOUND', 'The requested event could not be found.');
     response.json(serializeEvent(event));
   }));
@@ -363,62 +333,90 @@ export function createApp(config: AppConfig) {
   app.patch('/api/events/:eventId/review', requireRoles('supervisor', 'admin'), asyncHandler(async (request, response) => {
     const input = reviewSchema.parse(request.body);
     const auth = authContext(response);
-    const before = await InspectionEventModel.findById(request.params.eventId).lean() as unknown as EventRecord | null;
-    if (!before) throw new AppError(404, 'EVENT_NOT_FOUND', 'The requested event could not be found.');
-    if (before.version !== input.expectedVersion) {
-      throw new AppError(
-        409,
-        'VERSION_CONFLICT',
-        'This event was updated by another user. Refresh before saving your review.',
-        { currentVersion: before.version },
-      );
-    }
     const reviewedAt = new Date();
-    const updated = await InspectionEventModel.findOneAndUpdate(
-      { _id: request.params.eventId, version: input.expectedVersion },
-      {
-        $set: {
+
+    const updated = await prisma.$transaction(async (transaction) => {
+      const before = await transaction.inspectionEvent.findUnique({
+        where: { id: request.params.eventId },
+        include: { steps: { orderBy: { sequence: 'asc' } } },
+      });
+      if (!before) throw new AppError(404, 'EVENT_NOT_FOUND', 'The requested event could not be found.');
+      if (before.version !== input.expectedVersion) {
+        throw new AppError(
+          409,
+          'VERSION_CONFLICT',
+          'This event was updated by another user. Refresh before saving your review.',
+          { currentVersion: before.version },
+        );
+      }
+
+      const mutation = await transaction.inspectionEvent.updateMany({
+        where: { id: request.params.eventId, version: input.expectedVersion },
+        data: {
           reviewStatus: input.reviewStatus,
           remarks: input.remarks,
           reviewedBy: auth.user.displayName,
           reviewedAt,
+          version: { increment: 1 },
         },
-        $inc: { version: 1 },
-      },
-      { new: true, runValidators: true },
-    ).lean() as unknown as EventRecord | null;
-    if (!updated) {
-      const current = await InspectionEventModel.findById(request.params.eventId).select('version').lean();
-      throw new AppError(
-        409,
-        'VERSION_CONFLICT',
-        'This event was updated by another user. Refresh before saving your review.',
-        { currentVersion: current?.version },
-      );
-    }
-    await AuditModel.create({
-      actionId: randomUUID(),
-      actorId: auth.user.id,
-      actorDisplayName: auth.user.displayName,
-      actorRole: auth.user.role,
-      action: 'event.review.updated',
-      targetType: 'inspectionEvent',
-      targetId: String(updated._id),
-      before: { reviewStatus: before.reviewStatus, remarks: before.remarks, version: before.version },
-      after: { reviewStatus: updated.reviewStatus, remarks: updated.remarks, version: updated.version },
-      correlationId: response.locals.correlationId as string,
-      occurredAt: reviewedAt,
+      });
+      if (mutation.count !== 1) {
+        const current = await transaction.inspectionEvent.findUnique({
+          where: { id: request.params.eventId },
+          select: { version: true },
+        });
+        throw new AppError(
+          409,
+          'VERSION_CONFLICT',
+          'This event was updated by another user. Refresh before saving your review.',
+          { currentVersion: current?.version },
+        );
+      }
+
+      const after = await transaction.inspectionEvent.findUnique({
+        where: { id: request.params.eventId },
+        include: { steps: { orderBy: { sequence: 'asc' } } },
+      });
+      if (!after) throw new AppError(404, 'EVENT_NOT_FOUND', 'The requested event could not be found.');
+
+      await transaction.auditLog.create({
+        data: {
+          actionId: randomUUID(),
+          actorId: auth.user.id,
+          actorDisplayName: auth.user.displayName,
+          actorRole: auth.user.role,
+          action: 'event.review.updated',
+          targetType: 'inspectionEvent',
+          targetId: after.id,
+          before: {
+            reviewStatus: before.reviewStatus,
+            remarks: before.remarks,
+            version: before.version,
+          },
+          after: {
+            reviewStatus: after.reviewStatus,
+            remarks: after.remarks,
+            version: after.version,
+          },
+          correlationId: response.locals.correlationId as string,
+          occurredAt: reviewedAt,
+        },
+      });
+      return after;
     });
+
     response.json(serializeEvent(updated));
   }));
 
   app.post('/api/exports/events', asyncHandler(async (request, response) => {
     const input = exportSchema.parse(request.body);
-    const filter = buildEventFilter(input);
-    const documents = await InspectionEventModel.find(filter)
-      .sort({ timestamp: -1, _id: -1 })
-      .limit(10_000)
-      .lean() as unknown as EventRecord[];
+    const where = buildEventFilter(input);
+    const documents = await prisma.inspectionEvent.findMany({
+      where,
+      orderBy: [{ timestamp: 'desc' }, { id: 'desc' }],
+      take: 10_000,
+      include: { steps: { orderBy: { sequence: 'asc' } } },
+    });
     const header = [
       'Event ID',
       'Timestamp',
@@ -432,7 +430,7 @@ export function createApp(config: AppConfig) {
       'Remarks',
     ];
     const rows = documents.map((event) => [
-      event._id,
+      event.id,
       asIso(event.timestamp),
       event.cameraName,
       event.zone,
