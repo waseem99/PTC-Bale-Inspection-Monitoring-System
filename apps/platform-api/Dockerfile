@@ -10,7 +10,7 @@ RUN pnpm install --filter @ptc-bale/platform-api... --no-frozen-lockfile
 COPY apps/platform-api apps/platform-api
 RUN pnpm --filter @ptc-bale/platform-api db:generate
 RUN pnpm --filter @ptc-bale/platform-api build
-RUN pnpm --filter @ptc-bale/platform-api --prod --legacy deploy /runtime
+RUN pnpm --filter @ptc-bale/platform-api --prod deploy /runtime
 
 FROM node:22.16.0-alpine AS runtime
 ENV NODE_ENV=production
