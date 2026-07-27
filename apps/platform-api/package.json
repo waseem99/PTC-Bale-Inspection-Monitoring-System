@@ -1,0 +1,42 @@
+{
+  "name": "@ptc-bale/platform-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --max-warnings 0",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "seed": "tsx src/seed.ts seed",
+    "seed:reset": "tsx src/seed.ts reset",
+    "seed:status": "tsx src/seed.ts status",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "express": "5.2.1",
+    "mongoose": "9.8.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.17.0",
+    "@types/express": "5.0.5",
+    "@types/jest": "29.5.14",
+    "@types/node": "22.10.2",
+    "@types/supertest": "6.0.3",
+    "eslint": "9.17.0",
+    "jest": "29.7.0",
+    "mongodb-memory-server": "11.2.0",
+    "supertest": "7.2.2",
+    "ts-jest": "29.4.12",
+    "tsx": "4.19.2",
+    "typescript": "5.7.2",
+    "typescript-eslint": "8.18.2"
+  }
+}
