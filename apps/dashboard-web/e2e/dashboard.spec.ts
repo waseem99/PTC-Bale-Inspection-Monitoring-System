@@ -1,9 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 const PASSWORD = process.env.E2E_PASSWORD ?? 'PTC-Demo-2026!';
 
-async function signIn(page: import('@playwright/test').Page) {
+async function signIn(page: Page) {
   await page.goto('/login');
   await page.getByLabel('Username').fill('supervisor');
   await page.getByLabel('Password').fill(PASSWORD);
