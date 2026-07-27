@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
+process.env.DATABASE_URL ??= 'postgresql://ptc_app:ptc_local_change_me@127.0.0.1:5432/ptc_bale?schema=public';
+
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
