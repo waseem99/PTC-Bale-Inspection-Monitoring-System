@@ -38,6 +38,7 @@
 - [GitHub workflow and issue planning](16-github-workflow.md)
 - [Frontend UAT and release checklist](24-frontend-uat-checklist.md)
 - [Frontend self-hosted validation fallback](26-frontend-self-hosted-validation.md)
+- [Backend validation and local stack runbook](28-backend-validation-and-local-runbook.md)
 
 ## Documentation rules
 
