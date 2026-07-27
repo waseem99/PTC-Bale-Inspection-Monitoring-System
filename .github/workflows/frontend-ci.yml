@@ -55,7 +55,19 @@ jobs:
           path: pnpm-lock.yaml
           if-no-files-found: error
           retention-days: 14
-      - run: pnpm --filter @ptc-bale/dashboard-web lint
+      - name: Lint frontend
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @ptc-bale/dashboard-web lint 2>&1 | tee frontend-lint.log
+      - name: Upload frontend lint diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-lint-${{ github.sha }}
+          path: frontend-lint.log
+          if-no-files-found: ignore
+          retention-days: 14
       - run: pnpm --filter @ptc-bale/dashboard-web typecheck
       - run: pnpm --filter @ptc-bale/dashboard-web test
       - name: Build production mock portal
