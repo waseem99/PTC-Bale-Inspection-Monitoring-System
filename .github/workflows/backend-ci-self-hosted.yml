@@ -1,0 +1,91 @@
+name: Backend CI Self Hosted
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: backend-self-hosted-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: [self-hosted, linux, x64, ptc-api]
+    timeout-minutes: 45
+    env:
+      NODE_ENV: test
+      MONGODB_URI: mongodb://127.0.0.1:27028/ptc_bale_self_hosted
+      COOKIE_SECURE: 'false'
+      ALLOWED_ORIGINS: http://localhost
+      SEED_DEMO_PASSWORD: Self-Hosted-CI-Only-Password-2026!
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify required tools
+        shell: bash
+        run: |
+          node --version
+          corepack --version
+          docker --version
+          docker compose version
+      - name: Start isolated MongoDB
+        shell: bash
+        run: |
+          docker rm --force ptc-api-ci-mongo >/dev/null 2>&1 || true
+          docker run --detach --name ptc-api-ci-mongo --publish 127.0.0.1:27028:27017 mongo:8.0 mongod --bind_ip_all --quiet
+          for attempt in {1..30}; do
+            if docker exec ptc-api-ci-mongo mongosh --quiet --eval "db.adminCommand('ping').ok" | grep -q 1; then exit 0; fi
+            sleep 2
+          done
+          docker logs ptc-api-ci-mongo
+          exit 1
+      - name: Install pnpm and dependencies
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm install --no-frozen-lockfile
+      - run: pnpm --filter @ptc-bale/platform-api lint
+      - run: pnpm --filter @ptc-bale/platform-api typecheck
+      - run: pnpm --filter @ptc-bale/platform-api test
+      - run: pnpm --filter @ptc-bale/platform-api build
+      - run: pnpm --filter @ptc-bale/platform-api seed:reset
+      - run: pnpm --filter @ptc-bale/platform-api seed:status
+      - name: Scan production output
+        shell: bash
+        run: |
+          test -d apps/platform-api/dist
+          ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|mongodb\+srv://|rtsp://[^ ]+:[^ ]+@|Self-Hosted-CI-Only-Password)' apps/platform-api/dist
+      - name: Validate production API container
+        shell: bash
+        run: |
+          docker network rm ptc-api-ci-network >/dev/null 2>&1 || true
+          docker network create ptc-api-ci-network
+          docker network connect ptc-api-ci-network ptc-api-ci-mongo
+          docker rm --force ptc-api-ci-app >/dev/null 2>&1 || true
+          docker build --file apps/platform-api/Dockerfile --tag ptc-platform-api:self-hosted .
+          docker run --detach --name ptc-api-ci-app --network ptc-api-ci-network --publish 127.0.0.1:4001:4000 \
+            --env NODE_ENV=production \
+            --env MONGODB_URI=mongodb://ptc-api-ci-mongo:27017/ptc_container_smoke \
+            --env ALLOWED_ORIGINS=http://localhost \
+            ptc-platform-api:self-hosted
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4001/readyz >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker logs ptc-api-ci-app
+          exit 1
+      - run: curl --fail --silent http://127.0.0.1:4001/healthz | grep -q '"status":"ok"'
+      - name: Upload validation records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-self-hosted-validation-${{ github.sha }}
+          path: |
+            apps/platform-api/dist
+            apps/platform-api/coverage
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: |
+          docker rm --force ptc-api-ci-app ptc-api-ci-mongo >/dev/null 2>&1 || true
+          docker network rm ptc-api-ci-network >/dev/null 2>&1 || true
