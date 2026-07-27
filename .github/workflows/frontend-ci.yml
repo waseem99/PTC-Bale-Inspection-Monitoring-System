@@ -81,7 +81,21 @@ jobs:
           path: frontend-typecheck.log
           if-no-files-found: ignore
           retention-days: 14
-      - run: pnpm --filter @ptc-bale/dashboard-web test
+      - name: Test frontend
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @ptc-bale/dashboard-web test 2>&1 | tee frontend-test.log
+      - name: Upload frontend test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-${{ github.sha }}
+          path: |
+            frontend-test.log
+            apps/dashboard-web/coverage
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Build production mock portal
         run: pnpm --filter @ptc-bale/dashboard-web build
         env:
