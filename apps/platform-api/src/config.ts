@@ -41,7 +41,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     mongodbUri: parsed.MONGODB_URI,
     sessionCookieName: parsed.SESSION_COOKIE_NAME,
     sessionTtlHours: parsed.SESSION_TTL_HOURS,
-    cookieSecure: parsed.COOKIE_SECURE || parsed.NODE_ENV === 'production',
+    cookieSecure: parsed.COOKIE_SECURE,
     allowedOrigins: new Set(parsed.ALLOWED_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean)),
     trustProxy: parsed.TRUST_PROXY,
     seedPasswords: {
