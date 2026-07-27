@@ -9,13 +9,16 @@ concurrency:
 jobs:
   validate:
     runs-on: [self-hosted, linux, x64, ptc-api]
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       NODE_ENV: test
       MONGODB_URI: mongodb://127.0.0.1:27028/ptc_bale_self_hosted
       COOKIE_SECURE: 'false'
       ALLOWED_ORIGINS: http://localhost
       SEED_DEMO_PASSWORD: Self-Hosted-CI-Only-Password-2026!
+      E2E_PASSWORD: Self-Hosted-Live-Password-2026!
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
+      CI: 'true'
     steps:
       - uses: actions/checkout@v4
       - name: Verify required tools
@@ -73,6 +76,39 @@ jobs:
           docker logs ptc-api-ci-app
           exit 1
       - run: curl --fail --silent http://127.0.0.1:4001/healthz | grep -q '"status":"ok"'
+      - name: Stop API smoke resources before end-to-end stack
+        shell: bash
+        run: |
+          docker rm --force ptc-api-ci-app ptc-api-ci-mongo >/dev/null 2>&1 || true
+          docker network rm ptc-api-ci-network >/dev/null 2>&1 || true
+      - name: Configure seeded live stack
+        shell: bash
+        run: |
+          cat > infrastructure/local/.env <<'EOF'
+          DASHBOARD_PORT=8080
+          API_BUILD_VERSION=self-hosted-live
+          DASHBOARD_BUILD_VERSION=self-hosted-live
+          ALLOWED_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
+          SEED_VIEWER_PASSWORD=Self-Hosted-Live-Password-2026!
+          SEED_SUPERVISOR_PASSWORD=Self-Hosted-Live-Password-2026!
+          SEED_ADMIN_PASSWORD=Self-Hosted-Live-Password-2026!
+          EOF
+      - name: Start dashboard, API and MongoDB
+        run: docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml up --build --detach
+      - name: Wait for same-origin readiness
+        shell: bash
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:8080/api/readyz >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml ps
+          docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml logs
+          exit 1
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/dashboard-web
+      - run: pnpm test:e2e
+        working-directory: apps/dashboard-web
       - name: Upload validation records
         if: always()
         uses: actions/upload-artifact@v4
@@ -81,11 +117,13 @@ jobs:
           path: |
             apps/platform-api/dist
             apps/platform-api/coverage
+            apps/dashboard-web/playwright-report
           if-no-files-found: ignore
           retention-days: 14
       - name: Cleanup
         if: always()
         shell: bash
         run: |
+          docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml down --volumes >/dev/null 2>&1 || true
           docker rm --force ptc-api-ci-app ptc-api-ci-mongo >/dev/null 2>&1 || true
           docker network rm ptc-api-ci-network >/dev/null 2>&1 || true
