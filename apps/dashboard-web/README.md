@@ -1,17 +1,17 @@
 # PTC Bale Inspection Dashboard
 
-Production-ready React/TypeScript frontend for the PTC Bale Inspection & Monitoring PoC.
+Production-structured React/TypeScript frontend for the PTC Bale Inspection & Monitoring PoC.
 
 ## Delivery status
 
 The frontend uses the same routes, components, typed contracts, caching, pagination, mutations, resilience behavior and release controls in both modes:
 
 - **Mock mode:** fully functional synthetic provider for client review, browser UAT and frontend delivery.
-- **Live mode:** configured application API without page or workflow rewrites.
+- **Live mode:** real Node.js API backed by local PostgreSQL and deterministic seeded records, without page or workflow rewrites.
 
 It includes route-based screens, protected sessions, query caching, server-compatible pagination, filters, sorting, review mutations, exports, offline/failure handling, responsive layouts, accessibility controls, automated tests, security headers and CI quality gates.
 
-Backend-dependent integrations remain separate: real authentication validation, authorized WebRTC/HLS camera URLs, persistent database/evidence APIs, AI-generated events and Azure synchronization.
+Implemented backend-dependent workflow integrations include fixed-user authentication validation, persistent PostgreSQL events/reviews/audits, camera/health records and CSV export. Remaining integrations are authorized WebRTC/HLS camera URLs, real evidence files, Python/AI-generated events, Socket.IO updates and approved Azure synchronization.
 
 ## Routes
 
@@ -36,7 +36,21 @@ pnpm --filter @ptc-bale/dashboard-web test:e2e
 
 Dashboard: `http://localhost:4173`
 
-## Protected container deployment
+## Seeded PostgreSQL live stack
+
+From the repository root:
+
+```bash
+cp infrastructure/local/.env.example infrastructure/local/.env
+# Replace PostgreSQL and fixed-user passwords.
+pnpm stack:up
+```
+
+Portal: `http://localhost:8080`
+
+The live stack keeps the browser on the same origin, proxies `/api` to the Node.js API, and stores workflow records in local PostgreSQL.
+
+## Protected standalone mock deployment
 
 Build from the repository root:
 
@@ -59,7 +73,7 @@ docker run --detach \
   ptc-bale-dashboard:demo
 ```
 
-The container serves the SPA on port `8080` and exposes unprotected `GET /healthz` for the approved health monitor. Place it behind HTTPS and follow `docs/25-frontend-deployment-runbook.md` before sharing the URL.
+The standalone container serves the SPA on port `8080` and exposes unprotected `GET /healthz` for the approved health monitor. Place it behind HTTPS and follow `docs/25-frontend-deployment-runbook.md` before sharing the URL.
 
 ## Production controls
 
@@ -71,7 +85,7 @@ The container serves the SPA on port `8080` and exposes unprotected `GET /health
 - local mock persistence only for synthetic review data;
 - live session restoration through `/auth/me` with secure-cookie compatibility;
 - no live access token persisted in browser storage by the cookie-backed provider;
-- no credentials, tokens, evidence or media cached by the service worker;
+- no PostgreSQL credentials, tokens, evidence or media cached by the service worker;
 - SPA fallback and security headers supplied for static hosting and the included Nginx runtime;
 - source maps disabled and CI scans for obvious secrets;
 - direct RTSP URLs and camera credentials prohibited in browser code;
