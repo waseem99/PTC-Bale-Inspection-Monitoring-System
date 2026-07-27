@@ -6,6 +6,7 @@ COPY package.json pnpm-workspace.yaml ./
 COPY apps/platform-api/package.json apps/platform-api/package.json
 RUN pnpm install --filter @ptc-bale/platform-api... --no-frozen-lockfile
 COPY apps/platform-api apps/platform-api
+RUN pnpm --filter @ptc-bale/platform-api db:generate
 RUN pnpm --filter @ptc-bale/platform-api build
 RUN pnpm --filter @ptc-bale/platform-api --prod deploy --legacy /runtime
 
