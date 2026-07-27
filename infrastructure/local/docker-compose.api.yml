@@ -1,0 +1,95 @@
+services:
+  mongo:
+    image: mongo:8.0
+    restart: unless-stopped
+    command: ["mongod", "--bind_ip_all", "--quiet"]
+    volumes:
+      - ptc-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks: [ptc-local]
+
+  seed:
+    build:
+      context: ../..
+      dockerfile: apps/platform-api/Dockerfile
+    image: ptc-bale-platform-api:${API_BUILD_VERSION:-local}
+    command: ["node", "dist/seed.js", "seed"]
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://mongo:27017/ptc_bale
+      SEED_VIEWER_PASSWORD: ${SEED_VIEWER_PASSWORD:?Set SEED_VIEWER_PASSWORD}
+      SEED_SUPERVISOR_PASSWORD: ${SEED_SUPERVISOR_PASSWORD:?Set SEED_SUPERVISOR_PASSWORD}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks: [ptc-local]
+    restart: "no"
+
+  api:
+    image: ptc-bale-platform-api:${API_BUILD_VERSION:-local}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      MONGODB_URI: mongodb://mongo:27017/ptc_bale
+      SESSION_COOKIE_NAME: ptc_session
+      SESSION_TTL_HOURS: 8
+      COOKIE_SECURE: "false"
+      TRUST_PROXY: "true"
+      ALLOWED_ORIGINS: http://localhost:${DASHBOARD_PORT:-8080}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks: [ptc-local]
+    security_opt: ["no-new-privileges:true"]
+
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: apps/dashboard-web/Dockerfile
+      args:
+        VITE_DATA_MODE: live
+        VITE_ENVIRONMENT_NAME: Local Seeded API
+        VITE_BUILD_VERSION: ${DASHBOARD_BUILD_VERSION:-local-api}
+        VITE_API_BASE_URL: /api
+        VITE_ALLOW_DEMO_CREDENTIALS: "false"
+        VITE_MOCK_LATENCY_MS: "0"
+        VITE_MOCK_FAILURE_RATE: "0"
+    image: ptc-bale-dashboard:${DASHBOARD_BUILD_VERSION:-local-api}
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-8080}:8080"
+    volumes:
+      - ../../apps/dashboard-web/deploy/nginx.local-api.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks: [ptc-local]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  ptc-local:
+    driver: bridge
+
+volumes:
+  ptc-mongo-data:
