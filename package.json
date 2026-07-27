@@ -3,13 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "packageManager": "pnpm@9.15.4",
-  "description": "Local-first MERN and Python proof of concept for PTC bale inspection monitoring.",
+  "description": "Local-first React, Node.js, PostgreSQL and Python proof of concept for PTC bale inspection monitoring.",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "foundation:status": "node -e \"console.log('Repository foundation, production frontend, and seeded platform API are available on tracked feature branches.')\"",
+    "foundation:status": "node -e \"console.log('Repository foundation, production frontend, PostgreSQL platform API, and seeded local stack are available on tracked feature branches.')\"",
     "dev:dashboard": "pnpm --filter @ptc-bale/dashboard-web dev",
     "build:dashboard": "pnpm --filter @ptc-bale/dashboard-web build",
     "preview:dashboard": "pnpm --filter @ptc-bale/dashboard-web preview",
@@ -17,6 +17,8 @@
     "dev:api": "pnpm --filter @ptc-bale/platform-api dev",
     "build:api": "pnpm --filter @ptc-bale/platform-api build",
     "check:api": "pnpm --filter @ptc-bale/platform-api check",
+    "db:generate": "pnpm --filter @ptc-bale/platform-api db:generate",
+    "db:migrate:deploy": "pnpm --filter @ptc-bale/platform-api db:migrate:deploy",
     "seed:api": "pnpm --filter @ptc-bale/platform-api seed",
     "seed:reset": "pnpm --filter @ptc-bale/platform-api seed:reset",
     "stack:up": "docker compose --env-file infrastructure/local/.env -f infrastructure/local/docker-compose.api.yml up --build",
