@@ -1,13 +1,11 @@
 import http from 'node:http';
-import mongoose from 'mongoose';
 import { createApp } from './app';
 import { loadConfig } from './config';
-import { ensureIndexes } from './models';
+import { connectDatabase, disconnectDatabase } from './db';
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  await mongoose.connect(config.mongodbUri);
-  await ensureIndexes();
+  await connectDatabase();
   const server = http.createServer(createApp(config));
   server.listen(config.port, () => {
     console.log(JSON.stringify({
@@ -15,6 +13,7 @@ async function main(): Promise<void> {
       message: 'PTC platform API started',
       port: config.port,
       environment: config.nodeEnv,
+      database: 'postgresql',
     }));
   });
 
@@ -24,7 +23,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     console.log(JSON.stringify({ level: 'info', message: 'Shutting down', signal }));
     server.close(async () => {
-      await mongoose.disconnect();
+      await disconnectDatabase();
       process.exit(0);
     });
     setTimeout(() => process.exit(1), 10_000).unref();
