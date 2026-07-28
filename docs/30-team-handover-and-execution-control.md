@@ -1,20 +1,41 @@
-# Team Handover and Execution Control
+# Final Team Handover and Execution Control
 
 ## Purpose
 
-This document defines the operational ownership, review gates and repository cleanup rules for the PTC AI Bale Inspection and Monitoring System.
+This document is the durable handover reference for the PTC AI Bale Inspection and Monitoring System.
 
-It prevents parallel architectures, duplicated deployment work, unowned issues and confusion between application delivery, infrastructure delivery and project acceptance.
+It defines the authoritative code path, team ownership, factory-material controls, deployment sequence, demo and change-control flow, repository cleanup rules and project-closure gates.
 
-## Active team
+## Verified status — July 28, 2026
 
-### Project Manager
+- The repository currently reports **public** visibility.
+- Project Manager `arifkhannamal9288` has write access.
+- DevOps Engineer `qamarmujtaba` has read access and requires write or preferably maintain access.
+- AI/Backend Engineer `zubairahmed02` has read access and requires write or preferably maintain access.
+- PR #69 is open, mergeable and is the authoritative React/Node/PostgreSQL application baseline.
+- PR #70 is open, mergeable and draft; it targets the PR #69 branch and contains the AWS/Vercel deployment package.
+- A factory visit was completed on July 28, 2026. The Project Manager holds samples, recorded videos and notes that must remain in approved restricted storage.
+
+Issue #14 is the active privacy, access and GitHub-governance blocker.
+
+## Team ownership
+
+### Project Manager / Delivery Owner
 
 - GitHub: `arifkhannamal9288`
-- Responsibility: scope, priorities, frontend feedback, site-visit/SOP interpretation, UAT, demo coordination and release acceptance.
-- Review role: required PM review for the authoritative platform baseline and later field-facing vertical slices.
+- Primary controls: #73, #74 and #75
 
-The PM does not replace technical review. The PM confirms that the delivered behavior matches the approved business and operational workflow.
+Responsibilities:
+
+- set priorities and resolve dependencies;
+- review the frontend and operational workflow;
+- coordinate factory-material inventory and technical walkthroughs;
+- lead internal and client demonstrations;
+- classify feedback as defect, in-scope completion, clarification or change request;
+- approve user-facing changes and UAT results;
+- record final delivery and client-handover decisions.
+
+The PM confirms scope and operational acceptance but does not replace technical review.
 
 ### DevOps Engineer
 
@@ -25,58 +46,54 @@ The PM does not replace technical review. The PM confirms that the delivered beh
 Responsibilities:
 
 - review and complete the AWS/Vercel deployment package;
-- provision the approved AWS account through CloudFormation;
+- provision AWS through the reviewed CloudFormation stack;
 - operate EC2, Docker Compose, Caddy and PostgreSQL;
 - configure GitHub Environment `aws-staging`, GitHub OIDC and AWS Systems Manager;
 - keep runtime credentials in Parameter Store and outside GitHub;
-- deploy the Vercel frontend and Codistan domains;
-- validate DNS and TLS;
+- deploy and validate the Codistan domains;
 - operate health checks, logs, backups, restore drills and rollback;
-- maintain deployment and operational runbooks;
-- support the AI/backend engineer with runtime deployment, service supervision and diagnostics.
+- package and supervise future edge/monitoring services;
+- maintain deployment and operational runbooks.
 
-Access requirement:
-
-`qamarmujtaba` must have at least repository write access. Maintain access is preferable if the engineer must manage workflows, environments, deployment settings and release operations. Read-only permission is insufficient for operational ownership.
+Read-only access is insufficient. Upgrade to write or preferably maintain before formal ownership begins.
 
 ### AI/Backend Engineer
 
 - Name: Zubair Ahmed
 - GitHub: `zubairahmed02`
-- Current permission: read-only; upgrade to write or maintain is required
 - Primary issue: #72
+- Primary pull request for review: #69
 
 Responsibilities:
 
 - review PR #69 as the authoritative implementation baseline;
-- review PR #70 for backend, runtime and service compatibility;
-- continue the existing Node.js/Express/PostgreSQL platform rather than starting a replacement backend;
+- review PR #70 for backend and runtime compatibility;
+- continue the existing Node.js/Express/PostgreSQL platform;
 - implement the Python edge runtime;
-- implement camera registration, RTSP ingestion and reconnect behavior;
+- implement camera registry, RTSP ingestion and reconnect behavior;
 - implement camera, service, GPU, disk and queue monitoring;
-- implement frame sampling, live-view gateway and rolling evidence buffers;
+- implement sampling, live-view gateway and rolling evidence buffers;
 - implement durable event/evidence spooling and retry;
-- implement secure event and health ingestion into the platform API;
-- implement real evidence metadata, protected snapshot/clip storage and retrieval;
-- prepare approved data manifests and annotation guidance;
-- train and evaluate bale/person detection, local tracking and worker-to-bale association;
-- implement opening/checking/frisking interaction signals;
-- implement the versioned SOP state machine and explainable reason codes;
-- benchmark the four-camera workload on the approved workstation;
-- provide tests, contracts, runbooks and PM demo notes for each vertical slice.
+- implement secure event and health ingestion;
+- implement real evidence metadata, storage and protected retrieval;
+- prepare approved dataset manifests and annotation guidance;
+- build and evaluate detection, tracking, association and inspection-interaction logic;
+- implement the SOP state machine and explainable reason codes;
+- benchmark the four-camera workload;
+- provide tests, contracts, runbooks and PM demo notes.
 
-The exact GitHub username is confirmed. Direct issue assignment, implementation branches and formal PR review requests must wait until `zubairahmed02` is upgraded from read to write or maintain access.
+Read-only access is insufficient. Upgrade to write or preferably maintain before implementation branches, direct issue assignment and formal review requests.
 
 ## Authoritative implementation path
 
-### PR #69
+### PR #69 — application baseline
 
 PR #69 is the single authoritative application baseline. It contains:
 
 - React/TypeScript/Vite dashboard;
 - Node.js/Express/TypeScript API;
 - PostgreSQL 17 and Prisma;
-- authentication and fixed PoC roles;
+- fixed PoC authentication and roles;
 - event review and audit workflow;
 - deterministic synthetic data;
 - local Docker deployment;
@@ -84,11 +101,9 @@ PR #69 is the single authoritative application baseline. It contains:
 
 MongoDB, Mongoose and the earlier MERN persistence direction are superseded and must not be restored.
 
-### PR #70
+### PR #70 — deployment extension
 
-PR #70 is the AWS/Vercel deployment extension. It must be reviewed and folded into the PR #69 implementation path before the consolidated baseline reaches `main`.
-
-It owns:
+PR #70 contains:
 
 - AWS CloudFormation;
 - EC2 runtime;
@@ -98,159 +113,185 @@ It owns:
 - S3 releases and backups;
 - Caddy HTTPS;
 - Vercel frontend proxy;
-- Codistan staging domains.
+- Codistan staging domains;
+- DevOps runbooks and runtime templates.
 
-### Main release gate
+PR #70 must be reviewed and merged into `feature/68-platform-api`, the PR #69 branch. It must not bypass the authoritative branch or create a competing deployment path.
 
-Issue #68 remains open until:
+## Active control map
 
-1. PM review is recorded;
-2. AI/backend technical review is recorded;
-3. PR #70 deployment work is consolidated into the authoritative path;
-4. all required CI checks pass;
-5. PR #69 is merged into `main`;
-6. release evidence is recorded.
-
-## Active execution issues
-
-| Issue | Owner | Purpose |
+| Item | Owner | Purpose |
 |---|---|---|
-| #68 | PM + technical reviewer | Review and merge the validated platform baseline |
-| #71 | DevOps | AWS, PostgreSQL, Vercel, DNS, backup and deployment |
-| #72 | Zubair Ahmed (`zubairahmed02`) | Code review, edge monitoring, camera, evidence and AI delivery |
+| #14 | PM / repository owner | Privacy, permissions, branch protection and governance |
+| #15 | PM + AI/Backend | Four-camera survey and placement approval |
+| #27 | PM + AI/Backend | Footage permission, storage, lineage and dataset split |
+| #63 | PM | Deployed frontend UAT and field-delivery readiness |
+| #67 | PM + technical team | Deployment security and PM/client UAT release gate |
+| #68 / PR #69 | PM + AI/Backend | Review and merge the authoritative application baseline |
+| #71 / PR #70 | DevOps + PM | AWS/PostgreSQL/Vercel staging deployment |
+| #72 | AI/Backend + PM | Technical takeover and remaining implementation sequence |
 | #73 | PM | Repository cleanup, ownership and delivery control |
+| #74 | PM + AI/Backend + DevOps | Convert July 28 factory materials into the implementation baseline |
+| #75 | PM + team | Final deployment, internal demo, client demo, feedback and closure |
 
-The detailed edge and AI tasks remain in issues #20–#34, #37 and #38. Issue #72 is their handover and sequencing entry point.
+Detailed edge and AI work remains in issues #20–#34, #37 and #38. Issue #72 is the sequencing entry point.
 
-## Delivery sequence
+## Factory-visit material control
 
-### Gate 1 — baseline consolidation
+The Project Manager holds samples, videos and notes from the July 28, 2026 factory visit.
 
-1. PM reviews product flow and frontend readiness.
-2. AI/backend engineer reviews PR #69 and publishes a gap report.
-3. DevOps reviews PR #70 and the AWS runbook.
-4. Deployment work is consolidated into the authoritative branch.
-5. CI runs against the consolidated branch.
-6. PR #69 is merged into `main` after approvals.
+The actual materials must remain in approved restricted storage. GitHub may contain only sanitized decisions, non-sensitive reference IDs, manifests, implementation requirements and checksums where appropriate.
 
-### Gate 2 — synthetic staging
+Never commit:
 
-1. DevOps provisions AWS.
-2. DevOps deploys PostgreSQL and the API on EC2.
-3. DevOps deploys the frontend to Vercel at `ptc-aibale.codistan.org`.
-4. DevOps validates the AWS fallback at `aws.ptc-aibale.codistan.org`.
-5. The team validates login, roles, dashboard, events, reviews, exports, persistence and recovery.
-6. PM records staging acceptance and frontend feedback.
+- raw factory videos or images;
+- camera URLs, credentials or production IPs;
+- network plans or client-sensitive notes;
+- PTC or Bangladesh reference media;
+- datasets, extracted frames or annotations containing restricted material;
+- evidence clips or snapshots;
+- model binaries;
+- database dumps or backups;
+- runtime secrets or generated environment files.
 
-### Gate 3 — edge monitoring foundation
+Issue #74 controls:
 
-1. AI/backend engineer implements configuration and camera registry.
-2. AI/backend engineer implements health monitoring.
-3. AI/backend engineer implements RTSP reconnect, sampling and live view.
-4. AI/backend engineer implements evidence buffer and durable spool.
-5. DevOps packages and supervises the services.
-6. PM reviews field usability and monitoring presentation.
+- the restricted-material inventory;
+- camera and zone decisions;
+- SOP interpretation;
+- scenario coverage;
+- training, calibration and locked-acceptance separation;
+- missing capture requirements;
+- risk and blocker reporting;
+- implementation changes arising from the visit.
 
-### Gate 4 — real evidence and AI
+## Final takeover sequence
 
-1. Implement event and health ingestion.
-2. Implement real snapshots and clips.
-3. Curate approved PTC data.
-4. Build detection, tracking and association baselines.
-5. Implement interaction recognition and SOP logic.
-6. Benchmark all four streams.
-7. Integrate real outcomes into the existing review/audit workflow.
-8. Complete technical acceptance and PM/client UAT.
+### Gate 1 — access and governance
 
-## Frontend ownership
+1. Change the repository to private.
+2. Confirm collaborators retain access after the visibility change.
+3. Upgrade `qamarmujtaba` and `zubairahmed02` to write/maintain.
+4. Configure branch protection, required reviews and applicable CI checks.
+5. Configure the protected `aws-staging` deployment environment.
 
-The existing frontend remains the approved baseline.
+### Gate 2 — factory baseline and reviews
 
-Frontend changes should be limited to:
+1. Complete the restricted inventory and sanitized outputs in #74.
+2. Arif leads the factory-material walkthrough.
+3. Zubair reviews PR #69 and records a technical gap report.
+4. Qamar reviews PR #70 and records deployment questions or corrections.
+5. Arif reviews the frontend and operational flow.
 
-- integration required by real API, event, evidence or monitoring behavior;
-- defects discovered during staging or field testing;
-- explicit PM/client feedback;
-- accessibility, responsiveness or operational clarity fixes.
+### Gate 3 — consolidate the baseline
 
-The AI/backend or DevOps engineer should not redesign the dashboard independently. PM reviews the need and acceptance of user-facing changes.
+1. Resolve PR #70 review comments.
+2. Merge PR #70 into `feature/68-platform-api`.
+3. Rerun frontend, backend, recovery and deployment validation on the consolidated PR #69 head.
+4. Record Zubair's technical approval.
+5. Record Arif's PM approval.
+6. Merge PR #69 into `main`.
+7. Close #68 only after the release record is confirmed.
+
+### Gate 4 — deploy staging
+
+Qamar executes #71:
+
+1. provision AWS;
+2. configure OIDC, GitHub Environment and Parameter Store;
+3. deploy PostgreSQL and API to EC2;
+4. deploy the frontend to Vercel;
+5. configure `ptc-aibale.codistan.org`;
+6. configure `api.ptc-aibale.codistan.org`;
+7. validate `aws.ptc-aibale.codistan.org` as the fallback/test frontend;
+8. validate TLS, health, readiness, login, roles, events, review flow and persistence;
+9. validate backups and review restore procedures;
+10. record the deployed commit and sanitized deployment evidence.
+
+### Gate 5 — internal demo
+
+1. Arif schedules and leads the internal demo.
+2. Qamar demonstrates deployment, health and recovery controls.
+3. Zubair demonstrates the backend and camera/monitoring/AI continuation plan.
+4. The team tests all approved user workflows.
+5. Arif records and classifies the punch list.
+6. Required client-demo blockers are corrected and regression-tested.
+
+### Gate 6 — client demo and change control
+
+1. Run a pre-demo health and data check.
+2. Clearly distinguish synthetic, deployed and real-site-integrated behavior.
+3. Do not claim camera/AI completion without PTC-specific integration and evaluation evidence.
+4. Record client feedback and decisions.
+5. Classify every request before development begins.
+6. Obtain approval of the prioritized change list.
+7. Implement approved changes through reviewed PRs.
+8. Regression-test, redeploy and demonstrate the changes.
+
+### Gate 7 — closure and handover
+
+1. Confirm every required issue is completed, deferred with reason or converted into an approved change request.
+2. Reconcile #63 and #67 against deployment and UAT evidence.
+3. Remove stale branches only after confirming no unique work remains and preserving decision history.
+4. Confirm backup, restore, monitoring and support ownership.
+5. Record final release commit, deployment URLs and approved configuration references.
+6. Record PM and client acceptance or remaining contractual actions.
+7. Close #75 only after the final handover record is complete.
 
 ## Repository cleanup rules
 
 ### Keep
 
-- PR #69 as the authoritative baseline until merged;
-- PR #70 as the deployment extension until consolidated;
-- closed PRs #58 and #62 as superseded historical evidence;
-- architecture and decision records;
-- completed issue history;
-- tests, migration history and recovery evidence.
+- PR #69 until the authoritative baseline is merged;
+- PR #70 until deployment work is consolidated;
+- closed PRs #58 and #62 as superseded historical references;
+- architecture decisions, migrations, tests and recovery evidence;
+- field and AI issues until genuinely completed or formally deferred.
 
-### Close after release confirmation
+### Branch deletion rule
 
-- issue #68 after the authoritative merge;
-- issue #67 after CI/security/release evidence is confirmed in the merged baseline;
-- epic #63 after its children and frontend UAT/release evidence are complete.
-
-### Review before branch deletion
-
-Delete a stale branch only when:
+Delete a branch only when:
 
 1. it is merged, superseded or explicitly abandoned;
 2. no unique commits remain;
-3. any useful decision history is preserved in an issue, PR or document;
-4. the PM or technical owner confirms deletion.
+3. useful decision history is preserved;
+4. the PM and technical owner approve deletion.
 
-### Never commit
+### Issue closure rule
 
-- credentials or connection strings;
-- camera URLs or production IP addresses;
-- client site diagrams;
-- PTC or Bangladesh footage;
-- annotations containing restricted data;
-- model binaries;
-- evidence snapshots or clips;
-- database dumps or backups;
-- generated deployment runtime files.
+- close #14 only after privacy, permissions and governance are verified;
+- close #68 only after PR #69 merges;
+- close #67 only after deployment security and UAT evidence exists;
+- close #63 only after #67 and frontend demo/UAT gates are complete;
+- close #74 only after the factory baseline is approved;
+- close #75 only after demos, approved feedback, corrections and handover are recorded.
 
-## Security and visibility
-
-The repository must be private before client-sensitive material is introduced. Private visibility does not permit restricted data to be committed; the existing external-storage and secret-management boundaries remain mandatory.
-
-AWS staging uses synthetic data until cloud handling of real PTC material is explicitly approved.
-
-## Pull request rules
+## Working rules
 
 Every implementation PR must:
 
 - reference its owning issue;
-- state the owner and reviewer;
+- state owner and reviewer;
 - explain scope and architecture impact;
 - include relevant tests;
 - describe deployment and rollback impact;
 - update contracts and runbooks where required;
-- avoid unrelated cleanup in feature PRs;
+- avoid unrelated cleanup;
 - keep real data and secrets outside Git;
 - receive PM review for user-facing behavior and technical review for implementation correctness.
 
-## Immediate administrative actions
-
-- [ ] Upgrade `qamarmujtaba` to write or maintain access.
-- [x] Confirm Zubair Ahmed's exact GitHub username as `zubairahmed02`.
-- [ ] Upgrade `zubairahmed02` to write or maintain access.
-- [ ] Assign Qamar to #71 and request him on PR #70.
-- [ ] Assign `zubairahmed02` to #72 and request technical review on PR #69.
-- [ ] Make the repository private before any client-sensitive upload.
+The PM should set a realistic delivery plan after the engineers review the code, factory materials, access requirements and deployment accounts. This handover does not promise completion within a fixed number of days.
 
 ## Definition of handover completion
 
 Handover is complete when:
 
-- every active engineer has suitable permissions;
-- #71 and #72 have actual GitHub assignees;
-- PR #69 and PR #70 have the correct reviewers;
-- the authoritative baseline is merged into `main`;
-- staging deployment is operational;
-- edge/AI work begins from the existing architecture;
-- PM reviews each user-facing vertical slice;
-- no duplicate architecture or deployment track remains.
+- the repository is private and governed;
+- every active engineer has suitable permissions and direct assignments;
+- factory materials are controlled and converted into approved implementation inputs;
+- PR #69 and PR #70 are consolidated and merged correctly;
+- staging is deployed and validated;
+- internal and client demos are completed;
+- approved changes are implemented and regression-tested;
+- remaining issues and branches have accurate final states;
+- PM and client handover decisions are recorded.
