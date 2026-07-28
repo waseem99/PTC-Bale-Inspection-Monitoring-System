@@ -2,62 +2,76 @@
 
 This package deploys the validated PTC Bale application vertical slice without Railway or a managed database.
 
+## Fixed Codistan domain plan
+
+The staging environment uses these hostnames:
+
+| Purpose | Hostname | Initial target |
+|---|---|---|
+| Primary application | `ptc-aibale.codistan.org` | Vercel |
+| AWS API origin | `api.ptc-aibale.codistan.org` | EC2 Elastic IP |
+| AWS-hosted frontend/fallback | `aws.ptc-aibale.codistan.org` | EC2 Elastic IP |
+
+The primary hostname must not point to Vercel and EC2 at the same time. During the first phase, Vercel owns `ptc-aibale.codistan.org`; the Vercel server-side `/api` proxy calls `api.ptc-aibale.codistan.org`. The AWS fallback remains available at `aws.ptc-aibale.codistan.org`.
+
 ## Resulting topology
 
 ```text
-Vercel dashboard
-  /api/* -> Vercel proxy function -> HTTPS
-                                      |
-                                      v
-AWS Elastic IP -> Caddy on EC2 -> Node.js API
-                              |-> optional AWS-hosted dashboard
-                              `-> PostgreSQL 17 on the same EC2 host
+https://ptc-aibale.codistan.org
+  Vercel React dashboard
+       |
+       | same-origin /api/*
+       v
+  Vercel server-side proxy
+       |
+       | HTTPS
+       v
+https://api.ptc-aibale.codistan.org
+  AWS Elastic IP -> Caddy -> Node.js API -> PostgreSQL 17
 
-GitHub Actions -> AWS OIDC role -> private S3 release bundle -> SSM Run Command -> EC2
+https://aws.ptc-aibale.codistan.org
+  AWS Elastic IP -> Caddy -> React dashboard
+                            `-> /api/* -> Node.js API
+
+GitHub Actions -> AWS OIDC -> private S3 release -> SSM Run Command -> EC2
 ```
 
-The staging host runs only one public virtual machine. PostgreSQL is not publicly exposed. Administration and deployment use AWS Systems Manager, so port 22 and SSH keys are not required.
+The staging host runs one public EC2 virtual machine. PostgreSQL is private inside Docker. Administration and deployment use AWS Systems Manager, so port 22 and SSH keys are not required.
 
-This deployment validates the dashboard, API, authentication, PostgreSQL, review, audit, filters, CSV export, backup and restoration workflows. It does not validate real cameras, RTSP, AI inference, or evidence clips.
+This environment validates the dashboard, API, authentication, PostgreSQL, reviews, audit records, filters, CSV export, backup and restoration. It does not validate real cameras, RTSP, AI inference or real evidence clips.
 
 ## AWS services used
 
-- EC2 with one encrypted gp3 root volume;
-- one Elastic IP for stable DNS;
-- IAM roles and a GitHub OIDC provider;
+- one EC2 instance with an encrypted `gp3` root volume;
+- one Elastic IP for stable AWS DNS records;
+- IAM roles and GitHub Actions OIDC;
 - Systems Manager Run Command and Parameter Store;
-- one private S3 bucket for short-lived release bundles and PostgreSQL backups.
+- one private S3 bucket for release bundles and PostgreSQL backups.
 
-The application database is PostgreSQL Community running in Docker on EC2. No RDS, load balancer, NAT Gateway, ECS, EKS or paid external database is required.
+PostgreSQL Community runs in Docker on EC2. No RDS, Application Load Balancer, NAT Gateway, ECS, EKS or managed external database is required.
 
-## Cost warning
+## Cost controls
 
-Do not assume the deployment is permanently free. AWS Free Tier treatment depends on the account creation date and remaining credits or legacy monthly allowances. AWS charges for public IPv4 addresses, including an Elastic IP attached to a running instance. The CloudFormation template intentionally uses only one public IPv4 address and no load balancer or NAT Gateway.
+Do not assume that EC2 and public IPv4 usage will always be free. Before provisioning:
 
-Before provisioning:
-
-1. confirm the account's Free Tier or credit status;
-2. create a small AWS Budget and billing alert;
-3. choose `t3.micro` first;
-4. use `t3.small` only if the combined API/PostgreSQL/Docker workload is unstable;
-5. terminate the stack when staging is no longer required, while deliberately retaining or deleting the S3 bucket and EBS volume.
+1. confirm the AWS account Free Tier or credit status;
+2. create an AWS Budget and billing alert;
+3. start with `t3.micro`;
+4. move to `t3.small` only if the combined API/PostgreSQL/Docker workload is unstable;
+5. delete staging resources when testing is complete, after deciding whether backups and the retained EBS volume are still required.
 
 ## Prerequisites
 
 The DevOps engineer needs:
 
-- an AWS account and a region;
-- AWS CLI authenticated with permission to deploy CloudFormation, IAM, EC2, S3 and SSM resources;
-- a VPC and public subnet with an internet gateway route;
-- two DNS names, for example:
-  - `api-staging.example.com`;
-  - `ptc-staging.example.com`;
-- access to the GitHub repository settings;
-- access to the Vercel project settings.
+- AWS CLI access with permission to deploy CloudFormation, IAM, EC2, S3 and SSM resources;
+- an AWS region, normally the closest approved region;
+- an existing VPC and public subnet with an internet gateway route;
+- DNS access for `codistan.org`;
+- GitHub repository settings access;
+- Vercel project and domain settings access.
 
-The API and application DNS names must be different. Caddy automatically provisions HTTPS certificates after both A records point to the stack's Elastic IP.
-
-## 1. Create the AWS stack
+## 1. Deploy the AWS stack
 
 From the repository root:
 
@@ -75,13 +89,13 @@ aws cloudformation deploy \
     GitHubEnvironment=aws-staging
 ```
 
-If the AWS account already has an IAM OIDC provider for `token.actions.githubusercontent.com`, pass its ARN:
+If the AWS account already contains the GitHub Actions OIDC provider, also pass:
 
 ```bash
 ExistingGitHubOidcProviderArn=arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com
 ```
 
-Only one provider with that URL may exist in an AWS account.
+Only one provider for `token.actions.githubusercontent.com` may exist in an AWS account.
 
 Read the outputs:
 
@@ -101,7 +115,7 @@ Record:
 - `GitHubDeployRoleArn`;
 - `RuntimeParameterName`.
 
-Confirm that Systems Manager sees the instance before deploying:
+Confirm that Systems Manager sees the EC2 instance:
 
 ```bash
 aws ssm describe-instance-information \
@@ -111,36 +125,62 @@ aws ssm describe-instance-information \
   --output text
 ```
 
-The result should be `Online`.
+The result must be `Online` before deployment.
 
 ## 2. Configure DNS
 
-Create two DNS A records pointing to `ElasticIpAddress`:
+### AWS records
+
+Create these DNS A records and point both to the CloudFormation `ElasticIpAddress`:
 
 ```text
-api-staging.example.com  -> ELASTIC_IP
-ptc-staging.example.com  -> ELASTIC_IP
+api.ptc-aibale.codistan.org  -> ELASTIC_IP
+aws.ptc-aibale.codistan.org  -> ELASTIC_IP
 ```
 
-Wait until public DNS resolves before the first application deployment. Caddy needs inbound TCP 80 and 443 to obtain certificates. UDP 443 is enabled for HTTP/3 but is not required for basic operation.
+Wait for both names to resolve publicly. Caddy requires inbound TCP 80 and 443 to issue HTTPS certificates. UDP 443 is optional for HTTP/3.
 
-## 3. Create the secure runtime environment
+### Vercel primary domain
 
-Copy the template outside the repository working tree or into a file ignored by Git:
+In the Vercel project, add this custom domain:
+
+```text
+ptc-aibale.codistan.org
+```
+
+Create the DNS record exactly as Vercel displays in its domain-verification screen. Do not point this hostname to the EC2 Elastic IP while Vercel is the active frontend host.
+
+The final public application URL will be:
+
+```text
+https://ptc-aibale.codistan.org
+```
+
+## 3. Create the secure runtime configuration
+
+Copy the template outside the repository working tree or into an ignored local file:
 
 ```bash
 cp infrastructure/aws/runtime.env.example /tmp/ptc-bale-runtime.env
 chmod 600 /tmp/ptc-bale-runtime.env
 ```
 
-Update every placeholder. Important rules:
+The domain values are already prepared as:
 
-- use long, unique passwords;
+```env
+API_DOMAIN=api.ptc-aibale.codistan.org
+APP_DOMAIN=aws.ptc-aibale.codistan.org
+ALLOWED_ORIGINS=https://ptc-aibale.codistan.org,https://aws.ptc-aibale.codistan.org
+```
+
+Replace all password and email placeholders. Important rules:
+
+- use long and unique passwords;
 - keep the PostgreSQL password alphanumeric unless it is correctly URL-encoded in `DATABASE_URL`;
-- set `API_DOMAIN` and `APP_DOMAIN` to the DNS records created above;
-- add the stable Vercel production origin and the AWS application origin to `ALLOWED_ORIGINS`;
-- do not add a wildcard Vercel origin;
-- do not commit this file.
+- use a valid TLS notification email;
+- keep the two exact approved origins in `ALLOWED_ORIGINS`;
+- do not wildcard Vercel preview domains;
+- do not commit the runtime file.
 
 Upload it to Parameter Store as a base64-encoded SecureString:
 
@@ -151,7 +191,7 @@ infrastructure/aws/scripts/upload-runtime-env.sh \
   /ptc-bale/staging/runtime-env-b64
 ```
 
-The EC2 instance role can read only this parameter. GitHub Actions does not receive the database or application passwords.
+The EC2 instance role can read only this parameter. GitHub Actions never receives the PostgreSQL or application passwords.
 
 ## 4. Configure the GitHub Environment
 
@@ -161,52 +201,49 @@ Create a GitHub Environment named exactly:
 aws-staging
 ```
 
-Restrict it to the `main` branch and add a required reviewer if desired.
+Restrict it to `main` and add a required deployment reviewer where appropriate.
 
-Add the following **Environment variables**, not secrets:
+Add these GitHub **Environment variables**, not AWS access-key secrets:
 
 | Variable | Value |
 |---|---|
-| `AWS_REGION` | e.g. `ap-south-1` |
-| `AWS_DEPLOY_ROLE_ARN` | CloudFormation `GitHubDeployRoleArn` output |
-| `AWS_ARTIFACT_BUCKET` | CloudFormation `ArtifactBucketName` output |
-| `AWS_EC2_INSTANCE_ID` | CloudFormation `InstanceId` output |
-| `AWS_RUNTIME_PARAMETER_NAME` | CloudFormation `RuntimeParameterName` output |
-| `AWS_API_DOMAIN` | e.g. `api-staging.example.com` |
+| `AWS_REGION` | selected region, for example `ap-south-1` |
+| `AWS_DEPLOY_ROLE_ARN` | CloudFormation `GitHubDeployRoleArn` |
+| `AWS_ARTIFACT_BUCKET` | CloudFormation `ArtifactBucketName` |
+| `AWS_EC2_INSTANCE_ID` | CloudFormation `InstanceId` |
+| `AWS_RUNTIME_PARAMETER_NAME` | CloudFormation `RuntimeParameterName` |
+| `AWS_API_DOMAIN` | `api.ptc-aibale.codistan.org` |
 
-No long-lived AWS access key is required. The workflow requests temporary AWS credentials through GitHub OIDC and the trust relationship is restricted to this repository and the `aws-staging` environment.
+No long-lived AWS access key is required. GitHub requests temporary credentials through OIDC, restricted to this repository and the `aws-staging` Environment.
 
-## 5. Run the first deployment
+## 5. Run the first AWS deployment
 
-The workflow file is:
+The workflow is:
 
 ```text
 .github/workflows/aws-staging-deploy.yml
 ```
 
-It runs automatically after changes reach `main`, or manually from GitHub Actions using **Deploy AWS Staging**.
+It runs automatically after relevant changes reach `main`, or manually using **Deploy AWS Staging**.
 
 The workflow:
 
-1. starts PostgreSQL 17 in the GitHub runner;
-2. installs the frozen pnpm lockfile;
-3. deploys the test migration;
+1. starts PostgreSQL 17 in GitHub Actions;
+2. installs dependencies using the committed frozen lockfile;
+3. applies the Prisma migration to the test database;
 4. runs backend and frontend checks;
-5. builds three Linux/AMD64 images:
-   - API runtime;
-   - Prisma/seed tools;
-   - optional AWS dashboard;
+5. builds the API runtime, Prisma tools and AWS dashboard images;
 6. creates an immutable release bundle and checksum;
-7. authenticates to AWS using OIDC;
-8. uploads the bundle to the private S3 bucket;
-9. invokes the EC2 instance through SSM Run Command;
-10. verifies the public `/readyz` endpoint.
+7. authenticates to AWS through OIDC;
+8. uploads the release to private S3;
+9. deploys to EC2 through SSM Run Command;
+10. verifies `https://api.ptc-aibale.codistan.org/readyz`.
 
-On the first deployment, the host applies migrations and seeds the three synthetic users and 257 synthetic events when `SEED_ON_FIRST_DEPLOY=true`. A marker prevents automatic reseeding on later releases.
+On the first deployment, migrations run and the synthetic users plus 257 synthetic events are seeded when `SEED_ON_FIRST_DEPLOY=true`. A host marker prevents automatic reseeding on later releases.
 
 ## 6. Deploy the frontend on Vercel
 
-Import the repository as a Vercel project with:
+Import the repository into Vercel using:
 
 ```text
 Root Directory: apps/dashboard-web
@@ -216,34 +253,62 @@ Build Command: pnpm build
 Output Directory: dist
 ```
 
-Add these Vercel environment variables:
+Set these Vercel environment variables for Production:
 
-```text
+```env
 VITE_DATA_MODE=live
 VITE_API_BASE_URL=/api
 VITE_REQUEST_TIMEOUT_MS=12000
 VITE_ALLOW_DEMO_CREDENTIALS=false
-VITE_ENVIRONMENT_NAME=PTC AWS Staging
-AWS_API_ORIGIN=https://api-staging.example.com
+VITE_ENVIRONMENT_NAME=PTC AI Bale Staging
+AWS_API_ORIGIN=https://api.ptc-aibale.codistan.org
 ```
 
-`AWS_API_ORIGIN` is a server-side Vercel Function variable and must not use the `VITE_` prefix. The function at `apps/dashboard-web/api/[...path].mjs` proxies browser `/api/*` calls to AWS while preserving first-party secure-cookie authentication.
+`AWS_API_ORIGIN` is a server-side Vercel Function variable. It must not use the `VITE_` prefix.
 
-After Vercel assigns the stable production project URL, update `ALLOWED_ORIGINS` in the runtime environment and upload the Parameter Store value again. Then rerun **Deploy AWS Staging**.
+The function at `apps/dashboard-web/api/[...path].mjs` forwards browser `/api/*` requests to AWS while preserving first-party secure-cookie authentication on `ptc-aibale.codistan.org`.
 
-## 7. Optional frontend on the same EC2 host
-
-The deployment always includes an AWS-hosted dashboard container. Visit:
+Attach the custom domain:
 
 ```text
-https://ptc-staging.example.com
+ptc-aibale.codistan.org
 ```
 
-Caddy sends `/api/*` to the API and all other paths to the dashboard container. This provides a fallback if the Vercel deployment is removed and demonstrates the future all-AWS arrangement without introducing S3/CloudFront frontend hosting yet.
+After deployment, open:
 
-## 8. Test accounts
+```text
+https://ptc-aibale.codistan.org
+```
 
-Use the usernames:
+## 7. AWS-hosted frontend fallback
+
+The same release always deploys a dashboard container to EC2. It is available at:
+
+```text
+https://aws.ptc-aibale.codistan.org
+```
+
+Caddy sends `/api/*` to the API and all other paths to the dashboard container. This gives DevOps a direct AWS fallback and validates the eventual all-AWS arrangement.
+
+## 8. Future frontend cutover from Vercel to AWS
+
+When the frontend must move fully to AWS:
+
+1. verify `https://aws.ptc-aibale.codistan.org` completely;
+2. schedule a DNS maintenance window;
+3. change `APP_DOMAIN` in the secure runtime file to `ptc-aibale.codistan.org`;
+4. keep `ALLOWED_ORIGINS=https://ptc-aibale.codistan.org` and any temporarily required fallback origin;
+5. upload the new runtime parameter;
+6. point `ptc-aibale.codistan.org` from Vercel to the EC2 Elastic IP;
+7. rerun **Deploy AWS Staging** so Caddy requests the certificate for the primary hostname;
+8. validate login, deep links, review persistence and exports;
+9. remove the Vercel custom domain only after the AWS URL is healthy.
+
+Do not point the same hostname to both platforms during the cutover.
+
+## 9. Test accounts
+
+Use these usernames:
 
 ```text
 viewer
@@ -253,22 +318,23 @@ admin
 
 Passwords are the secure values supplied in the runtime environment.
 
-## 9. Manual acceptance checklist
+## 10. Manual acceptance checklist
 
 ### Availability
 
-- `https://api-staging.example.com/healthz` returns HTTP 200;
-- `https://api-staging.example.com/readyz` reports PostgreSQL connected;
-- the Vercel URL opens and deep links refresh correctly;
-- the AWS application URL opens.
+- `https://api.ptc-aibale.codistan.org/healthz` returns HTTP 200;
+- `https://api.ptc-aibale.codistan.org/readyz` reports PostgreSQL connected;
+- `https://ptc-aibale.codistan.org` opens through Vercel;
+- deep links refresh without a 404;
+- `https://aws.ptc-aibale.codistan.org` opens through EC2.
 
 ### Authentication and authorization
 
-- all three roles can sign in;
+- viewer, supervisor and administrator can sign in;
 - refresh preserves the session;
 - logout clears the session;
 - the session cookie is Secure, HttpOnly and SameSite Strict;
-- viewer review requests return HTTP 403;
+- viewer review attempts return HTTP 403;
 - supervisor and administrator reviews persist.
 
 ### Application behavior
@@ -276,24 +342,21 @@ Passwords are the secure values supplied in the runtime environment.
 - 257 synthetic events are available;
 - camera, date, outcome and review filters work;
 - search, sorting and pagination work;
-- event detail routes open directly;
+- event details open directly;
 - CSV export respects filters;
-- stale concurrent review returns HTTP 409.
+- a stale concurrent review returns HTTP 409.
 
-### Persistence
+### Persistence and recovery
 
 - review an event;
-- restart the API container;
-- confirm the review remains;
-- restart the PostgreSQL container;
-- confirm the review remains;
-- execute a backup and verify the S3 object and checksum.
+- restart the API container and confirm the review remains;
+- restart PostgreSQL and confirm the review remains;
+- execute a backup and verify its S3 object and checksum;
+- review the controlled restoration procedure before UAT closure.
 
 ## Operations
 
-### Open an administrative shell without SSH
-
-Use Session Manager:
+### Administrative shell without SSH
 
 ```bash
 aws ssm start-session \
@@ -309,6 +372,7 @@ sudo docker compose -f docker-compose.staging.yml ps
 sudo docker compose -f docker-compose.staging.yml logs --tail=200 api
 sudo docker compose -f docker-compose.staging.yml logs --tail=200 postgres
 sudo docker compose -f docker-compose.staging.yml logs --tail=200 caddy
+sudo docker compose -f docker-compose.staging.yml logs --tail=200 dashboard
 ```
 
 ### Restart services
@@ -325,7 +389,7 @@ sudo docker compose -f docker-compose.staging.yml restart postgres
 sudo /opt/ptc-bale/current/scripts/backup-postgres.sh manual
 ```
 
-A systemd timer also creates a daily backup around 02:15 UTC. Local copies are retained according to `BACKUP_RETENTION_DAYS`; S3 lifecycle expires backup objects after 30 days.
+A systemd timer also creates a daily backup around 02:15 UTC. Local copies follow `BACKUP_RETENTION_DAYS`; the S3 lifecycle expires backup objects after 30 days.
 
 ### Restore a backup
 
@@ -337,31 +401,31 @@ sudo CONFIRM_PTC_RESTORE=YES \
 
 The restore script creates a pre-restore backup, stops the API, restores PostgreSQL and waits for API health.
 
-### Force controlled reseeding
+### Controlled reseeding
 
-Normal deployments never reset the database. To re-run the non-destructive synthetic seed after changing staging passwords:
+Normal deployments never reset PostgreSQL. To rerun the non-destructive synthetic seed after rotating staging passwords:
 
 ```bash
 sudo rm /opt/ptc-bale/shared/seeded
 ```
 
-Then rerun the deployment workflow. Do not use `seed:reset` against this production-mode staging deployment.
+Then rerun the deployment workflow. Do not use `seed:reset` against this production-mode staging environment.
 
 ## Rollback behavior
 
-The host retains the three newest release directories. If application startup fails, the deployment script attempts to point the `current` link back to the previous release and restart it.
+The EC2 host retains the three newest release directories. If startup fails, the deployment script attempts to restore the previous application release.
 
-Prisma migrations are not automatically reversed. A pre-deployment PostgreSQL backup is created before later migrations, so a database restoration remains an explicit DevOps decision.
+Prisma migrations are not automatically reversed. A PostgreSQL backup is created before later migrations, so database restoration remains an explicit DevOps decision.
 
 ## Security boundaries
 
 - do not commit the runtime environment;
-- do not store PTC footage, camera URLs, production IP addresses, database dumps or evidence in GitHub;
-- do not expose PostgreSQL port 5432 in the security group or Docker Compose;
-- do not add SSH port 22 unless there is an approved operational reason;
-- keep the GitHub Environment and OIDC trust restricted;
-- make the repository private before adding client-sensitive material;
-- use this cloud environment only with synthetic data until PTC approves cloud handling.
+- do not place passwords in GitHub issues, PR comments or Vercel `VITE_` variables;
+- do not store PTC footage, camera URLs, production IPs, database dumps or real evidence in GitHub;
+- do not expose PostgreSQL port 5432;
+- do not open SSH port 22 without approved need;
+- restrict the GitHub Environment and OIDC trust;
+- keep this staging environment synthetic-only until cloud handling is approved.
 
 ## Teardown
 
@@ -373,4 +437,4 @@ aws cloudformation delete-stack \
   --stack-name ptc-bale-staging
 ```
 
-The template retains the S3 bucket and sets the EC2 root volume not to delete on termination. DevOps must explicitly remove retained resources after confirming backups are no longer required.
+The template retains the S3 bucket and configures the EC2 root volume not to delete automatically. DevOps must explicitly remove retained resources after confirming they are no longer required.
