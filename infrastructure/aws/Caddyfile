@@ -3,6 +3,7 @@
   admin off
 }
 
+# AWS API origin: api.ptc-aibale.codistan.org
 {$API_DOMAIN} {
   encode zstd gzip
   header {
@@ -13,6 +14,8 @@
   reverse_proxy api:4000
 }
 
+# AWS-hosted frontend/fallback: aws.ptc-aibale.codistan.org
+# The primary ptc-aibale.codistan.org hostname remains on Vercel until an approved cutover.
 {$APP_DOMAIN} {
   encode zstd gzip
   header {
