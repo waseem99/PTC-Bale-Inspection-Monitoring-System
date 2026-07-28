@@ -42,7 +42,8 @@ Access requirement:
 ### AI/Backend Engineer
 
 - Name: Zubair Ahmed
-- Exact GitHub login: pending confirmation
+- GitHub: `zubairahmed02`
+- Current permission: read-only; upgrade to write or maintain is required
 - Primary issue: #72
 
 Responsibilities:
@@ -64,7 +65,7 @@ Responsibilities:
 - benchmark the four-camera workload on the approved workstation;
 - provide tests, contracts, runbooks and PM demo notes for each vertical slice.
 
-Direct GitHub issue assignment must wait until the exact GitHub login is confirmed. Do not guess a username from a public profile search.
+The exact GitHub username is confirmed. Direct issue assignment, implementation branches and formal PR review requests must wait until `zubairahmed02` is upgraded from read to write or maintain access.
 
 ## Authoritative implementation path
 
@@ -116,7 +117,7 @@ Issue #68 remains open until:
 |---|---|---|
 | #68 | PM + technical reviewer | Review and merge the validated platform baseline |
 | #71 | DevOps | AWS, PostgreSQL, Vercel, DNS, backup and deployment |
-| #72 | AI/Backend | Code review, edge monitoring, camera, evidence and AI delivery |
+| #72 | Zubair Ahmed (`zubairahmed02`) | Code review, edge monitoring, camera, evidence and AI delivery |
 | #73 | PM | Repository cleanup, ownership and delivery control |
 
 The detailed edge and AI tasks remain in issues #20–#34, #37 and #38. Issue #72 is their handover and sequencing entry point.
@@ -235,11 +236,10 @@ Every implementation PR must:
 ## Immediate administrative actions
 
 - [ ] Upgrade `qamarmujtaba` to write or maintain access.
-- [ ] Confirm Zubair Ahmed's exact GitHub username.
-- [ ] Grant Zubair suitable repository access.
+- [x] Confirm Zubair Ahmed's exact GitHub username as `zubairahmed02`.
+- [ ] Upgrade `zubairahmed02` to write or maintain access.
 - [ ] Assign Qamar to #71 and request him on PR #70.
-- [ ] Assign Zubair to #72 and request technical review on PR #69.
-- [ ] Confirm whether “Kamal” refers to Zubair or another delivery owner before changing ownership names.
+- [ ] Assign `zubairahmed02` to #72 and request technical review on PR #69.
 - [ ] Make the repository private before any client-sensitive upload.
 
 ## Definition of handover completion
