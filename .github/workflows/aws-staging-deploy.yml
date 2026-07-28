@@ -35,7 +35,9 @@ jobs:
     name: Validate, package and deploy
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    environment: aws-staging
+    environment:
+      name: aws-staging
+      url: https://ptc-aibale.codistan.org
 
     services:
       postgres:
@@ -76,6 +78,11 @@ jobs:
               exit 1
             fi
           done
+
+          if [[ "$AWS_API_DOMAIN_VALUE" != "api.ptc-aibale.codistan.org" ]]; then
+            echo "AWS_API_DOMAIN must be api.ptc-aibale.codistan.org for this staging environment." >&2
+            exit 1
+          fi
 
       - name: Check out repository
         uses: actions/checkout@v4
