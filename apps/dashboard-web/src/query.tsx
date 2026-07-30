@@ -11,7 +11,7 @@ import {
 
 interface CacheEntry<T> {
   data?: T;
-  error?: unknown;
+  error?: Error | undefined;
   updatedAt: number;
   revision: number;
   isFetching: boolean;
@@ -27,6 +27,10 @@ interface FetchOptions {
 
 export class QueryClient {
   private readonly cache = new Map<string, CacheEntry<unknown>>();
+
+  private normalizeError(error: unknown): Error {
+    return error instanceof Error ? error : new Error(String(error));
+  }
 
   private getOrCreate<T>(key: string): CacheEntry<T> {
     const existing = this.cache.get(key) as CacheEntry<T> | undefined;
@@ -66,7 +70,7 @@ export class QueryClient {
   setQueryData<T>(key: string, updater: T | ((current: T | undefined) => T)): void {
     const entry = this.getOrCreate<T>(key);
     entry.data = typeof updater === 'function' ? (updater as (current: T | undefined) => T)(entry.data) : updater;
-    entry.error = undefined;
+    delete entry.error;
     entry.updatedAt = Date.now();
     this.notify(key);
   }
@@ -81,18 +85,18 @@ export class QueryClient {
     const controller = new AbortController();
     entry.controller = controller;
     entry.isFetching = true;
-    entry.error = undefined;
+    delete entry.error;
     this.notify(key);
 
     const promise = queryFn(controller.signal)
       .then((data) => {
         entry.data = data;
-        entry.error = undefined;
+        delete entry.error;
         entry.updatedAt = Date.now();
         return data;
       })
       .catch((error: unknown) => {
-        entry.error = error;
+        entry.error = this.normalizeError(error);
         throw error;
       })
       .finally(() => {
@@ -154,7 +158,7 @@ interface UseQueryOptions<T> {
 
 interface QueryResult<T> {
   data?: T;
-  error?: unknown;
+  error?: Error | undefined;
   isLoading: boolean;
   isFetching: boolean;
   isStale: boolean;
@@ -217,7 +221,7 @@ export function useQuery<T>({
 interface MutationResult<TInput, TOutput> {
   mutate: (input: TInput) => Promise<TOutput>;
   isPending: boolean;
-  error?: unknown;
+  error?: Error | undefined;
   reset: () => void;
 }
 
@@ -225,7 +229,7 @@ export function useMutation<TInput, TOutput>(
   mutationFn: (input: TInput, signal: AbortSignal) => Promise<TOutput>,
 ): MutationResult<TInput, TOutput> {
   const [isPending, setPending] = useState(false);
-  const [error, setError] = useState<unknown>(undefined);
+  const [error, setError] = useState<Error | undefined>(undefined);
   const controllerRef = useRef<AbortController | null>(null);
   const pendingRef = useRef(false);
   const mutationFnRef = useRef(mutationFn);
@@ -244,7 +248,8 @@ export function useMutation<TInput, TOutput>(
     try {
       return await mutationFnRef.current(input, controller.signal);
     } catch (mutationError) {
-      setError(mutationError);
+      const normalized = mutationError instanceof Error ? mutationError : new Error(String(mutationError));
+      setError(normalized);
       throw mutationError;
     } finally {
       pendingRef.current = false;
