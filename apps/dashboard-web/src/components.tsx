@@ -69,6 +69,14 @@ export function CameraScene({ camera }: { camera: Camera }) {
 export function LoadingPanel({ label = 'Loading data…', rows = 3 }: { label?: string; rows?: number }) { return <div className="loading-panel" role="status" aria-live="polite" aria-label={label}>{Array.from({ length: rows }, (_, index) => <span className="skeleton-line" key={index}/>)}<span className="sr-only">{label}</span></div>; }
 export function EmptyState({ title, message }: { title: string; message: string }) { return <div className="empty-state"><Icon name="list" size={34}/><h3>{title}</h3><p>{message}</p></div>; }
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) { const apiError = error instanceof ApiError ? error : null; return <div className="error-state" role="alert"><Icon name="warning" size={30}/><div><h3>Unable to load this information</h3><p>{apiError?.message ?? (error instanceof Error ? error.message : 'An unexpected error occurred.')}</p>{apiError?.correlationId && <small>Reference: {apiError.correlationId}</small>}</div>{onRetry && <button className="button button--secondary" type="button" onClick={onRetry}><Icon name="refresh" size={18}/> Retry</button>}</div>; }
+export function QueryErrorState({ error, hasData, onRetry }: { error?: unknown; hasData: boolean; onRetry: () => void }) {
+  if (error == null || hasData) return null;
+  return <ErrorState error={error} onRetry={onRetry} />;
+}
+export function InlineErrorMessage({ error, fallback = 'An unexpected error occurred.' }: { error?: unknown; fallback?: string }) {
+  if (error == null) return null;
+  return <p className="form-error" role="alert">{error instanceof Error ? error.message : fallback}</p>;
+}
 export function Freshness({ updatedAt, isFetching, isStale }: { updatedAt: number; isFetching: boolean; isStale: boolean }) { return <span className="freshness" aria-live="polite">{isFetching ? 'Refreshing…' : updatedAt ? `Updated ${formatRelativeTime(new Date(updatedAt).toISOString())}` : 'Not loaded'}{isStale && !isFetching ? ' · stale' : ''}</span>; }
 
 export function Pagination({ page, totalPages, total, pageSize, onPageChange, onPageSizeChange, disabled }: { page: number; totalPages: number; total: number; pageSize: number; onPageChange: (page: number) => void; onPageSizeChange: (pageSize: number) => void; disabled?: boolean; }) {
