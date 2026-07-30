@@ -13,6 +13,8 @@
   },
   "scripts": {
     "foundation:status": "node -e \"console.log('Repository foundation and production-ready frontend are available on tracked feature branches.')\"",
+    "build": "npm run build:dashboard",
+    "vercel-build": "npm run build:dashboard",
     "dev:dashboard": "npm run dev -w @ptc-bale/dashboard-web",
     "build:dashboard": "npm run build -w @ptc-bale/dashboard-web",
     "preview:dashboard": "npm run preview -w @ptc-bale/dashboard-web",
