@@ -28,10 +28,10 @@ Mock credentials are compiled into the frontend and only exercise application ro
 ## Commands
 
 ```bash
-pnpm install
-pnpm dev:dashboard
-pnpm check:dashboard
-pnpm --filter @ptc-bale/dashboard-web test:e2e
+npm install
+npm run dev:dashboard
+npm run check:dashboard
+npm run test:e2e:dashboard
 ```
 
 Dashboard: `http://localhost:4173`

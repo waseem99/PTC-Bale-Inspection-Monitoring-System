@@ -3,11 +3,9 @@
 FROM node:20.18.1-alpine AS build
 WORKDIR /workspace
 
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
-
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json package-lock.json ./
 COPY apps/dashboard-web/package.json apps/dashboard-web/package.json
-RUN pnpm install --filter @ptc-bale/dashboard-web... --no-frozen-lockfile
+RUN npm ci --workspace=@ptc-bale/dashboard-web --include-workspace-root
 
 COPY apps/dashboard-web apps/dashboard-web
 
@@ -31,7 +29,7 @@ ENV VITE_DATA_MODE=$VITE_DATA_MODE \
     VITE_MOCK_LATENCY_MS=$VITE_MOCK_LATENCY_MS \
     VITE_MOCK_FAILURE_RATE=$VITE_MOCK_FAILURE_RATE
 
-RUN pnpm --filter @ptc-bale/dashboard-web build
+RUN npm run build -w @ptc-bale/dashboard-web
 
 FROM nginx:1.27.3-alpine AS runtime
 LABEL org.opencontainers.image.title="PTC Bale Inspection Dashboard" \

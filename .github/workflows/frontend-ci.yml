@@ -6,7 +6,7 @@ on:
     paths:
       - 'apps/dashboard-web/**'
       - 'package.json'
-      - 'pnpm-workspace.yaml'
+      - 'package-lock.json'
       - '.dockerignore'
       - '.github/workflows/frontend-ci.yml'
   push:
@@ -14,7 +14,7 @@ on:
     paths:
       - 'apps/dashboard-web/**'
       - 'package.json'
-      - 'pnpm-workspace.yaml'
+      - 'package-lock.json'
       - '.dockerignore'
       - '.github/workflows/frontend-ci.yml'
 
@@ -31,19 +31,16 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
       - uses: actions/setup-node@v4
         with:
           node-version: 20.18.1
-          cache: pnpm
-      - run: pnpm install --no-frozen-lockfile
-      - run: pnpm --filter @ptc-bale/dashboard-web lint
-      - run: pnpm --filter @ptc-bale/dashboard-web typecheck
-      - run: pnpm --filter @ptc-bale/dashboard-web test
+          cache: npm
+      - run: npm ci
+      - run: npm run lint -w @ptc-bale/dashboard-web
+      - run: npm run typecheck -w @ptc-bale/dashboard-web
+      - run: npm run test -w @ptc-bale/dashboard-web
       - name: Build production mock portal
-        run: pnpm --filter @ptc-bale/dashboard-web build
+        run: npm run build -w @ptc-bale/dashboard-web
         env:
           VITE_DATA_MODE: mock
           VITE_ENVIRONMENT_NAME: Isolated Development Demo
@@ -98,17 +95,14 @@ jobs:
     needs: quality
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
       - uses: actions/setup-node@v4
         with:
           node-version: 20.18.1
-          cache: pnpm
-      - run: pnpm install --no-frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
         working-directory: apps/dashboard-web
-      - run: pnpm test:e2e
+      - run: npm run test:e2e
         working-directory: apps/dashboard-web
         env:
           VITE_DATA_MODE: mock

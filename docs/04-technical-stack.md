@@ -88,7 +88,7 @@ Do not implement both modes in full until issue #11 establishes the client-appro
 
 ## Package and workspace approach
 
-Use one Node workspace at the repository root through npm, pnpm, or Yarn after the technical lead selects one package manager. The lock file is authoritative and only one package manager may be used.
+Use one Node workspace at the repository root with **npm** workspaces. The `package-lock.json` file is authoritative and only one package manager may be used.
 
 Python modules should use one documented dependency and environment-management approach. Raw datasets and model binaries remain outside Git.
 

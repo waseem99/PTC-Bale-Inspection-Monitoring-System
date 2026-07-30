@@ -29,19 +29,16 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           clean: true
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
       - uses: actions/setup-node@v4
         with:
           node-version: 20.18.1
-          cache: pnpm
-      - run: pnpm install --no-frozen-lockfile
-      - run: pnpm --filter @ptc-bale/dashboard-web lint
-      - run: pnpm --filter @ptc-bale/dashboard-web typecheck
-      - run: pnpm --filter @ptc-bale/dashboard-web test
+          cache: npm
+      - run: npm ci
+      - run: npm run lint -w @ptc-bale/dashboard-web
+      - run: npm run typecheck -w @ptc-bale/dashboard-web
+      - run: npm run test -w @ptc-bale/dashboard-web
       - name: Build production mock portal
-        run: pnpm --filter @ptc-bale/dashboard-web build
+        run: npm run build -w @ptc-bale/dashboard-web
         env:
           VITE_DATA_MODE: mock
           VITE_ENVIRONMENT_NAME: Isolated Development Demo
@@ -78,11 +75,11 @@ jobs:
           curl --fail --silent --head http://127.0.0.1:18080/ | grep -qi 'content-security-policy'
       - name: Install Playwright browser
         if: ${{ inputs.run_e2e }}
-        run: pnpm exec playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
         working-directory: apps/dashboard-web
       - name: Run Playwright and accessibility checks
         if: ${{ inputs.run_e2e }}
-        run: pnpm test:e2e
+        run: npm run test:e2e
         working-directory: apps/dashboard-web
         env:
           VITE_DATA_MODE: mock
