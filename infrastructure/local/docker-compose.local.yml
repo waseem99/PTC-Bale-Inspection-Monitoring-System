@@ -83,6 +83,7 @@ services:
       dockerfile: apps/platform-api/Dockerfile.aws
       target: runtime
     restart: unless-stopped
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     environment: *api-environment
     depends_on:
       postgres:
@@ -147,6 +148,7 @@ services:
       context: ../..
       dockerfile: tools/edge-simulator/Dockerfile
     restart: unless-stopped
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     environment:
       PTC_RUNTIME_MODE: ${PTC_RUNTIME_MODE:-simulator}
       EDGE_SPOOL_DATABASE: /var/lib/ptc-bale/spool/spool.sqlite3
@@ -211,6 +213,21 @@ services:
       postgres:
         condition: service_healthy
     volumes:
+      - type: bind
+        source: ${PTC_DATA_ROOT}/backups
+        target: /backups
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+
+  archive-tools:
+    image: alpine:3.22
+    profiles: ["tools"]
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    volumes:
+      - type: bind
+        source: ${PTC_DATA_ROOT}/evidence
+        target: /evidence
+        read_only: true
       - type: bind
         source: ${PTC_DATA_ROOT}/backups
         target: /backups
