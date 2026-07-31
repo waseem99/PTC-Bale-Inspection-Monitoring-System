@@ -1,0 +1,247 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  viewer
+  supervisor
+  admin
+}
+
+enum Outcome {
+  completed
+  missed
+  incomplete
+  unresolved
+}
+
+enum ReviewStatus {
+  unreviewed
+  confirmed
+  dismissed
+}
+
+enum CameraStatus {
+  online
+  warning
+  offline
+  reconnecting
+  disabled
+  degraded
+  unknown
+}
+
+enum AiStatus {
+  processing
+  degraded
+  stopped
+  simulated
+  unavailable
+  loading
+  ready
+  failed
+}
+
+enum HealthState {
+  healthy
+  warning
+  critical
+  neutral
+}
+
+enum EvidenceState {
+  available
+  unavailable
+  pending
+  missing
+  failed
+  quarantined
+  deleted
+}
+
+enum EvidenceType {
+  snapshot
+  clip
+  none
+}
+
+enum StepState {
+  complete
+  failed
+  unknown
+}
+
+model User {
+  id           String    @id @db.VarChar(64)
+  username     String    @unique @db.VarChar(100)
+  displayName  String    @db.VarChar(160)
+  role         Role
+  passwordHash String    @db.Text
+  enabled      Boolean   @default(true)
+  dataset      String    @db.VarChar(64)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(3)
+  sessions     Session[]
+
+  @@index([dataset])
+  @@map("users")
+}
+
+model Session {
+  id         String    @id @default(uuid()) @db.Uuid
+  tokenHash  String    @unique @db.Char(64)
+  userId     String    @db.VarChar(64)
+  expiresAt  DateTime  @db.Timestamptz(3)
+  lastSeenAt DateTime  @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(3)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt, expiresAt])
+  @@map("sessions")
+}
+
+model Camera {
+  id            String       @id @db.VarChar(64)
+  name          String       @db.VarChar(160)
+  zone          String       @db.VarChar(160)
+  status        CameraStatus
+  aiStatus      AiStatus
+  lastFrameAt   DateTime     @db.Timestamptz(3)
+  fps           Float
+  streamQuality String       @db.VarChar(64)
+  todayEvents   Int
+  configVersion String       @db.VarChar(64)
+  dataset       String       @db.VarChar(64)
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
+  events        InspectionEvent[]
+
+  @@index([dataset])
+  @@index([status, aiStatus])
+  @@map("cameras")
+}
+
+model InspectionEvent {
+  id                String        @id @db.VarChar(64)
+  cameraId          String        @db.VarChar(64)
+  cameraName        String        @db.VarChar(160)
+  zone              String        @db.VarChar(160)
+  timestamp         DateTime      @db.Timestamptz(3)
+  outcome           Outcome
+  reason            String        @db.Text
+  confidence        Int
+  reviewStatus      ReviewStatus
+  summary           String        @db.Text
+  evidenceAvailable Boolean
+  remarks           String?       @db.VarChar(1000)
+  reviewedBy        String?       @db.VarChar(160)
+  reviewedAt        DateTime?     @db.Timestamptz(3)
+  modelVersion      String        @db.VarChar(64)
+  ruleVersion       String        @db.VarChar(64)
+  configVersion     String        @default("unknown") @db.VarChar(64)
+  edgeVersion       String        @default("unknown") @db.VarChar(64)
+  source            String        @default("seed") @db.VarChar(32)
+  acknowledgedAt    DateTime?     @db.Timestamptz(3)
+  version           Int           @default(1)
+  schemaVersion     Int           @default(1)
+  dataset           String        @db.VarChar(64)
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+  camera            Camera        @relation(fields: [cameraId], references: [id], onDelete: Restrict)
+  steps             EventStep[]
+  evidence          EvidenceMetadata?
+
+  @@index([dataset])
+  @@index([source, timestamp(sort: Desc)])
+  @@index([timestamp(sort: Desc), id(sort: Desc)])
+  @@index([cameraId, timestamp(sort: Desc)])
+  @@index([outcome, timestamp(sort: Desc)])
+  @@index([reviewStatus, timestamp(sort: Desc)])
+  @@index([cameraId, outcome, reviewStatus, timestamp(sort: Desc)])
+  @@map("inspection_events")
+}
+
+model EventStep {
+  id        String          @id @default(uuid()) @db.Uuid
+  eventId   String          @db.VarChar(64)
+  sequence  Int
+  label     String          @db.VarChar(200)
+  state     StepState
+  time      String?         @db.VarChar(32)
+  event     InspectionEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, sequence])
+  @@index([eventId])
+  @@map("event_steps")
+}
+
+model HealthMetric {
+  id        String      @id @db.VarChar(64)
+  label     String      @db.VarChar(160)
+  value     String      @db.VarChar(160)
+  detail    String      @db.Text
+  state     HealthState
+  checkedAt DateTime    @db.Timestamptz(3)
+  source    String      @db.VarChar(64)
+  dataset   String      @db.VarChar(64)
+  sequence  Int         @default(0)
+  createdAt DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime    @updatedAt @db.Timestamptz(3)
+
+  @@index([dataset])
+  @@index([source, checkedAt(sort: Desc)])
+  @@index([state])
+  @@map("health_metrics")
+}
+
+model EvidenceMetadata {
+  id         String          @id @db.VarChar(96)
+  eventId    String          @unique @db.VarChar(64)
+  state      EvidenceState
+  type       EvidenceType
+  mimeType   String?         @db.VarChar(128)
+  sizeBytes  Int?
+  durationMs Int?
+  checksum   String?         @db.VarChar(160)
+  storageKey String?         @db.Text
+  source     String          @default("seed") @db.VarChar(32)
+  dataset    String          @db.VarChar(64)
+  deletedAt  DateTime?       @db.Timestamptz(3)
+  createdAt  DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime        @updatedAt @db.Timestamptz(3)
+  event      InspectionEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([dataset])
+  @@index([state, createdAt])
+  @@map("evidence_metadata")
+}
+
+model AuditLog {
+  id               String   @id @default(uuid()) @db.Uuid
+  actionId         String   @unique @db.Uuid
+  actorId          String   @db.VarChar(64)
+  actorDisplayName String   @db.VarChar(160)
+  actorRole        Role
+  action           String   @db.VarChar(120)
+  targetType       String   @db.VarChar(120)
+  targetId         String   @db.VarChar(96)
+  before           Json?
+  after            Json?
+  correlationId    String   @db.VarChar(128)
+  occurredAt       DateTime @db.Timestamptz(3)
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([targetId, occurredAt(sort: Desc)])
+  @@index([actorId, occurredAt(sort: Desc)])
+  @@index([occurredAt(sort: Desc)])
+  @@map("audit_logs")
+}

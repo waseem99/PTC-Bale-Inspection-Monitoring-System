@@ -1,0 +1,116 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ptc_bale}
+      POSTGRES_USER: ${POSTGRES_USER:-ptc_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - ptc-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ptc_app} -d ${POSTGRES_DB:-ptc_bale}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks: [ptc-local]
+    security_opt: ["no-new-privileges:true"]
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: apps/platform-api/Dockerfile
+      target: build
+    image: ptc-bale-platform-api-build:${API_BUILD_VERSION:-local}
+    command: ["pnpm", "--filter", "@ptc-bale/platform-api", "db:migrate:deploy"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ptc_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ptc_bale}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [ptc-local]
+    restart: "no"
+
+  seed:
+    image: ptc-bale-platform-api-build:${API_BUILD_VERSION:-local}
+    command: ["pnpm", "--filter", "@ptc-bale/platform-api", "seed"]
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ptc_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ptc_bale}?schema=public
+      SEED_VIEWER_PASSWORD: ${SEED_VIEWER_PASSWORD:?Set SEED_VIEWER_PASSWORD}
+      SEED_SUPERVISOR_PASSWORD: ${SEED_SUPERVISOR_PASSWORD:?Set SEED_SUPERVISOR_PASSWORD}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [ptc-local]
+    restart: "no"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/platform-api/Dockerfile
+      target: runtime
+    image: ptc-bale-platform-api:${API_BUILD_VERSION:-local}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ptc_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ptc_bale}?schema=public
+      SESSION_COOKIE_NAME: ptc_session
+      SESSION_TTL_HOURS: 8
+      COOKIE_SECURE: "false"
+      TRUST_PROXY: "true"
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks: [ptc-local]
+    security_opt: ["no-new-privileges:true"]
+
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: apps/dashboard-web/Dockerfile
+      args:
+        VITE_DATA_MODE: live
+        VITE_ENVIRONMENT_NAME: Local Seeded PostgreSQL API
+        VITE_BUILD_VERSION: ${DASHBOARD_BUILD_VERSION:-local-api}
+        VITE_API_BASE_URL: /api
+        VITE_ALLOW_DEMO_CREDENTIALS: "false"
+        VITE_MOCK_LATENCY_MS: "0"
+        VITE_MOCK_FAILURE_RATE: "0"
+    image: ptc-bale-dashboard:${DASHBOARD_BUILD_VERSION:-local-api}
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-8080}:8080"
+    volumes:
+      - ../../apps/dashboard-web/deploy/nginx.local-api.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks: [ptc-local]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  ptc-local:
+    driver: bridge
+
+volumes:
+  ptc-postgres-data:

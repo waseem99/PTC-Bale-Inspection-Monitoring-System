@@ -1,0 +1,60 @@
+name: Feature or delivery task
+description: Plan an approved MVP or hypercare deliverable
+title: "[M#] "
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: State the approved outcome, not only the implementation activity.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: In scope
+      description: List the exact behavior or deliverables included.
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: List nearby requirements intentionally excluded.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Add testable checklist items.
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Reference blocking issues and client-input IDs from docs/14-client-inputs-required.md.
+  - type: textarea
+    id: technical_notes
+    attributes:
+      label: Technical notes
+      description: Contracts, data, security, model, edge, Azure, or deployment impact.
+  - type: textarea
+    id: test_plan
+    attributes:
+      label: Test plan
+      description: State how the acceptance criteria will be verified.
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope_check
+    attributes:
+      label: Scope confirmation
+      options:
+        - label: This work traces to the awarded scope, an approved dependency, or an approved change request.
+          required: true
+        - label: No restricted client data or secrets will be committed.
+          required: true

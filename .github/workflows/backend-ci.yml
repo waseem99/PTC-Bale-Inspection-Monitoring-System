@@ -1,0 +1,287 @@
+name: Backend CI
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/platform-api/**'
+      - 'apps/dashboard-web/**'
+      - 'packages/contracts/**'
+      - 'infrastructure/local/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/backend-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/platform-api/**'
+      - 'apps/dashboard-web/**'
+      - 'packages/contracts/**'
+      - 'infrastructure/local/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/backend-ci.yml'
+permissions:
+  contents: read
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: ptc_bale_ci
+          POSTGRES_USER: ptc_app
+          POSTGRES_PASSWORD: ci-postgres-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ptc_app -d ptc_bale_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ptc_app:ci-postgres-password@127.0.0.1:5432/ptc_bale_ci?schema=public
+      COOKIE_SECURE: 'false'
+      ALLOWED_ORIGINS: http://localhost
+      SEED_DEMO_PASSWORD: CI-Only-Strong-Password-2026!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.4 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if test -f pnpm-lock.yaml; then
+            pnpm install --frozen-lockfile
+          else
+            pnpm install --no-frozen-lockfile
+          fi
+          test -s pnpm-lock.yaml
+      - name: Upload generated or validated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: pnpm-lockfile-${{ github.sha }}
+          path: pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 14
+      - run: pnpm --filter @ptc-bale/platform-api db:generate
+      - run: pnpm --filter @ptc-bale/platform-api db:migrate:deploy
+      - name: Lint backend
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @ptc-bale/platform-api lint 2>&1 | tee backend-lint.log
+      - name: Upload backend lint diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-lint-${{ github.sha }}
+          path: |
+            backend-lint.log
+            apps/platform-api/src/app.ts
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Typecheck backend
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @ptc-bale/platform-api typecheck 2>&1 | tee backend-typecheck.log
+      - name: Upload backend TypeScript diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-typecheck-${{ github.sha }}
+          path: backend-typecheck.log
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Test backend
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @ptc-bale/platform-api test 2>&1 | tee backend-test.log
+      - name: Upload backend test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-${{ github.sha }}
+          path: |
+            backend-test.log
+            apps/platform-api/coverage
+          if-no-files-found: ignore
+          retention-days: 14
+      - run: pnpm --filter @ptc-bale/platform-api build
+      - run: pnpm --filter @ptc-bale/platform-api seed:reset
+      - run: pnpm --filter @ptc-bale/platform-api seed:status
+      - name: Scan production output
+        shell: bash
+        run: |
+          test -d apps/platform-api/dist
+          grep -R -n -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|postgresql://[^ ]+:[^ ]+@|rtsp://[^ ]+:[^ ]+@|CI-Only-Strong-Password)' apps/platform-api/dist > backend-secret-scan.log || true
+          if test -s backend-secret-scan.log; then
+            cat backend-secret-scan.log
+            exit 1
+          fi
+      - name: Upload backend production scan diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-secret-scan-${{ github.sha }}
+          path: backend-secret-scan.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker network create ptc-api-smoke
+      - name: Start PostgreSQL
+        run: |
+          docker run --detach --name postgres-smoke --network ptc-api-smoke \
+            --env POSTGRES_DB=ptc_smoke \
+            --env POSTGRES_USER=ptc_app \
+            --env POSTGRES_PASSWORD=container-postgres-password \
+            postgres:17-alpine
+          for attempt in {1..30}; do
+            if docker exec postgres-smoke pg_isready -U ptc_app -d ptc_smoke >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker logs postgres-smoke
+          exit 1
+      - name: Build API build stage
+        shell: bash
+        run: |
+          set -o pipefail
+          docker build --progress=plain --target build --file apps/platform-api/Dockerfile --tag ptc-platform-api-build:${{ github.sha }} . 2>&1 | tee backend-container-build.log
+      - name: Upload API build-stage diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-container-build-${{ github.sha }}
+          path: backend-container-build.log
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Apply Prisma migrations
+        run: |
+          docker run --rm --network ptc-api-smoke \
+            --env DATABASE_URL=postgresql://ptc_app:container-postgres-password@postgres-smoke:5432/ptc_smoke?schema=public \
+            ptc-platform-api-build:${{ github.sha }} \
+            pnpm --filter @ptc-bale/platform-api db:migrate:deploy
+      - name: Build API runtime image
+        shell: bash
+        run: |
+          set -o pipefail
+          docker build --progress=plain --target runtime --file apps/platform-api/Dockerfile --tag ptc-platform-api:${{ github.sha }} . 2>&1 | tee backend-container-runtime.log
+      - name: Upload API runtime-image diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-container-runtime-${{ github.sha }}
+          path: backend-container-runtime.log
+          if-no-files-found: ignore
+          retention-days: 14
+      - run: |
+          docker run --detach --name api-smoke --network ptc-api-smoke --publish 4000:4000 \
+            --env NODE_ENV=production \
+            --env DATABASE_URL=postgresql://ptc_app:container-postgres-password@postgres-smoke:5432/ptc_smoke?schema=public \
+            --env COOKIE_SECURE=false \
+            --env ALLOWED_ORIGINS=http://localhost \
+            ptc-platform-api:${{ github.sha }}
+      - name: Wait for readiness
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4000/readyz >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Capture API runtime logs
+        if: always()
+        shell: bash
+        run: docker logs api-smoke > backend-container-app.log 2>&1 || true
+      - name: Upload API runtime logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-container-app-${{ github.sha }}
+          path: backend-container-app.log
+          if-no-files-found: ignore
+          retention-days: 14
+      - run: curl --fail --silent http://127.0.0.1:4000/healthz | grep -q '"status":"ok"'
+      - if: always()
+        run: docker rm --force api-smoke postgres-smoke || true
+      - if: always()
+        run: docker network rm ptc-api-smoke || true
+
+  e2e-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [quality, container]
+    env:
+      E2E_PASSWORD: CI-Live-API-Password-2026!
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.4 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if test -f pnpm-lock.yaml; then
+            pnpm install --frozen-lockfile
+          else
+            pnpm install --no-frozen-lockfile
+          fi
+      - name: Configure isolated live stack
+        shell: bash
+        run: |
+          cat > infrastructure/local/.env <<'EOF'
+          DASHBOARD_PORT=8080
+          API_BUILD_VERSION=ci-live-postgres
+          DASHBOARD_BUILD_VERSION=ci-live-postgres
+          ALLOWED_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
+          POSTGRES_DB=ptc_bale
+          POSTGRES_USER=ptc_app
+          POSTGRES_PASSWORD=CI-Live-Postgres-Password-2026!
+          SEED_VIEWER_PASSWORD=CI-Live-API-Password-2026!
+          SEED_SUPERVISOR_PASSWORD=CI-Live-API-Password-2026!
+          SEED_ADMIN_PASSWORD=CI-Live-API-Password-2026!
+          EOF
+      - name: Start dashboard, API and PostgreSQL
+        run: docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml up --build --detach
+      - name: Wait for same-origin readiness
+        shell: bash
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:8080/api/readyz >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml ps
+          docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml logs
+          exit 1
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/dashboard-web
+      - run: pnpm test:e2e
+        working-directory: apps/dashboard-web
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seeded-postgresql-api-playwright-report-${{ github.sha }}
+          path: apps/dashboard-web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: always()
+        run: docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml down --volumes

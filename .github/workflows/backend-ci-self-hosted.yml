@@ -1,0 +1,157 @@
+name: Backend CI Self Hosted
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: backend-self-hosted-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: [self-hosted, linux, x64, ptc-api]
+    timeout-minutes: 70
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ptc_app:self-hosted-postgres-password@127.0.0.1:55432/ptc_bale_self_hosted?schema=public
+      COOKIE_SECURE: 'false'
+      ALLOWED_ORIGINS: http://localhost
+      SEED_DEMO_PASSWORD: Self-Hosted-CI-Only-Password-2026!
+      E2E_PASSWORD: Self-Hosted-Live-Password-2026!
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify required tools
+        shell: bash
+        run: |
+          node --version
+          corepack --version
+          docker --version
+          docker compose version
+      - name: Start isolated PostgreSQL
+        shell: bash
+        run: |
+          docker rm --force ptc-api-ci-postgres >/dev/null 2>&1 || true
+          docker run --detach --name ptc-api-ci-postgres --publish 127.0.0.1:55432:5432 \
+            --env POSTGRES_DB=ptc_bale_self_hosted \
+            --env POSTGRES_USER=ptc_app \
+            --env POSTGRES_PASSWORD=self-hosted-postgres-password \
+            postgres:17-alpine
+          for attempt in {1..30}; do
+            if docker exec ptc-api-ci-postgres pg_isready -U ptc_app -d ptc_bale_self_hosted >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker logs ptc-api-ci-postgres
+          exit 1
+      - name: Install pnpm and dependencies
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          if test -f pnpm-lock.yaml; then
+            pnpm install --frozen-lockfile
+          else
+            pnpm install --no-frozen-lockfile
+          fi
+          test -s pnpm-lock.yaml
+      - name: Upload generated or validated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: pnpm-lockfile-self-hosted-${{ github.sha }}
+          path: pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 14
+      - run: pnpm --filter @ptc-bale/platform-api db:generate
+      - run: pnpm --filter @ptc-bale/platform-api db:migrate:deploy
+      - run: pnpm --filter @ptc-bale/platform-api lint
+      - run: pnpm --filter @ptc-bale/platform-api typecheck
+      - run: pnpm --filter @ptc-bale/platform-api test
+      - run: pnpm --filter @ptc-bale/platform-api build
+      - run: pnpm --filter @ptc-bale/platform-api seed:reset
+      - run: pnpm --filter @ptc-bale/platform-api seed:status
+      - name: Scan production output
+        shell: bash
+        run: |
+          test -d apps/platform-api/dist
+          ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|postgresql://[^ ]+:[^ ]+@|rtsp://[^ ]+:[^ ]+@|Self-Hosted-CI-Only-Password)' apps/platform-api/dist
+      - name: Validate production API container
+        shell: bash
+        run: |
+          docker network rm ptc-api-ci-network >/dev/null 2>&1 || true
+          docker network create ptc-api-ci-network
+          docker network connect ptc-api-ci-network ptc-api-ci-postgres
+          docker rm --force ptc-api-ci-app >/dev/null 2>&1 || true
+          docker build --target build --file apps/platform-api/Dockerfile --tag ptc-platform-api-build:self-hosted .
+          docker run --rm --network ptc-api-ci-network \
+            --env DATABASE_URL=postgresql://ptc_app:self-hosted-postgres-password@ptc-api-ci-postgres:5432/ptc_bale_self_hosted?schema=public \
+            ptc-platform-api-build:self-hosted \
+            pnpm --filter @ptc-bale/platform-api db:migrate:deploy
+          docker build --target runtime --file apps/platform-api/Dockerfile --tag ptc-platform-api:self-hosted .
+          docker run --detach --name ptc-api-ci-app --network ptc-api-ci-network --publish 127.0.0.1:4001:4000 \
+            --env NODE_ENV=production \
+            --env DATABASE_URL=postgresql://ptc_app:self-hosted-postgres-password@ptc-api-ci-postgres:5432/ptc_bale_self_hosted?schema=public \
+            --env COOKIE_SECURE=false \
+            --env ALLOWED_ORIGINS=http://localhost \
+            ptc-platform-api:self-hosted
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4001/readyz >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker logs ptc-api-ci-app
+          exit 1
+      - run: curl --fail --silent http://127.0.0.1:4001/healthz | grep -q '"status":"ok"'
+      - name: Stop API smoke resources before end-to-end stack
+        shell: bash
+        run: |
+          docker rm --force ptc-api-ci-app ptc-api-ci-postgres >/dev/null 2>&1 || true
+          docker network rm ptc-api-ci-network >/dev/null 2>&1 || true
+      - name: Configure seeded live stack
+        shell: bash
+        run: |
+          cat > infrastructure/local/.env <<'EOF'
+          DASHBOARD_PORT=8080
+          API_BUILD_VERSION=self-hosted-live-postgres
+          DASHBOARD_BUILD_VERSION=self-hosted-live-postgres
+          ALLOWED_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
+          POSTGRES_DB=ptc_bale
+          POSTGRES_USER=ptc_app
+          POSTGRES_PASSWORD=Self-Hosted-Live-Postgres-Password-2026!
+          SEED_VIEWER_PASSWORD=Self-Hosted-Live-Password-2026!
+          SEED_SUPERVISOR_PASSWORD=Self-Hosted-Live-Password-2026!
+          SEED_ADMIN_PASSWORD=Self-Hosted-Live-Password-2026!
+          EOF
+      - name: Start dashboard, API and PostgreSQL
+        run: docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml up --build --detach
+      - name: Wait for same-origin readiness
+        shell: bash
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:8080/api/readyz >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml ps
+          docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml logs
+          exit 1
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/dashboard-web
+      - run: pnpm test:e2e
+        working-directory: apps/dashboard-web
+      - name: Upload validation records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-postgresql-self-hosted-validation-${{ github.sha }}
+          path: |
+            pnpm-lock.yaml
+            apps/platform-api/dist
+            apps/platform-api/coverage
+            apps/dashboard-web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: |
+          docker compose --env-file infrastructure/local/.env --file infrastructure/local/docker-compose.api.yml down --volumes >/dev/null 2>&1 || true
+          docker rm --force ptc-api-ci-app ptc-api-ci-postgres >/dev/null 2>&1 || true
+          docker network rm ptc-api-ci-network >/dev/null 2>&1 || true
