@@ -2,6 +2,19 @@
 
 Local-first AI-assisted Proof of Concept for monitoring the PTC bale inspection process through four fixed cameras, a durable edge adapter, timestamped evidence, PostgreSQL, and an operational browser dashboard.
 
+## Final delivery status
+
+The repository-side application and local one-machine deployment package are complete and automation-certified.
+
+Only two delivery workstreams remain:
+
+1. **Actual PTC AI and site technical implementation** — controlled by #86, child issues #27–#34, actual camera/site integration #84, and actual model/site validation #85.
+2. **PM/client feedback, acceptance, handover, and closure** — controlled by #75, including workstation acceptance #83/#102, client UAT #52, handover #53, and any explicitly required feedback-driven stabilization.
+
+The repository administration actions in #14 are a one-time prerequisite, not a third implementation workstream.
+
+Authoritative closure path: [`docs/35-pm-ai-project-closure-runbook.md`](docs/35-pm-ai-project-closure-runbook.md)
+
 ## Immediate deployment target
 
 The current release target is **one local workstation**. AWS, Vercel, Azure, public DNS, and managed cloud services are deferred and do not block local software completion.
@@ -86,7 +99,7 @@ Default software/UAT mode:
 
 The same local application stack with simulator generation disabled. Machine-authenticated event, health, camera-status, evidence, and durable-spool contracts remain active for actual adapters.
 
-Actual camera installation is tracked in #84. Actual PTC AI model delivery and calibration are tracked in #86, with final actual-model/site acceptance in #85.
+Actual cameras and the actual PTC model are part of the single technical AI/site workstream. They must integrate through the completed contracts without redesigning the frontend or platform API.
 
 ## Implemented workflows
 
@@ -183,7 +196,7 @@ The awarded BOQ, approved technical proposal, confirmed PTC SOP, written clarifi
 
 ## Documentation
 
-See [`docs/README.md`](docs/README.md) for the complete index.
+See [`docs/README.md`](docs/README.md) for the complete index and [`docs/38-final-repository-audit.md`](docs/38-final-repository-audit.md) for the final audit record.
 
 ## Security
 
