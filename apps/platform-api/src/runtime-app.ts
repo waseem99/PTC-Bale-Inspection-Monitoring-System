@@ -1,6 +1,7 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { createApp } from './app';
 import type { AppConfig } from './config';
+import { errorHandler } from './errors';
 import { createIngestionReplayGuard } from './ingestion-replay-guard';
 import { createProductionReadyApp } from './production-app';
 
@@ -69,5 +70,6 @@ export function createRuntimeApp(config: AppConfig): Express {
     createIngestionReplayGuard(config),
   );
   app.use(productionApp);
+  app.use(errorHandler);
   return app;
 }
