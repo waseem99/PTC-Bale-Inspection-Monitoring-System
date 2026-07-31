@@ -58,6 +58,9 @@ jobs:
           DB_PASSWORD="$(openssl rand -hex 24)"
           SEED_PASSWORD="$(openssl rand -hex 24)"
           INGESTION_TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::${DB_PASSWORD}"
+          echo "::add-mask::${SEED_PASSWORD}"
+          echo "::add-mask::${INGESTION_TOKEN}"
           {
             echo "CI_DB_PASSWORD=${DB_PASSWORD}"
             echo "DATABASE_URL=postgresql://ptc_ci:${DB_PASSWORD}@127.0.0.1:55432/ptc_bale_ci?schema=public"
