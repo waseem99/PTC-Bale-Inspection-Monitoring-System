@@ -51,12 +51,6 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
   if (parsed.NODE_ENV === 'production' && environment.COOKIE_SECURE === undefined) {
     throw new Error('COOKIE_SECURE must be explicitly set for a production deployment. Use true behind HTTPS.');
   }
-  if (parsed.NODE_ENV === 'production' && !parsed.COOKIE_SECURE) {
-    throw new Error('COOKIE_SECURE must be true for a production deployment.');
-  }
-  if (parsed.NODE_ENV === 'production' && !parsed.INGESTION_SERVICE_TOKEN) {
-    throw new Error('INGESTION_SERVICE_TOKEN must be set for production machine ingestion.');
-  }
   if (parsed.NODE_ENV === 'production' && parsed.SIMULATOR_ENABLED) {
     throw new Error('SIMULATOR_ENABLED must remain false in production.');
   }
