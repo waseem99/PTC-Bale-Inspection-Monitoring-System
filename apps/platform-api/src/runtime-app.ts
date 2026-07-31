@@ -5,6 +5,7 @@ import { createCertificationApp } from './certification-app';
 import type { AppConfig } from './config';
 import { errorHandler } from './errors';
 import { createIngestionReplayGuard } from './ingestion-replay-guard';
+import { createPendingEvidenceFinalizer } from './pending-evidence-finalizer';
 import { createProductionReadyApp } from './production-app';
 
 function createRuntimeLimiter(limit: number, windowMs: number) {
@@ -74,6 +75,12 @@ export function createRuntimeApp(config: AppConfig): Express {
     }
     next();
   });
+
+  app.post(
+    '/api/ingest/evidence/:eventId',
+    express.raw({ type: ['image/jpeg', 'image/png', 'video/mp4'], limit: config.maxEvidenceBytes ?? 25 * 1024 * 1024 }),
+    createPendingEvidenceFinalizer(config),
+  );
 
   app.use((request, response, next) => {
     const certificationPath = request.path.startsWith('/api/ingest/evidence/')
