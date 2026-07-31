@@ -22,7 +22,9 @@ services:
   tools:
     image: ptc-bale-tools:${IMAGE_TAG}
     profiles: ["tools"]
-    env_file: [.env]
+    env_file:
+      - path: .env
+        required: false
     depends_on:
       postgres:
         condition: service_healthy
@@ -32,7 +34,9 @@ services:
   api:
     image: ptc-bale-api:${IMAGE_TAG}
     restart: unless-stopped
-    env_file: [.env]
+    env_file:
+      - path: .env
+        required: false
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,7 +68,9 @@ services:
   caddy:
     image: caddy:2.10.2-alpine
     restart: unless-stopped
-    env_file: [.env]
+    env_file:
+      - path: .env
+        required: false
     depends_on:
       api:
         condition: service_healthy
