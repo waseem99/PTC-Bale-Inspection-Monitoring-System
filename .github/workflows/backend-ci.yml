@@ -66,7 +66,7 @@ jobs:
           fi
           test -s pnpm-lock.yaml
       - name: Upload generated or validated lockfile
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pnpm-lockfile-${{ github.sha }}
           path: pnpm-lock.yaml
@@ -81,7 +81,7 @@ jobs:
           pnpm --filter @ptc-bale/platform-api lint 2>&1 | tee backend-lint.log
       - name: Upload backend lint diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-lint-${{ github.sha }}
           path: |
@@ -96,7 +96,7 @@ jobs:
           pnpm --filter @ptc-bale/platform-api typecheck 2>&1 | tee backend-typecheck.log
       - name: Upload backend TypeScript diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-typecheck-${{ github.sha }}
           path: backend-typecheck.log
@@ -109,7 +109,7 @@ jobs:
           pnpm --filter @ptc-bale/platform-api test 2>&1 | tee backend-test.log
       - name: Upload backend test diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-test-${{ github.sha }}
           path: |
@@ -131,7 +131,7 @@ jobs:
           fi
       - name: Upload backend production scan diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-secret-scan-${{ github.sha }}
           path: backend-secret-scan.log
@@ -165,7 +165,7 @@ jobs:
           docker build --progress=plain --target build --file apps/platform-api/Dockerfile --tag ptc-platform-api-build:${{ github.sha }} . 2>&1 | tee backend-container-build.log
       - name: Upload API build-stage diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-container-build-${{ github.sha }}
           path: backend-container-build.log
@@ -184,7 +184,7 @@ jobs:
           docker build --progress=plain --target runtime --file apps/platform-api/Dockerfile --tag ptc-platform-api:${{ github.sha }} . 2>&1 | tee backend-container-runtime.log
       - name: Upload API runtime-image diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-container-runtime-${{ github.sha }}
           path: backend-container-runtime.log
@@ -211,7 +211,7 @@ jobs:
         run: docker logs api-smoke > backend-container-app.log 2>&1 || true
       - name: Upload API runtime logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-container-app-${{ github.sha }}
           path: backend-container-app.log
@@ -277,7 +277,7 @@ jobs:
       - run: pnpm test:e2e
         working-directory: apps/dashboard-web
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: seeded-postgresql-api-playwright-report-${{ github.sha }}
           path: apps/dashboard-web/playwright-report

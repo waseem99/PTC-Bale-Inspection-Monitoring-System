@@ -244,7 +244,7 @@ jobs:
           echo 'pg_dump_restore_reconciled=true' >> recovery-validation.log
       - name: Upload sanitized recovery record
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: postgresql-recovery-validation-${{ github.sha }}
           path: recovery-validation.log

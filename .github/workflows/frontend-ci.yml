@@ -49,7 +49,7 @@ jobs:
           fi
           test -s pnpm-lock.yaml
       - name: Upload generated or validated lockfile
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pnpm-lockfile-frontend-${{ github.sha }}
           path: pnpm-lock.yaml
@@ -62,7 +62,7 @@ jobs:
           pnpm --filter @ptc-bale/dashboard-web lint 2>&1 | tee frontend-lint.log
       - name: Upload frontend lint diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-lint-${{ github.sha }}
           path: frontend-lint.log
@@ -75,7 +75,7 @@ jobs:
           pnpm --filter @ptc-bale/dashboard-web typecheck 2>&1 | tee frontend-typecheck.log
       - name: Upload frontend TypeScript diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-typecheck-${{ github.sha }}
           path: frontend-typecheck.log
@@ -88,7 +88,7 @@ jobs:
           pnpm --filter @ptc-bale/dashboard-web test 2>&1 | tee frontend-test.log
       - name: Upload frontend test diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-test-${{ github.sha }}
           path: |
@@ -111,7 +111,7 @@ jobs:
           ! find apps/dashboard-web/dist -name '*.map' | grep -q .
           ! grep -R -E '(BEGIN (RSA|OPENSSH) PRIVATE KEY|postgresql://[^ ]+:[^ ]+@|mongodb\+srv://|rtsp://[^ ]+:[^ ]+@)' apps/dashboard-web/dist
       - name: Upload deployable static portal
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ptc-dashboard-static-${{ github.sha }}
           path: apps/dashboard-web/dist
@@ -175,7 +175,7 @@ jobs:
           VITE_ALLOW_DEMO_CREDENTIALS: 'true'
           VITE_MOCK_LATENCY_MS: '40'
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dashboard-playwright-report
           path: apps/dashboard-web/playwright-report
