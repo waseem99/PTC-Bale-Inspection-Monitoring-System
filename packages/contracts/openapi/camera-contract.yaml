@@ -1,0 +1,170 @@
+openapi: 3.1.0
+info:
+  title: PTC Camera Configuration and Status Contract
+  version: 1.0.0
+  description: >-
+    Safe camera configuration and sequence-aware machine status API. This contract
+    deliberately excludes RTSP URLs, usernames, passwords, private IP addresses and
+    network diagrams. Actual physical values are supplied under issue #84.
+servers:
+  - url: /api
+paths:
+  /camera-config:
+    get:
+      operationId: listSafeCameraConfiguration
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Safe camera configuration and current status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schemaVersion, cameras, prohibitedFields, generatedAt]
+                properties:
+                  schemaVersion: { type: string, const: camera-contract-v1 }
+                  cameras:
+                    type: array
+                    items: { $ref: '#/components/schemas/SafeCamera' }
+                  prohibitedFields:
+                    type: array
+                    items: { type: string }
+                  generatedAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Error' }
+  /camera-config/{cameraId}:
+    parameters:
+      - { $ref: '#/components/parameters/CameraId' }
+    patch:
+      operationId: updateSafeCameraConfiguration
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SafeCameraConfigurationUpdate' }
+      responses:
+        '200':
+          description: Audited camera configuration update
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [camera, updatedAt]
+                properties:
+                  camera: { $ref: '#/components/schemas/SafeCamera' }
+                  updatedAt: { type: string, format: date-time }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /ingest/cameras/{cameraId}/status:
+    parameters:
+      - { $ref: '#/components/parameters/CameraId' }
+    post:
+      operationId: ingestCameraStatus
+      security:
+        - serviceBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CameraStatusUpdate' }
+      responses:
+        '202': { description: New sequence accepted }
+        '200': { description: Exact duplicate or stale sequence acknowledged without overwriting newer state }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ptc_session
+    serviceBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-service-token
+  parameters:
+    CameraId:
+      name: cameraId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+        pattern: '^[A-Za-z0-9._:-]+$'
+  responses:
+    Error:
+      description: Stable API error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+  schemas:
+    CameraConnectionStatus:
+      type: string
+      enum: [online, warning, offline, reconnecting, disabled, degraded, unknown]
+    AiStatus:
+      type: string
+      enum: [processing, degraded, stopped, simulated, unavailable, loading, ready, failed]
+    CameraOrientation:
+      type: string
+      enum: [landscape, portrait, rotated-180, rotated-270, unknown]
+    SafeCamera:
+      type: object
+      additionalProperties: false
+      required: [id, name, zone, enabled, orientation, expectedResolution, expectedFps, status, aiStatus, lastFrameAt, fps, streamQuality, todayEvents, configVersion, statusSequence, source, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        zone: { type: string }
+        enabled: { type: boolean }
+        orientation: { $ref: '#/components/schemas/CameraOrientation' }
+        expectedResolution: { type: string, examples: [1920x1080, unknown] }
+        expectedFps: { type: number, minimum: 0, maximum: 240 }
+        status: { $ref: '#/components/schemas/CameraConnectionStatus' }
+        aiStatus: { $ref: '#/components/schemas/AiStatus' }
+        lastFrameAt: { type: string, format: date-time }
+        fps: { type: number, minimum: 0, maximum: 240 }
+        streamQuality: { type: string }
+        todayEvents: { type: integer, minimum: 0 }
+        configVersion: { type: string }
+        statusSequence: { type: integer, minimum: 0 }
+        source: { type: string, enum: [seed, edge, simulator] }
+        updatedAt: { type: string, format: date-time }
+    SafeCameraConfigurationUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        zone: { type: string, minLength: 1, maxLength: 160 }
+        enabled: { type: boolean }
+        orientation: { $ref: '#/components/schemas/CameraOrientation' }
+        expectedResolution: { type: string, pattern: '^\d{2,5}x\d{2,5}$|^unknown$' }
+        expectedFps: { type: number, minimum: 0, maximum: 240 }
+        configVersion: { type: string, minLength: 1, maxLength: 64 }
+    CameraStatusUpdate:
+      type: object
+      additionalProperties: false
+      required: [status, aiStatus, lastFrameAt, fps, streamQuality, configVersion, sequence, source]
+      properties:
+        status: { $ref: '#/components/schemas/CameraConnectionStatus' }
+        aiStatus: { $ref: '#/components/schemas/AiStatus' }
+        lastFrameAt: { type: string, format: date-time }
+        fps: { type: number, minimum: 0, maximum: 240 }
+        streamQuality: { type: string, minLength: 1, maxLength: 64 }
+        configVersion: { type: string, minLength: 1, maxLength: 64 }
+        sequence: { type: integer, minimum: 0, maximum: 2147483647 }
+        source: { type: string, enum: [edge, simulator] }
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        status: { type: integer }
+        correlationId: { type: string }

@@ -1,8 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { createApp } from './app';
+import { createCameraContractApp } from './camera-contract-app';
+import { createCertificationApp } from './certification-app';
 import type { AppConfig } from './config';
 import { errorHandler } from './errors';
 import { createIngestionReplayGuard } from './ingestion-replay-guard';
+import { createPendingEvidenceFinalizer } from './pending-evidence-finalizer';
 import { createProductionReadyApp } from './production-app';
 
 function createRuntimeLimiter(limit: number, windowMs: number) {
@@ -31,16 +35,26 @@ function createRuntimeLimiter(limit: number, windowMs: number) {
   };
 }
 
-/**
- * Preserves the established authentication endpoints while adding the
- * production-readiness routes ahead of the legacy API fallback.
- */
 export function createRuntimeApp(config: AppConfig): Express {
   const coreApp = createApp(config);
+  const certificationApp = createCertificationApp(config);
+  const cameraContractApp = createCameraContractApp(config);
   const productionApp = createProductionReadyApp(config, coreApp);
   const app = express();
   if (config.trustProxy) app.set('trust proxy', 1);
   app.disable('x-powered-by');
+
+  app.use((request, response, next) => {
+    const supplied = request.header('X-Correlation-ID');
+    const correlationId = supplied && supplied.length <= 128 && /^[A-Za-z0-9._:-]+$/.test(supplied) ? supplied : randomUUID();
+    response.locals.correlationId = correlationId;
+    response.setHeader('X-Correlation-ID', correlationId);
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('X-Frame-Options', 'DENY');
+    response.setHeader('Referrer-Policy', 'no-referrer');
+    response.setHeader('Cache-Control', 'no-store');
+    next();
+  });
 
   app.use((request, response, next) => {
     if (request.path.startsWith('/api/auth/')) {
@@ -59,6 +73,35 @@ export function createRuntimeApp(config: AppConfig): Express {
     const origin = request.header('origin');
     if (origin && !config.allowedOrigins.has(origin)) {
       response.status(403).json({ code: 'ORIGIN_NOT_ALLOWED', message: 'The request origin is not allowed.' });
+      return;
+    }
+    next();
+  });
+
+  app.post(
+    '/api/ingest/evidence/:eventId',
+    express.raw({ type: ['image/jpeg', 'image/png', 'video/mp4'], limit: config.maxEvidenceBytes ?? 25 * 1024 * 1024 }),
+    createPendingEvidenceFinalizer(config),
+  );
+
+  app.use((request, response, next) => {
+    const cameraContractPath = request.path === '/api/camera-config'
+      || request.path.startsWith('/api/camera-config/')
+      || request.path.startsWith('/api/ingest/cameras/');
+    if (cameraContractPath) {
+      cameraContractApp(request, response, next);
+      return;
+    }
+    next();
+  });
+
+  app.use((request, response, next) => {
+    const certificationPath = request.path.startsWith('/api/ingest/evidence/')
+      || request.path.startsWith('/api/evidence/')
+      || request.path.startsWith('/api/catalog/')
+      || request.path.startsWith('/api/operations/');
+    if (certificationPath) {
+      certificationApp(request, response, next);
       return;
     }
     next();

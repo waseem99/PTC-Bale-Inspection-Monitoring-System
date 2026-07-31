@@ -1,12 +1,15 @@
+import { useEffect } from 'react';
 import { api } from '../api';
+import { certificationApi } from '../api/certification';
 import { useAuth } from '../auth';
 import { AppShell, ErrorState, Freshness, Icon, LoadingPanel, StatusPill, healthTone } from '../components';
-import { useQuery } from '../query';
+import { useQuery, useQueryClient } from '../query';
 import { formatDateTime } from '../utils';
 
 export default function HealthPage() {
-  const { session } = useAuth(); const token = session?.token ?? '';
+  const { session } = useAuth(); const token = session?.token ?? ''; const queryClient = useQueryClient();
   const health = useQuery({ key: 'health', enabled: Boolean(session), staleTime: 5_000, refetchInterval: 10_000, queryFn: (signal) => api.getHealth(token, signal) });
+  useEffect(() => certificationApi.subscribe((type) => { if (type === 'health-update') queryClient.invalidateQueries('health'); }), [queryClient]);
   return <AppShell title="System Health">
     <section className="page-intro"><div><span className="eyebrow">Local-first operations</span><h2 tabIndex={-1}>Infrastructure and service readiness</h2><p>Monitor the local edge, AI runtime, GPU, storage, database and optional Azure synchronization separately.</p></div><div className="page-intro__actions"><Freshness updatedAt={health.updatedAt} isFetching={health.isFetching} isStale={health.isStale}/><button className="button button--secondary" type="button" onClick={() => void health.refetch()} disabled={health.isFetching}><Icon name="refresh" size={18}/> Refresh</button></div></section>
     {health.isLoading && <LoadingPanel rows={6} label="Loading system health"/>}

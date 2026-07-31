@@ -1,8 +1,11 @@
 openapi: 3.1.0
 info:
   title: PTC Bale Inspection Platform API
-  version: 1.0.0
-  description: Local-first PoC workflow API. Synthetic seeded data is not client acceptance evidence.
+  version: 1.2.1
+  description: >-
+    Local-first API for the approved PTC dashboard, PostgreSQL platform,
+    durable edge delivery, protected evidence, reporting and operations.
+    Simulator output is never actual AI or client-acceptance evidence.
 servers:
   - url: /api
 security:
@@ -26,8 +29,6 @@ paths:
       responses:
         '200':
           description: Authenticated session
-          headers:
-            Set-Cookie: { schema: { type: string } }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Session' }
@@ -95,13 +96,13 @@ paths:
         - { name: to, in: query, schema: { type: string, format: date } }
       responses:
         '200':
-          description: Paginated inspection events
+          description: Paginated events
           content:
             application/json:
               schema: { $ref: '#/components/schemas/EventPage' }
   /events/{eventId}:
     parameters:
-      - { name: eventId, in: path, required: true, schema: { type: string } }
+      - { $ref: '#/components/parameters/EventId' }
     get:
       operationId: getEvent
       responses:
@@ -113,7 +114,7 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
   /events/{eventId}/review:
     parameters:
-      - { name: eventId, in: path, required: true, schema: { type: string } }
+      - { $ref: '#/components/parameters/EventId' }
     patch:
       operationId: reviewEvent
       requestBody:
@@ -137,6 +138,44 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+  /events/{eventId}/audit:
+    parameters:
+      - { $ref: '#/components/parameters/EventId' }
+    get:
+      operationId: eventAudit
+      responses:
+        '200':
+          description: Bounded event audit history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AuditRecord' }
+        '404': { $ref: '#/components/responses/Error' }
+  /events/{eventId}/evidence:
+    parameters:
+      - { $ref: '#/components/parameters/EventId' }
+    get:
+      operationId: eventEvidence
+      responses:
+        '200':
+          description: Protected evidence metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EvidenceMetadata' }
+        '404': { $ref: '#/components/responses/Error' }
+  /evidence/{evidenceId}/content:
+    parameters:
+      - { name: evidenceId, in: path, required: true, schema: { type: string, maxLength: 96 } }
+      - { name: Range, in: header, required: false, schema: { type: string, examples: [bytes=0-1023] } }
+    get:
+      operationId: evidenceContent
+      responses:
+        '200': { description: Complete authorized evidence content }
+        '206': { description: Authorized byte range for evidence-clip playback }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '416': { $ref: '#/components/responses/Error' }
   /exports/events:
     post:
       operationId: exportEvents
@@ -144,29 +183,177 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [format]
-              properties:
-                cameraId: { type: string }
-                outcome: { $ref: '#/components/schemas/Outcome' }
-                reviewStatus: { $ref: '#/components/schemas/ReviewStatus' }
-                from: { type: string, format: date }
-                to: { type: string, format: date }
-                format: { type: string, const: csv }
+            schema: { $ref: '#/components/schemas/CsvExportRequest' }
       responses:
         '200':
-          description: Filtered CSV without evidence media
+          description: Bounded filtered CSV without evidence media
           content:
             text/csv:
               schema: { type: string }
+  /reports/summary:
+    get:
+      operationId: reportSummary
+      parameters:
+        - { name: cameraId, in: query, schema: { type: string } }
+        - { name: outcome, in: query, schema: { $ref: '#/components/schemas/Outcome' } }
+        - { name: reviewStatus, in: query, schema: { $ref: '#/components/schemas/ReviewStatus' } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { description: PostgreSQL-backed report totals }
+  /reports/pdf:
+    get:
+      operationId: reportPdf
+      parameters:
+        - { name: cameraId, in: query, schema: { type: string } }
+        - { name: outcome, in: query, schema: { $ref: '#/components/schemas/Outcome' } }
+        - { name: reviewStatus, in: query, schema: { $ref: '#/components/schemas/ReviewStatus' } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Generated PDF report
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /realtime:
+    get:
+      operationId: realtimeUpdates
+      responses:
+        '200':
+          description: Authenticated SSE stream for event, health and evidence updates
+          content:
+            text/event-stream:
+              schema: { type: string }
+  /system/release:
+    get:
+      operationId: releaseIdentity
+      responses:
+        '200': { description: Service, commit, schema and data identity }
+  /catalog/reason-codes:
+    get:
+      operationId: reasonCodeCatalog
+      responses:
+        '200':
+          description: Versioned outcome/reason-code catalog
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReasonCodeCatalog' }
+  /ingest/events:
+    post:
+      security:
+        - serviceBearer: []
+      operationId: ingestEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngestEvent' }
+      responses:
+        '202': { description: New event accepted }
+        '200': { description: Exact replay acknowledged as duplicate }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /ingest/health:
+    post:
+      security:
+        - serviceBearer: []
+      operationId: ingestHealth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngestHealth' }
+      responses:
+        '202': { description: New health record accepted }
+        '200': { description: Existing or stale sequence handled }
+        '422': { $ref: '#/components/responses/Error' }
+  /ingest/evidence/{eventId}:
+    parameters:
+      - { $ref: '#/components/parameters/EventId' }
+      - { name: X-Evidence-ID, in: header, required: true, schema: { type: string, maxLength: 96 } }
+      - { name: X-Checksum-SHA256, in: header, required: true, schema: { type: string, pattern: '^[a-fA-F0-9]{64}$' } }
+      - { name: X-Duration-MS, in: header, required: false, schema: { type: integer, minimum: 0, maximum: 600000 } }
+    post:
+      security:
+        - serviceBearer: []
+      operationId: uploadEvidence
+      requestBody:
+        required: true
+        content:
+          image/jpeg: { schema: { type: string, format: binary } }
+          image/png: { schema: { type: string, format: binary } }
+          video/mp4: { schema: { type: string, format: binary } }
+      responses:
+        '201': { description: Evidence atomically stored and finalized }
+        '200': { description: Exact evidence replay acknowledged }
+        '409': { $ref: '#/components/responses/Error' }
+        '415': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /operations/evidence/status:
+    get:
+      operationId: evidenceStatus
+      responses:
+        '200': { description: Evidence lifecycle counts }
+  /operations/evidence/consistency:
+    get:
+      operationId: evidenceConsistency
+      responses:
+        '200': { description: Missing, unsafe and orphan evidence report with disk summary }
+  /operations/evidence/reconcile:
+    post:
+      operationId: reconcileEvidence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                action: { type: string, enum: [report, mark-missing, quarantine-orphans], default: report }
+                dryRun: { type: boolean, default: true }
+      responses:
+        '200': { description: Dry-run or audited reconciliation result }
+        '403': { $ref: '#/components/responses/Error' }
+  /operations/evidence/retention:
+    post:
+      operationId: evidenceRetention
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [olderThanDays]
+              properties:
+                olderThanDays: { type: integer, minimum: 1, maximum: 3650 }
+                dryRun: { type: boolean, default: true }
+      responses:
+        '200': { description: Dry-run or audited deletion result; pending and quarantined evidence is protected }
+        '403': { $ref: '#/components/responses/Error' }
+  /operations/diagnostics:
+    get:
+      operationId: operationalDiagnostics
+      responses:
+        '200': { description: Safe evidence, backup, warning and retention diagnostics }
 components:
   securitySchemes:
     sessionCookie:
       type: apiKey
       in: cookie
       name: ptc_session
+    serviceBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-service-token
+  parameters:
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      schema: { type: string, maxLength: 64 }
   responses:
     Error:
       description: Stable API error
@@ -177,8 +364,11 @@ components:
     Role: { type: string, enum: [viewer, supervisor, admin] }
     Outcome: { type: string, enum: [completed, missed, incomplete, unresolved] }
     ReviewStatus: { type: string, enum: [unreviewed, confirmed, dismissed] }
+    StepState: { type: string, enum: [complete, failed, unknown] }
+    EvidenceState: { type: string, enum: [available, unavailable, pending, missing, failed, quarantined, deleted] }
     User:
       type: object
+      additionalProperties: false
       required: [id, username, displayName, role]
       properties:
         id: { type: string }
@@ -187,6 +377,7 @@ components:
         role: { $ref: '#/components/schemas/Role' }
     Session:
       type: object
+      additionalProperties: false
       required: [token, user, expiresAt]
       properties:
         token: { type: string, description: Empty for cookie-backed sessions }
@@ -194,11 +385,12 @@ components:
         expiresAt: { type: string, format: date-time }
     EventStep:
       type: object
+      additionalProperties: false
       required: [label, state]
       properties:
-        label: { type: string }
-        state: { type: string, enum: [complete, failed, unknown] }
-        time: { type: string }
+        label: { type: string, maxLength: 200 }
+        state: { $ref: '#/components/schemas/StepState' }
+        time: { type: string, maxLength: 32 }
     InspectionEvent:
       type: object
       required: [id, cameraId, cameraName, zone, timestamp, outcome, reason, confidence, reviewStatus, summary, evidenceAvailable, modelVersion, ruleVersion, version, steps]
@@ -210,7 +402,7 @@ components:
         timestamp: { type: string, format: date-time }
         outcome: { $ref: '#/components/schemas/Outcome' }
         reason: { type: string }
-        confidence: { type: number, minimum: 0, maximum: 100 }
+        confidence: { type: integer, minimum: 0, maximum: 100 }
         reviewStatus: { $ref: '#/components/schemas/ReviewStatus' }
         summary: { type: string }
         evidenceAvailable: { type: boolean }
@@ -227,7 +419,9 @@ components:
       type: object
       required: [items, page, pageSize, total, totalPages, hasNextPage, hasPreviousPage, generatedAt]
       properties:
-        items: { type: array, items: { $ref: '#/components/schemas/InspectionEvent' } }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/InspectionEvent' }
         page: { type: integer }
         pageSize: { type: integer }
         total: { type: integer }
@@ -242,8 +436,8 @@ components:
         id: { type: string }
         name: { type: string }
         zone: { type: string }
-        status: { type: string, enum: [online, warning, offline] }
-        aiStatus: { type: string, enum: [processing, degraded, stopped] }
+        status: { type: string, enum: [online, warning, offline, reconnecting, disabled, degraded, unknown] }
+        aiStatus: { type: string, enum: [processing, degraded, stopped, simulated, unavailable, loading, ready, failed] }
         lastFrameAt: { type: string, format: date-time }
         fps: { type: number }
         streamQuality: { type: string }
@@ -270,9 +464,116 @@ components:
         completedRate: { type: number }
         periodLabel: { type: string }
         generatedAt: { type: string, format: date-time }
+    EvidenceMetadata:
+      type: object
+      required: [id, eventId, state, type, source, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        eventId: { type: string }
+        state: { $ref: '#/components/schemas/EvidenceState' }
+        type: { type: string, enum: [snapshot, clip, none] }
+        mimeType: { type: [string, 'null'] }
+        sizeBytes: { type: [integer, 'null'] }
+        durationMs: { type: [integer, 'null'] }
+        checksum: { type: [string, 'null'] }
+        source: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        contentUrl: { type: [string, 'null'], description: Authorized API URL; never a filesystem path }
+    AuditRecord:
+      type: object
+      required: [id, actionId, actorId, actorDisplayName, actorRole, action, correlationId, occurredAt]
+      properties:
+        id: { type: string }
+        actionId: { type: string }
+        actorId: { type: string }
+        actorDisplayName: { type: string }
+        actorRole: { $ref: '#/components/schemas/Role' }
+        action: { type: string }
+        before: {}
+        after: {}
+        correlationId: { type: string }
+        occurredAt: { type: string, format: date-time }
+    CsvExportRequest:
+      type: object
+      additionalProperties: false
+      required: [format]
+      properties:
+        cameraId: { type: string }
+        outcome: { $ref: '#/components/schemas/Outcome' }
+        reviewStatus: { $ref: '#/components/schemas/ReviewStatus' }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        format: { type: string, const: csv }
+    IngestEvidenceMetadata:
+      type: object
+      additionalProperties: false
+      required: [id, state, type]
+      properties:
+        id: { type: string, maxLength: 96 }
+        state: { $ref: '#/components/schemas/EvidenceState' }
+        type: { type: string, enum: [snapshot, clip, none] }
+        mimeType: { type: string, maxLength: 128 }
+        sizeBytes: { type: integer, minimum: 0 }
+        durationMs: { type: integer, minimum: 0, maximum: 600000 }
+        checksum: { type: string, maxLength: 160 }
+        storageKey: { type: string, maxLength: 512 }
+    IngestEvent:
+      type: object
+      additionalProperties: false
+      required: [id, cameraId, cameraName, zone, timestamp, outcome, reason, confidence, summary, modelVersion, ruleVersion, configVersion, edgeVersion, schemaVersion, source, steps]
+      properties:
+        id: { type: string, maxLength: 64 }
+        cameraId: { type: string, maxLength: 64 }
+        cameraName: { type: string, maxLength: 160 }
+        zone: { type: string, maxLength: 160 }
+        timestamp: { type: string, format: date-time }
+        outcome: { $ref: '#/components/schemas/Outcome' }
+        reason: { type: string, maxLength: 2000 }
+        confidence: { type: integer, minimum: 0, maximum: 100 }
+        summary: { type: string, maxLength: 4000 }
+        modelVersion: { type: string, maxLength: 64 }
+        ruleVersion: { type: string, maxLength: 64 }
+        configVersion: { type: string, maxLength: 64 }
+        edgeVersion: { type: string, maxLength: 64 }
+        schemaVersion: { type: integer, minimum: 1, maximum: 100 }
+        source: { type: string, enum: [edge, simulator] }
+        steps:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items: { $ref: '#/components/schemas/EventStep' }
+        evidence: { $ref: '#/components/schemas/IngestEvidenceMetadata' }
+    IngestHealth:
+      type: object
+      additionalProperties: false
+      required: [id, label, value, detail, state, checkedAt, source, sequence]
+      properties:
+        id: { type: string, maxLength: 64 }
+        label: { type: string, maxLength: 160 }
+        value: { type: string, maxLength: 160 }
+        detail: { type: string, maxLength: 4000 }
+        state: { type: string, enum: [healthy, warning, critical, neutral] }
+        checkedAt: { type: string, format: date-time }
+        source: { type: string, maxLength: 64 }
+        sequence: { type: integer, minimum: 0 }
+    ReasonCodeCatalog:
+      type: object
+      required: [version, codes]
+      properties:
+        version: { type: string }
+        codes:
+          type: array
+          items:
+            type: object
+            required: [code, outcome, operationalFailure]
+            properties:
+              code: { type: string }
+              outcome: { $ref: '#/components/schemas/Outcome' }
+              operationalFailure: { type: boolean }
     ApiError:
       type: object
-      required: [code, message, status, correlationId]
+      required: [code, message]
       properties:
         code: { type: string }
         message: { type: string }

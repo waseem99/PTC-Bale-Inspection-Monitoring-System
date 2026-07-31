@@ -47,15 +47,44 @@ test('supervisor review persists across reload', async ({ page }) => {
   await expect(page.getByLabel('Supervisor remarks')).toHaveValue('Reviewed during automated browser test.');
 });
 
+test('event detail exposes the protected evidence and audit sections', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/events/EVT-2407-0253');
+  await expect(page.getByRole('heading', { name: 'Inspection snapshot and clip' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recorded review history' })).toBeVisible();
+  await expect(page.getByText(/filesystem|storage path/i)).toHaveCount(0);
+});
+
+test('reports provide authenticated CSV and PDF downloads', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/reports');
+
+  const csvDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download CSV report' }).click();
+  await expect((await csvDownload).suggestedFilename()).toMatch(/\.csv$/);
+
+  const pdfDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download PDF report' }).click();
+  await expect((await pdfDownload).suggestedFilename()).toMatch(/\.pdf$/);
+});
+
 test('core screens have no critical accessibility violations', async ({ page }) => {
   await signIn(page);
-  for (const path of ['/overview', '/live', '/events', '/health', '/reports']) {
-    await page.goto(path);
-    await page.waitForLoadState('networkidle');
+  const screens = [
+    { path: '/overview', heading: 'Overview' },
+    { path: '/live', heading: 'Live Monitoring' },
+    { path: '/events', heading: 'Events' },
+    { path: '/health', heading: 'System Health' },
+    { path: '/reports', heading: 'Reports' },
+  ] as const;
+
+  for (const screen of screens) {
+    await page.goto(screen.path, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: screen.heading, exact: true })).toBeVisible();
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     expect(
       results.violations.filter((violation) => violation.impact === 'critical'),
-      `${path} critical accessibility violations`,
+      `${screen.path} critical accessibility violations`,
     ).toEqual([]);
   }
 });

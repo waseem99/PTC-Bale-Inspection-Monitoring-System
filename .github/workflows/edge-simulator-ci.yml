@@ -1,0 +1,32 @@
+name: Edge Simulator CI
+
+on:
+  pull_request:
+    paths:
+      - 'tools/edge-simulator/**'
+      - '.github/workflows/edge-simulator-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/edge-simulator/**'
+      - '.github/workflows/edge-simulator-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile
+        run: python -m py_compile tools/edge-simulator/ptc_edge_spool.py tools/edge-simulator/test_ptc_edge_spool.py
+      - name: Test durable spool
+        working-directory: tools/edge-simulator
+        run: python -m unittest -v
+      - name: Verify CLI help
+        run: python tools/edge-simulator/ptc_edge_spool.py --help >/dev/null

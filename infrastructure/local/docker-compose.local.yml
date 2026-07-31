@@ -1,0 +1,242 @@
+name: ptc-bale-local
+
+x-api-environment: &api-environment
+  NODE_ENV: production
+  PORT: "4000"
+  DATABASE_URL: ${DATABASE_URL}
+  SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-ptc_session}
+  SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-8}
+  COOKIE_SECURE: "false"
+  TRUST_PROXY: "true"
+  ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+  SEED_VIEWER_PASSWORD: ${SEED_VIEWER_PASSWORD}
+  SEED_SUPERVISOR_PASSWORD: ${SEED_SUPERVISOR_PASSWORD}
+  SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
+  INGESTION_SERVICE_TOKEN: ${INGESTION_SERVICE_TOKEN}
+  EVIDENCE_ROOT: /var/lib/ptc-bale/evidence
+  MAX_EVIDENCE_BYTES: ${MAX_EVIDENCE_BYTES:-26214400}
+  BUILD_VERSION: ${BUILD_VERSION}
+  BUILD_COMMIT: ${BUILD_COMMIT}
+  SCHEMA_VERSION: ${SCHEMA_VERSION}
+  SIMULATOR_ENABLED: "false"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - type: bind
+        source: ${PTC_DATA_ROOT}/postgres
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 15s
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  migrate:
+    image: ptc-bale-tools:${IMAGE_TAG}
+    build:
+      context: ../..
+      dockerfile: apps/platform-api/Dockerfile.aws
+      target: tools
+    restart: "no"
+    environment: *api-environment
+    command: ["pnpm", "--filter", "@ptc-bale/platform-api", "db:migrate:deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+
+  seed:
+    image: ptc-bale-tools:${IMAGE_TAG}
+    build:
+      context: ../..
+      dockerfile: apps/platform-api/Dockerfile.aws
+      target: tools
+    restart: "no"
+    environment: *api-environment
+    command: ["pnpm", "--filter", "@ptc-bale/platform-api", "seed"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+
+  api:
+    image: ptc-bale-api:${IMAGE_TAG}
+    build:
+      context: ../..
+      dockerfile: apps/platform-api/Dockerfile.aws
+      target: runtime
+    restart: unless-stopped
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    environment: *api-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
+    expose: ["4000"]
+    volumes:
+      - type: bind
+        source: ${PTC_DATA_ROOT}/evidence
+        target: /var/lib/ptc-bale/evidence
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/readyz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 20s
+    networks: [frontend, backend]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  dashboard:
+    image: ptc-bale-dashboard:${IMAGE_TAG}
+    build:
+      context: ../..
+      dockerfile: apps/dashboard-web/Dockerfile.aws
+      target: runtime
+      args:
+        VITE_DATA_MODE: live
+        VITE_ENVIRONMENT_NAME: PTC Local Workstation
+        VITE_BUILD_VERSION: ${BUILD_VERSION}
+        VITE_API_BASE_URL: /api
+        VITE_ALLOW_DEMO_CREDENTIALS: "false"
+        VITE_REQUEST_TIMEOUT_MS: "12000"
+        VITE_MOCK_LATENCY_MS: "0"
+        VITE_MOCK_FAILURE_RATE: "0"
+    restart: unless-stopped
+    expose: ["8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 15s
+    networks: [frontend]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  edge-spool:
+    image: ptc-bale-edge:${IMAGE_TAG}
+    build:
+      context: ../..
+      dockerfile: tools/edge-simulator/Dockerfile
+    restart: unless-stopped
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    environment:
+      PTC_RUNTIME_MODE: ${PTC_RUNTIME_MODE:-simulator}
+      EDGE_SPOOL_DATABASE: /var/lib/ptc-bale/spool/spool.sqlite3
+      API_ORIGIN: http://api:4000
+      INGESTION_SERVICE_TOKEN: ${INGESTION_SERVICE_TOKEN}
+      EDGE_FLUSH_INTERVAL_SECONDS: ${EDGE_FLUSH_INTERVAL_SECONDS:-5}
+      EDGE_HTTP_TIMEOUT_SECONDS: ${EDGE_HTTP_TIMEOUT_SECONDS:-15}
+      SIMULATOR_SEQUENCE_BASE: ${SIMULATOR_SEQUENCE_BASE:-1000}
+      SIMULATOR_GENERATE_EVERY_SECONDS: ${SIMULATOR_GENERATE_EVERY_SECONDS:-300}
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ${PTC_DATA_ROOT}/spool
+        target: /var/lib/ptc-bale/spool
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  proxy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
+    ports:
+      - "${LOCAL_BIND_ADDRESS:-127.0.0.1}:${LOCAL_HTTP_PORT:-8080}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - type: bind
+        source: ${PTC_DATA_ROOT}/logs/caddy
+        target: /var/log/caddy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 10s
+    networks: [frontend]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  backup-tools:
+    image: postgres:17-alpine
+    profiles: ["tools"]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB}
+      PGUSER: ${POSTGRES_USER}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ${PTC_DATA_ROOT}/backups
+        target: /backups
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+
+  archive-tools:
+    image: alpine:3.22
+    profiles: ["tools"]
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    network_mode: none
+    volumes:
+      - type: bind
+        source: ${PTC_DATA_ROOT}/evidence
+        target: /evidence
+        read_only: true
+      - type: bind
+        source: ${PTC_DATA_ROOT}/backups
+        target: /backups
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true

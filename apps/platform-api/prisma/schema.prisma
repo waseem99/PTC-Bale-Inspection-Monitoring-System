@@ -110,23 +110,30 @@ model Session {
 }
 
 model Camera {
-  id            String       @id @db.VarChar(64)
-  name          String       @db.VarChar(160)
-  zone          String       @db.VarChar(160)
-  status        CameraStatus
-  aiStatus      AiStatus
-  lastFrameAt   DateTime     @db.Timestamptz(3)
-  fps           Float
-  streamQuality String       @db.VarChar(64)
-  todayEvents   Int
-  configVersion String       @db.VarChar(64)
-  dataset       String       @db.VarChar(64)
-  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
-  events        InspectionEvent[]
+  id                 String       @id @db.VarChar(64)
+  name               String       @db.VarChar(160)
+  zone               String       @db.VarChar(160)
+  enabled            Boolean      @default(true)
+  orientation        String       @default("unknown") @db.VarChar(64)
+  expectedResolution String       @default("unknown") @db.VarChar(64)
+  expectedFps        Float        @default(0)
+  status             CameraStatus
+  aiStatus           AiStatus
+  lastFrameAt        DateTime     @db.Timestamptz(3)
+  fps                Float
+  streamQuality      String       @db.VarChar(64)
+  todayEvents        Int
+  configVersion      String       @db.VarChar(64)
+  statusSequence     Int          @default(0)
+  source             String       @default("seed") @db.VarChar(32)
+  dataset            String       @db.VarChar(64)
+  createdAt          DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime     @updatedAt @db.Timestamptz(3)
+  events             InspectionEvent[]
 
   @@index([dataset])
   @@index([status, aiStatus])
+  @@index([enabled, status])
   @@map("cameras")
 }
 
