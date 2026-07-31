@@ -151,8 +151,9 @@ it('generates deterministic simulator events and synthetic protected evidence', 
   const content = await agent.get(metadata.body.contentUrl);
   expect(content.status).toBe(200);
   expect(content.headers['content-type']).toContain('image/svg+xml');
-  expect(content.text).toContain('Synthetic PTC Evidence Fixture');
-  expect(content.text).not.toContain('rtsp://');
+  const svg = Buffer.isBuffer(content.body) ? content.body.toString('utf8') : String(content.text ?? '');
+  expect(svg).toContain('Synthetic PTC Evidence Fixture');
+  expect(svg).not.toContain('rtsp://');
 });
 
 it('exposes release identity and reconciled summary/PDF reports to authenticated users', async () => {
