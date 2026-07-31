@@ -128,7 +128,8 @@ validate_compose() {
     (.services["edge-spool"].ports == null) and
     (.services.proxy.ports | length == 1) and
     (.services.proxy.ports[0].host_ip == "127.0.0.1") and
-    (.networks.internal.internal == true)
+    (.networks.backend.internal == true) and
+    ((.networks.frontend.internal // false) == false)
   ' "$WORK_ROOT/compose.json" >/dev/null
 }
 
@@ -136,6 +137,14 @@ start_stack() {
   info "Building and starting complete local stack"
   compose build
   compose up -d --remove-orphans
+  local proxy_container published
+  proxy_container="$(compose ps -q proxy)"
+  published="$(docker port "$proxy_container" 80/tcp 2>/dev/null || true)"
+  [[ "$published" == *"127.0.0.1:${HTTP_PORT}"* ]] || {
+    compose ps
+    docker inspect "$proxy_container" --format '{{json .NetworkSettings.Ports}}' || true
+    fail "Proxy port was not published on the workstation-only address"
+  }
   if ! wait_http "$BASE_URL/healthz" 120; then
     compose ps
     compose logs --tail=300
