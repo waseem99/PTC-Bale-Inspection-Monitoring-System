@@ -125,7 +125,7 @@ validate_compose() {
     (.services.postgres.ports == null) and
     (.services.api.ports == null) and
     (.services.dashboard.ports == null) and
-    (.services.edge-spool.ports == null) and
+    (.services["edge-spool"].ports == null) and
     (.services.proxy.ports | length == 1) and
     (.services.proxy.ports[0].host_ip == "127.0.0.1") and
     (.networks.internal.internal == true)
