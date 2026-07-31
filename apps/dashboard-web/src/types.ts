@@ -3,10 +3,12 @@ export type Outcome = 'completed' | 'missed' | 'incomplete' | 'unresolved';
 export type ReviewStatus = 'unreviewed' | 'confirmed' | 'dismissed';
 export type SortDirection = 'asc' | 'desc';
 export type EventSortField = 'timestamp' | 'outcome' | 'confidence' | 'reviewStatus' | 'cameraName';
-export type CameraConnectionStatus = 'online' | 'warning' | 'offline';
-export type AiStatus = 'processing' | 'degraded' | 'stopped';
+export type CameraConnectionStatus = 'online' | 'warning' | 'offline' | 'reconnecting' | 'disabled' | 'degraded' | 'unknown';
+export type AiStatus = 'processing' | 'degraded' | 'stopped' | 'simulated' | 'unavailable' | 'loading' | 'ready' | 'failed';
 export type HealthState = 'healthy' | 'warning' | 'critical' | 'neutral';
 export type StepState = 'complete' | 'failed' | 'unknown';
+export type EvidenceState = 'available' | 'unavailable' | 'pending' | 'missing' | 'failed' | 'quarantined' | 'deleted';
+export type EvidenceType = 'snapshot' | 'clip' | 'none';
 
 export interface User {
   id: string;
@@ -46,6 +48,34 @@ export interface InspectionEvent {
   ruleVersion: string;
   version: number;
   steps: EventStep[];
+}
+
+export interface EvidenceMetadata {
+  id: string;
+  eventId: string;
+  state: EvidenceState;
+  type: EvidenceType;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  durationMs: number | null;
+  checksum: string | null;
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+  contentUrl: string | null;
+}
+
+export interface AuditRecord {
+  id: string;
+  actionId: string;
+  actorId: string;
+  actorDisplayName: string;
+  actorRole: Role;
+  action: string;
+  before: unknown;
+  after: unknown;
+  correlationId: string;
+  occurredAt: string;
 }
 
 export interface Camera {
@@ -117,6 +147,14 @@ export interface ExportRequest {
   from?: string;
   to?: string;
   format: 'csv';
+}
+
+export interface ReportRequest {
+  cameraId?: string;
+  outcome?: Outcome;
+  reviewStatus?: ReviewStatus;
+  from?: string;
+  to?: string;
 }
 
 export interface ApiErrorPayload {
