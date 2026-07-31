@@ -51,7 +51,7 @@ jobs:
       ALLOWED_ORIGINS: http://localhost
       SEED_DEMO_PASSWORD: CI-Only-Strong-Password-2026!
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
         with: { version: 9.15.4 }
       - uses: actions/setup-node@v4
@@ -143,7 +143,7 @@ jobs:
     timeout-minutes: 25
     needs: quality
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker network create ptc-api-smoke
       - name: Start PostgreSQL
         run: |
@@ -232,7 +232,7 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
       CI: 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
         with: { version: 9.15.4 }
       - uses: actions/setup-node@v4

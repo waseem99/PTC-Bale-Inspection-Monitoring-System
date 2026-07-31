@@ -20,7 +20,7 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
       CI: 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verify required tools
         shell: bash
         run: |

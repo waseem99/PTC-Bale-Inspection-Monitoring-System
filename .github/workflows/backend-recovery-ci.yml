@@ -31,7 +31,7 @@ jobs:
       EVENT_ID: EVT-2407-0253
       MARKER: Recovery validation ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Configure isolated recovery stack
         shell: bash
         run: |
