@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from dataclasses import dataclass
@@ -18,6 +20,7 @@ from typing import Callable, Iterable
 
 TERMINAL_HTTP = {400, 401, 403, 404, 409, 413, 415, 422}
 ACK_HTTP = {200, 201, 202}
+VALID_KINDS = {"event", "health", "camera"}
 
 
 def utc_now() -> str:
@@ -42,7 +45,7 @@ def deterministic_event(camera_id: str, scenario: str, sequence: int) -> dict:
         "modelVersion": "simulator-v1",
         "ruleVersion": "simulator-rules-v1",
         "configVersion": "camera-config-v1",
-        "edgeVersion": "edge-spool-v1",
+        "edgeVersion": "edge-spool-v2",
         "schemaVersion": 1,
         "source": "simulator",
         "steps": [
@@ -50,6 +53,13 @@ def deterministic_event(camera_id: str, scenario: str, sequence: int) -> dict:
             {"label": "Inspection started", "state": "failed" if scenario == "missed" else "complete", "time": "00:02"},
             {"label": "Opening/checking observed", "state": "complete" if scenario == "completed" else "unknown" if scenario == "unresolved" else "failed", "time": "00:05"},
         ],
+        "evidence": {
+            "id": f"EVID-{event_id}",
+            "state": "pending",
+            "type": "snapshot",
+            "mimeType": "image/png",
+            "storageKey": f"pending/{event_id}.png",
+        },
     }
 
 
@@ -68,6 +78,25 @@ def deterministic_health(source: str, sequence: int, state: str = "healthy") -> 
     }
 
 
+def deterministic_camera_status(camera_id: str, sequence: int, status: str = "online") -> dict:
+    if camera_id not in {"CAM-01", "CAM-02", "CAM-03", "CAM-04"}:
+        raise ValueError("Unsupported camera")
+    if status not in {"online", "warning", "offline", "reconnecting", "disabled", "degraded", "unknown"}:
+        raise ValueError("Unsupported camera status")
+    active = status in {"online", "warning", "degraded"}
+    return {
+        "_cameraId": camera_id,
+        "status": status,
+        "aiStatus": "simulated" if active else "unavailable",
+        "lastFrameAt": datetime(2026, 1, 1, 0, 0, sequence % 60, tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
+        "fps": 12 if active else 0,
+        "streamQuality": "synthetic-1080p" if active else status,
+        "configVersion": "camera-config-v1",
+        "sequence": sequence,
+        "source": "simulator",
+    }
+
+
 @dataclass
 class SpoolItem:
     item_id: str
@@ -83,11 +112,36 @@ class SpoolStore:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.execute("PRAGMA synchronous=FULL")
+        self._migrate()
+
+    def _migrate(self) -> None:
+        existing = self.connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='spool'"
+        ).fetchone()
+        if existing and "'camera'" not in (existing["sql"] or ""):
+            self.connection.executescript(
+                """
+                ALTER TABLE spool RENAME TO spool_legacy;
+                CREATE TABLE spool (
+                  item_id TEXT PRIMARY KEY,
+                  kind TEXT NOT NULL CHECK(kind IN ('event','health','camera')),
+                  payload TEXT NOT NULL,
+                  state TEXT NOT NULL CHECK(state IN ('pending','acknowledged','rejected')) DEFAULT 'pending',
+                  attempts INTEGER NOT NULL DEFAULT 0,
+                  next_attempt REAL NOT NULL DEFAULT 0,
+                  last_error TEXT,
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL
+                );
+                INSERT INTO spool SELECT * FROM spool_legacy;
+                DROP TABLE spool_legacy;
+                """
+            )
         self.connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS spool (
               item_id TEXT PRIMARY KEY,
-              kind TEXT NOT NULL CHECK(kind IN ('event','health')),
+              kind TEXT NOT NULL CHECK(kind IN ('event','health','camera')),
               payload TEXT NOT NULL,
               state TEXT NOT NULL CHECK(state IN ('pending','acknowledged','rejected')) DEFAULT 'pending',
               attempts INTEGER NOT NULL DEFAULT 0,
@@ -104,21 +158,23 @@ class SpoolStore:
     def close(self) -> None:
         self.connection.close()
 
-    def enqueue(self, kind: str, payload: dict) -> str:
-        item_id = str(payload.get("id") or uuid.uuid4())
+    def enqueue(self, kind: str, payload: dict, item_id: str | None = None) -> str:
+        if kind not in VALID_KINDS:
+            raise ValueError(f"Unsupported spool kind: {kind}")
+        resolved_id = item_id or str(payload.get("id") or uuid.uuid4())
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         now = utc_now()
-        existing = self.connection.execute("SELECT payload FROM spool WHERE item_id = ?", (item_id,)).fetchone()
+        existing = self.connection.execute("SELECT payload, kind FROM spool WHERE item_id = ?", (resolved_id,)).fetchone()
         if existing:
-            if existing["payload"] != encoded:
-                raise ValueError(f"Spool ID {item_id} already exists with a different payload")
-            return item_id
+            if existing["payload"] != encoded or existing["kind"] != kind:
+                raise ValueError(f"Spool ID {resolved_id} already exists with a different payload")
+            return resolved_id
         self.connection.execute(
             "INSERT INTO spool(item_id, kind, payload, created_at, updated_at) VALUES(?,?,?,?,?)",
-            (item_id, kind, encoded, now, now),
+            (resolved_id, kind, encoded, now, now),
         )
         self.connection.commit()
-        return item_id
+        return resolved_id
 
     def pending(self, limit: int = 100) -> list[SpoolItem]:
         rows = self.connection.execute(
@@ -161,10 +217,19 @@ def http_sender(api_origin: str, token: str, timeout: int = 15) -> Sender:
     origin = api_origin.rstrip("/")
 
     def send(kind: str, payload: dict) -> tuple[int, str]:
-        endpoint = "/api/ingest/events" if kind == "event" else "/api/ingest/health"
+        outgoing = dict(payload)
+        if kind == "event":
+            endpoint = "/api/ingest/events"
+        elif kind == "health":
+            endpoint = "/api/ingest/health"
+        elif kind == "camera":
+            camera_id = str(outgoing.pop("_cameraId"))
+            endpoint = f"/api/ingest/cameras/{urllib.parse.quote(camera_id, safe='')}/status"
+        else:
+            raise ValueError(f"Unsupported spool kind: {kind}")
         request = urllib.request.Request(
             f"{origin}{endpoint}",
-            data=json.dumps(payload).encode("utf-8"),
+            data=json.dumps(outgoing).encode("utf-8"),
             headers={
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
@@ -214,9 +279,13 @@ def build_parser() -> argparse.ArgumentParser:
     health.add_argument("--source", required=True)
     health.add_argument("--sequence", required=True, type=int)
     health.add_argument("--state", default="healthy", choices=["healthy", "warning", "critical", "neutral"])
+    camera = sub.add_parser("enqueue-camera-status")
+    camera.add_argument("--camera", required=True, choices=["CAM-01", "CAM-02", "CAM-03", "CAM-04"])
+    camera.add_argument("--sequence", required=True, type=int)
+    camera.add_argument("--status", default="online", choices=["online", "warning", "offline", "reconnecting", "disabled", "degraded", "unknown"])
     send = sub.add_parser("flush")
     send.add_argument("--api-origin", required=True)
-    send.add_argument("--token", required=True)
+    send.add_argument("--token", default=os.environ.get("INGESTION_SERVICE_TOKEN"))
     send.add_argument("--limit", type=int, default=100)
     sub.add_parser("status")
     return parser
@@ -230,7 +299,12 @@ def main(argv: Iterable[str] | None = None) -> int:
             print(store.enqueue("event", deterministic_event(args.camera, args.scenario, args.sequence)))
         elif args.command == "enqueue-health":
             print(store.enqueue("health", deterministic_health(args.source, args.sequence, args.state)))
+        elif args.command == "enqueue-camera-status":
+            payload = deterministic_camera_status(args.camera, args.sequence, args.status)
+            print(store.enqueue("camera", payload, f"SIM-CAMERA-{args.camera}-{args.sequence:010d}"))
         elif args.command == "flush":
+            if not args.token:
+                raise ValueError("An ingestion token is required through --token or INGESTION_SERVICE_TOKEN")
             print(json.dumps(flush(store, http_sender(args.api_origin, args.token), args.limit), sort_keys=True))
         elif args.command == "status":
             print(json.dumps(store.counts(), sort_keys=True))
