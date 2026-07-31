@@ -1,0 +1,252 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  PTC Bale staging infrastructure: one Amazon Linux EC2 instance, private deployment/backup
+  bucket, Systems Manager access, and a GitHub Actions OIDC deployment role. PostgreSQL,
+  API, dashboard, and TLS proxy run as Docker containers on the EC2 instance.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: ptc-bale
+    AllowedPattern: '^[a-z][a-z0-9-]{2,30}$'
+  EnvironmentName:
+    Type: String
+    Default: staging
+    AllowedPattern: '^[a-z][a-z0-9-]{2,20}$'
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PublicSubnetId:
+    Type: AWS::EC2::Subnet::Id
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues: [t3.micro, t3.small]
+  RootVolumeGiB:
+    Type: Number
+    Default: 30
+    MinValue: 20
+    MaxValue: 100
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  GitHubOwner:
+    Type: String
+    Default: waseem99
+  GitHubRepository:
+    Type: String
+    Default: PTC-Bale-Inspection-Monitoring-System
+  GitHubEnvironment:
+    Type: String
+    Default: aws-staging
+  ExistingGitHubOidcProviderArn:
+    Type: String
+    Default: ''
+
+Conditions:
+  CreateGitHubOidcProvider: !Equals [!Ref ExistingGitHubOidcProviderArn, '']
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateGitHubOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+        - { Key: Environment, Value: !Ref EnvironmentName }
+
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireReleaseArtifacts
+            Status: Enabled
+            Prefix: releases/
+            ExpirationInDays: 7
+          - Id: ExpireDatabaseBackups
+            Status: Enabled
+            Prefix: backups/
+            ExpirationInDays: 30
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+        - { Key: Environment, Value: !Ref EnvironmentName }
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTPS and HTTP ingress for PTC Bale staging; administration uses SSM.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0, Description: Caddy ACME and redirect }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0, Description: HTTPS }
+        - { IpProtocol: udp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0, Description: HTTP3 }
+      SecurityGroupEgress:
+        - { IpProtocol: '-1', CidrIp: 0.0.0.0/0 }
+      Tags:
+        - { Key: Name, Value: !Sub '${ProjectName}-${EnvironmentName}-sg' }
+        - { Key: Project, Value: !Ref ProjectName }
+        - { Key: Environment, Value: !Ref EnvironmentName }
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: ReadDeploymentArtifactsAndRuntimeConfig
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:GetObjectVersion, s3:PutObject]
+                Resource:
+                  - !Sub '${ArtifactBucket.Arn}/releases/*'
+                  - !Sub '${ArtifactBucket.Arn}/backups/*'
+              - Effect: Allow
+                Action: [s3:ListBucket]
+                Resource: !GetAtt ArtifactBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix: [releases/*, backups/*]
+              - Effect: Allow
+                Action: [ssm:GetParameter]
+                Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${EnvironmentName}/runtime-env-b64'
+              - Effect: Allow
+                Action: [kms:Decrypt]
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+        - { Key: Environment, Value: !Ref EnvironmentName }
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  StagingInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      NetworkInterfaces:
+        - DeviceIndex: '0'
+          AssociatePublicIpAddress: true
+          SubnetId: !Ref PublicSubnetId
+          GroupSet: [!Ref InstanceSecurityGroup]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: !Ref RootVolumeGiB
+            Encrypted: true
+            DeleteOnTermination: false
+      MetadataOptions:
+        HttpTokens: required
+        HttpEndpoint: enabled
+      Monitoring: false
+      UserData:
+        Fn::Base64: !Sub |
+          #!/usr/bin/env bash
+          set -euxo pipefail
+          dnf install -y docker git jq curl
+          systemctl enable --now docker
+          systemctl enable --now amazon-ssm-agent || true
+          mkdir -p /usr/local/lib/docker/cli-plugins
+          curl -fsSL https://github.com/docker/compose/releases/download/v2.39.1/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+          chmod 0755 /usr/local/lib/docker/cli-plugins/docker-compose
+          mkdir -p /opt/ptc-bale/releases /opt/ptc-bale/shared /opt/ptc-bale/backups /opt/ptc-bale/restore
+          chmod 0700 /opt/ptc-bale/shared /opt/ptc-bale/backups /opt/ptc-bale/restore
+          chown -R ec2-user:ec2-user /opt/ptc-bale/releases
+          if [[ ! -f /swapfile ]]; then
+            fallocate -l 2G /swapfile
+            chmod 0600 /swapfile
+            mkswap /swapfile
+            swapon /swapfile
+            echo '/swapfile swap swap defaults 0 0' >> /etc/fstab
+          fi
+      Tags:
+        - { Key: Name, Value: !Sub '${ProjectName}-${EnvironmentName}' }
+        - { Key: Project, Value: !Ref ProjectName }
+        - { Key: Environment, Value: !Ref EnvironmentName }
+        - { Key: PTCDeploymentTarget, Value: 'true' }
+
+  ElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - { Key: Name, Value: !Sub '${ProjectName}-${EnvironmentName}-eip' }
+        - { Key: Project, Value: !Ref ProjectName }
+        - { Key: Environment, Value: !Ref EnvironmentName }
+
+  ElasticIpAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt ElasticIp.AllocationId
+      InstanceId: !Ref StagingInstance
+
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If [CreateGitHubOidcProvider, !Ref GitHubOidcProvider, !Ref ExistingGitHubOidcProviderArn]
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub 'repo:${GitHubOwner}/${GitHubRepository}:environment:${GitHubEnvironment}'
+      Policies:
+        - PolicyName: DeployOnlyToPtcStaging
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:PutObject, s3:GetObject]
+                Resource: !Sub '${ArtifactBucket.Arn}/releases/*'
+              - Effect: Allow
+                Action: [ssm:SendCommand]
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript'
+                  - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${StagingInstance}'
+              - Effect: Allow
+                Action: [ssm:GetCommandInvocation, ssm:ListCommandInvocations]
+                Resource: '*'
+      Tags:
+        - { Key: Project, Value: !Ref ProjectName }
+        - { Key: Environment, Value: !Ref EnvironmentName }
+
+Outputs:
+  InstanceId: { Value: !Ref StagingInstance }
+  ElasticIpAddress:
+    Value: !Ref ElasticIp
+    Description: Create API and application DNS A records pointing here.
+  ArtifactBucketName: { Value: !Ref ArtifactBucket }
+  GitHubDeployRoleArn: { Value: !GetAtt GitHubDeployRole.Arn }
+  RuntimeParameterName: { Value: !Sub '/${ProjectName}/${EnvironmentName}/runtime-env-b64' }
+  SecurityGroupId: { Value: !Ref InstanceSecurityGroup }

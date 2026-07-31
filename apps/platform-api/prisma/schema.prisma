@@ -30,12 +30,21 @@ enum CameraStatus {
   online
   warning
   offline
+  reconnecting
+  disabled
+  degraded
+  unknown
 }
 
 enum AiStatus {
   processing
   degraded
   stopped
+  simulated
+  unavailable
+  loading
+  ready
+  failed
 }
 
 enum HealthState {
@@ -49,6 +58,10 @@ enum EvidenceState {
   available
   unavailable
   pending
+  missing
+  failed
+  quarantined
+  deleted
 }
 
 enum EvidenceType {
@@ -134,6 +147,10 @@ model InspectionEvent {
   reviewedAt        DateTime?     @db.Timestamptz(3)
   modelVersion      String        @db.VarChar(64)
   ruleVersion       String        @db.VarChar(64)
+  configVersion     String        @default("unknown") @db.VarChar(64)
+  edgeVersion       String        @default("unknown") @db.VarChar(64)
+  source            String        @default("seed") @db.VarChar(32)
+  acknowledgedAt    DateTime?     @db.Timestamptz(3)
   version           Int           @default(1)
   schemaVersion     Int           @default(1)
   dataset           String        @db.VarChar(64)
@@ -144,6 +161,7 @@ model InspectionEvent {
   evidence          EvidenceMetadata?
 
   @@index([dataset])
+  @@index([source, timestamp(sort: Desc)])
   @@index([timestamp(sort: Desc), id(sort: Desc)])
   @@index([cameraId, timestamp(sort: Desc)])
   @@index([outcome, timestamp(sort: Desc)])
@@ -175,10 +193,12 @@ model HealthMetric {
   checkedAt DateTime    @db.Timestamptz(3)
   source    String      @db.VarChar(64)
   dataset   String      @db.VarChar(64)
+  sequence  Int         @default(0)
   createdAt DateTime    @default(now()) @db.Timestamptz(3)
   updatedAt DateTime    @updatedAt @db.Timestamptz(3)
 
   @@index([dataset])
+  @@index([source, checkedAt(sort: Desc)])
   @@index([state])
   @@map("health_metrics")
 }
@@ -190,15 +210,18 @@ model EvidenceMetadata {
   type       EvidenceType
   mimeType   String?         @db.VarChar(128)
   sizeBytes  Int?
+  durationMs Int?
   checksum   String?         @db.VarChar(160)
   storageKey String?         @db.Text
+  source     String          @default("seed") @db.VarChar(32)
   dataset    String          @db.VarChar(64)
+  deletedAt  DateTime?       @db.Timestamptz(3)
   createdAt  DateTime        @default(now()) @db.Timestamptz(3)
   updatedAt  DateTime        @updatedAt @db.Timestamptz(3)
   event      InspectionEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([dataset])
-  @@index([state])
+  @@index([state, createdAt])
   @@map("evidence_metadata")
 }
 
