@@ -52,7 +52,7 @@ jobs:
       SEED_DEMO_PASSWORD: CI-Only-Strong-Password-2026!
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { version: 9.15.4 }
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
@@ -233,7 +233,7 @@ jobs:
       CI: 'true'
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { version: 9.15.4 }
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
