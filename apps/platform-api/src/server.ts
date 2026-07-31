@@ -1,14 +1,12 @@
 import http from 'node:http';
-import { createApp } from './app';
 import { loadConfig } from './config';
 import { connectDatabase, disconnectDatabase } from './db';
-import { createProductionReadyApp } from './production-app';
+import { createRuntimeApp } from './runtime-app';
 
 async function main(): Promise<void> {
   const config = loadConfig();
   await connectDatabase();
-  const coreApp = createApp(config);
-  const server = http.createServer(createProductionReadyApp(config, coreApp));
+  const server = http.createServer(createRuntimeApp(config));
   server.listen(config.port, () => {
     console.log(JSON.stringify({
       level: 'info',
