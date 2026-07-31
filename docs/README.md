@@ -10,6 +10,9 @@
 - [Requirements traceability](18-requirements-traceability.md)
 - [Complete GitHub issue map](19-issue-map.md)
 - [Bangladesh reference PoC analysis and PTC translation](20-bangladesh-reference-poc-analysis.md)
+- [PM takeover and project closure runbook](35-pm-ai-project-closure-runbook.md)
+- [Restricted factory-material manifest template](36-restricted-material-manifest-template.md)
+- [AI acceptance and release record template](37-ai-acceptance-release-template.md)
 
 ## Solution design
 
