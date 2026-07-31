@@ -1,0 +1,29 @@
+name: Contracts CI
+
+on:
+  pull_request:
+    paths:
+      - 'packages/contracts/**'
+      - 'scripts/validate-openapi.rb'
+      - '.github/workflows/contracts-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/contracts/**'
+      - 'scripts/validate-openapi.rb'
+      - '.github/workflows/contracts-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: Validate OpenAPI structure
+        run: ruby scripts/validate-openapi.rb packages/contracts/openapi/platform-api.yaml
