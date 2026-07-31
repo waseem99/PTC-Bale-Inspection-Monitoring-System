@@ -1,0 +1,92 @@
+name: ptc-bale-staging
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+
+  tools:
+    image: ptc-bale-tools:${IMAGE_TAG}
+    profiles: ["tools"]
+    env_file: [.env]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+
+  api:
+    image: ptc-bale-api:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file: [.env]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose: ["4000"]
+    volumes:
+      - evidence_data:/var/lib/ptc-bale/evidence
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/readyz >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+
+  dashboard:
+    image: ptc-bale-dashboard:${IMAGE_TAG}
+    restart: unless-stopped
+    expose: ["8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    env_file: [.env]
+    depends_on:
+      api:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  evidence_data:
+  caddy_data:
+  caddy_config:
