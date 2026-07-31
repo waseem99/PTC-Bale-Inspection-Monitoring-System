@@ -70,13 +70,21 @@ test('reports provide authenticated CSV and PDF downloads', async ({ page }) => 
 
 test('core screens have no critical accessibility violations', async ({ page }) => {
   await signIn(page);
-  for (const path of ['/overview', '/live', '/events', '/health', '/reports']) {
-    await page.goto(path);
-    await page.waitForLoadState('networkidle');
+  const screens = [
+    { path: '/overview', heading: 'Overview' },
+    { path: '/live', heading: 'Live Monitoring' },
+    { path: '/events', heading: 'Events' },
+    { path: '/health', heading: 'System Health' },
+    { path: '/reports', heading: 'Reports' },
+  ] as const;
+
+  for (const screen of screens) {
+    await page.goto(screen.path, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: screen.heading, exact: true })).toBeVisible();
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     expect(
       results.violations.filter((violation) => violation.impact === 'critical'),
-      `${path} critical accessibility violations`,
+      `${screen.path} critical accessibility violations`,
     ).toEqual([]);
   }
 });
