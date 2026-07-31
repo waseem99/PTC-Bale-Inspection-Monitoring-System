@@ -1,0 +1,58 @@
+name: Local Runtime CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/dashboard-web/**'
+      - 'apps/platform-api/**'
+      - 'infrastructure/local/**'
+      - 'scripts/local/**'
+      - 'tools/edge-simulator/**'
+      - 'packages/contracts/**'
+      - '.github/workflows/local-runtime-ci.yml'
+  pull_request:
+    paths:
+      - 'apps/dashboard-web/**'
+      - 'apps/platform-api/**'
+      - 'infrastructure/local/**'
+      - 'scripts/local/**'
+      - 'tools/edge-simulator/**'
+      - 'packages/contracts/**'
+      - '.github/workflows/local-runtime-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local-go-live:
+    name: Build and certify one-machine runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run local go-live certification
+        shell: bash
+        run: |
+          if [[ -f scripts/local/ci.sh ]]; then
+            bash scripts/local/ci.sh
+          else
+            echo 'Local certification harness is introduced by the dependent release PR.'
+          fi
+
+      - name: Upload sanitized local certification record
+        if: always() && hashFiles('local-runtime-certification.log') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-runtime-certification-${{ github.sha }}
+          path: local-runtime-certification.log
+          if-no-files-found: error
+          retention-days: 30
