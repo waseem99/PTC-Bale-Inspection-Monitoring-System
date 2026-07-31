@@ -2,11 +2,13 @@ import http from 'node:http';
 import { createApp } from './app';
 import { loadConfig } from './config';
 import { connectDatabase, disconnectDatabase } from './db';
+import { createProductionReadyApp } from './production-app';
 
 async function main(): Promise<void> {
   const config = loadConfig();
   await connectDatabase();
-  const server = http.createServer(createApp(config));
+  const coreApp = createApp(config);
+  const server = http.createServer(createProductionReadyApp(config, coreApp));
   server.listen(config.port, () => {
     console.log(JSON.stringify({
       level: 'info',
@@ -14,6 +16,10 @@ async function main(): Promise<void> {
       port: config.port,
       environment: config.nodeEnv,
       database: 'postgresql',
+      version: config.buildVersion ?? 'development',
+      commit: config.buildCommit ?? 'unknown',
+      ingestionConfigured: Boolean(config.ingestionServiceToken),
+      simulatorEnabled: Boolean(config.simulatorEnabled),
     }));
   });
 
