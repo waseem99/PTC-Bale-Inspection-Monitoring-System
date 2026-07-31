@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { createApp } from './app';
 import { createCertificationApp } from './certification-app';
@@ -32,10 +33,6 @@ function createRuntimeLimiter(limit: number, windowMs: number) {
   };
 }
 
-/**
- * Preserves the established authentication endpoints while adding the
- * production-readiness and final-certification routes ahead of the legacy API fallback.
- */
 export function createRuntimeApp(config: AppConfig): Express {
   const coreApp = createApp(config);
   const certificationApp = createCertificationApp(config);
@@ -43,6 +40,18 @@ export function createRuntimeApp(config: AppConfig): Express {
   const app = express();
   if (config.trustProxy) app.set('trust proxy', 1);
   app.disable('x-powered-by');
+
+  app.use((request, response, next) => {
+    const supplied = request.header('X-Correlation-ID');
+    const correlationId = supplied && supplied.length <= 128 && /^[A-Za-z0-9._:-]+$/.test(supplied) ? supplied : randomUUID();
+    response.locals.correlationId = correlationId;
+    response.setHeader('X-Correlation-ID', correlationId);
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('X-Frame-Options', 'DENY');
+    response.setHeader('Referrer-Policy', 'no-referrer');
+    response.setHeader('Cache-Control', 'no-store');
+    next();
+  });
 
   app.use((request, response, next) => {
     if (request.path.startsWith('/api/auth/')) {
