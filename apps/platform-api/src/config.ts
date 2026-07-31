@@ -15,6 +15,13 @@ const schema = z.object({
   SEED_VIEWER_PASSWORD: z.string().min(12).optional(),
   SEED_SUPERVISOR_PASSWORD: z.string().min(12).optional(),
   SEED_ADMIN_PASSWORD: z.string().min(12).optional(),
+  INGESTION_SERVICE_TOKEN: z.string().min(24).max(512).optional(),
+  EVIDENCE_ROOT: z.string().min(1).default('/var/lib/ptc-bale/evidence'),
+  MAX_EVIDENCE_BYTES: z.coerce.number().int().min(1024).max(100 * 1024 * 1024).default(25 * 1024 * 1024),
+  BUILD_VERSION: z.string().min(1).max(128).default('development'),
+  BUILD_COMMIT: z.string().min(1).max(128).default('unknown'),
+  SCHEMA_VERSION: z.string().min(1).max(128).default('20260731-production-readiness'),
+  SIMULATOR_ENABLED: booleanFromString,
 });
 
 export type AppConfig = {
@@ -27,6 +34,13 @@ export type AppConfig = {
   allowedOrigins: Set<string>;
   trustProxy: boolean;
   seedPasswords: { viewer?: string; supervisor?: string; admin?: string };
+  ingestionServiceToken?: string;
+  evidenceRoot?: string;
+  maxEvidenceBytes?: number;
+  buildVersion?: string;
+  buildCommit?: string;
+  schemaVersion?: string;
+  simulatorEnabled?: boolean;
 };
 
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -37,6 +51,16 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
   if (parsed.NODE_ENV === 'production' && environment.COOKIE_SECURE === undefined) {
     throw new Error('COOKIE_SECURE must be explicitly set for a production deployment. Use true behind HTTPS.');
   }
+  if (parsed.NODE_ENV === 'production' && !parsed.COOKIE_SECURE) {
+    throw new Error('COOKIE_SECURE must be true for a production deployment.');
+  }
+  if (parsed.NODE_ENV === 'production' && !parsed.INGESTION_SERVICE_TOKEN) {
+    throw new Error('INGESTION_SERVICE_TOKEN must be set for production machine ingestion.');
+  }
+  if (parsed.NODE_ENV === 'production' && parsed.SIMULATOR_ENABLED) {
+    throw new Error('SIMULATOR_ENABLED must remain false in production.');
+  }
+
   const common = parsed.SEED_DEMO_PASSWORD;
   const viewer = parsed.SEED_VIEWER_PASSWORD ?? common;
   const supervisor = parsed.SEED_SUPERVISOR_PASSWORD ?? common;
@@ -55,5 +79,12 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
       ...(supervisor ? { supervisor } : {}),
       ...(admin ? { admin } : {}),
     },
+    ...(parsed.INGESTION_SERVICE_TOKEN ? { ingestionServiceToken: parsed.INGESTION_SERVICE_TOKEN } : {}),
+    evidenceRoot: parsed.EVIDENCE_ROOT,
+    maxEvidenceBytes: parsed.MAX_EVIDENCE_BYTES,
+    buildVersion: parsed.BUILD_VERSION,
+    buildCommit: parsed.BUILD_COMMIT,
+    schemaVersion: parsed.SCHEMA_VERSION,
+    simulatorEnabled: parsed.SIMULATOR_ENABLED,
   };
 }
