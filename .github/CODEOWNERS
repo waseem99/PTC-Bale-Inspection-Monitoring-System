@@ -1,0 +1,16 @@
+# Repository and release governance
+* @waseem99 @arifkhannamal9288
+
+# Approved frontend and user-facing workflow
+/apps/dashboard-web/ @zubairahmed02 @arifkhannamal9288
+
+# Platform API, PostgreSQL and shared application contracts
+/apps/platform-api/ @zubairahmed02 @arifkhannamal9288
+
+# Deployment, recovery and cloud runtime
+/infrastructure/ @qamarmujtaba @zubairahmed02
+/.github/workflows/ @qamarmujtaba @waseem99
+
+# Delivery, security and handover documentation
+/docs/ @arifkhannamal9288 @waseem99
+/.github/CODEOWNERS @waseem99
