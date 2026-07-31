@@ -1,4 +1,5 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import type { AppConfig } from './config';
@@ -71,6 +72,18 @@ function safeCamera(camera: {
   };
 }
 
+function cameraUpdateData(input: z.infer<typeof configSchema>): Prisma.CameraUpdateInput {
+  const data: Prisma.CameraUpdateInput = {};
+  if (input.name !== undefined) data.name = input.name;
+  if (input.zone !== undefined) data.zone = input.zone;
+  if (input.enabled !== undefined) data.enabled = input.enabled;
+  if (input.orientation !== undefined) data.orientation = input.orientation;
+  if (input.expectedResolution !== undefined) data.expectedResolution = input.expectedResolution;
+  if (input.expectedFps !== undefined) data.expectedFps = input.expectedFps;
+  if (input.configVersion !== undefined) data.configVersion = input.configVersion;
+  return data;
+}
+
 export function createCameraContractApp(config: AppConfig) {
   const router = express.Router();
 
@@ -137,7 +150,7 @@ export function createCameraContractApp(config: AppConfig) {
       const input = configSchema.parse(request.body);
       const current = await prisma.camera.findUnique({ where: { id: cameraId } });
       if (!current) throw new AppError(404, 'CAMERA_NOT_FOUND', 'The camera is not registered.');
-      const updated = await prisma.camera.update({ where: { id: cameraId }, data: input });
+      const updated = await prisma.camera.update({ where: { id: cameraId }, data: cameraUpdateData(input) });
       const auth = authContext(response);
       const occurredAt = new Date();
       await prisma.auditLog.create({
