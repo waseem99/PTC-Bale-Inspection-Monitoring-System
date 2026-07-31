@@ -1,11 +1,6 @@
 {
   admin off
   auto_https off
-  servers {
-    read_timeout 30s
-    write_timeout 0s
-    idle_timeout 5m
-  }
 }
 
 :80 {
