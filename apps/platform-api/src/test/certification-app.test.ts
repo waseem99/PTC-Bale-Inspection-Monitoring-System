@@ -12,6 +12,8 @@ const password = 'Certification-Test-Password-2026!';
 const serviceToken = 'Certification-Ingestion-Token-2026!';
 const eventId = 'TEST-CERTIFICATION-EVIDENCE-0001';
 const evidenceId = 'EVID-TEST-CERTIFICATION-0001';
+const pendingEventId = 'TEST-CERTIFICATION-PENDING-0002';
+const pendingEvidenceId = 'EVID-TEST-CERTIFICATION-PENDING-0002';
 const evidenceRoot = mkdtempSync(path.join(tmpdir(), 'ptc-evidence-'));
 const config = loadConfig({
   ...process.env,
@@ -33,36 +35,54 @@ async function login(username: string) {
   return agent;
 }
 
+function eventPayload(id: string, timestamp: string, evidence?: Record<string, unknown>) {
+  return {
+    id,
+    cameraId: 'CAM-01',
+    cameraName: 'Camera 1',
+    zone: 'Inspection Zone 1',
+    timestamp,
+    outcome: 'completed',
+    reason: 'COMPLETED',
+    confidence: 95,
+    summary: 'Certification evidence fixture.',
+    modelVersion: 'model-test-v1',
+    ruleVersion: 'rules-test-v1',
+    configVersion: 'config-test-v1',
+    edgeVersion: 'edge-test-v1',
+    schemaVersion: 1,
+    source: 'edge',
+    steps: [{ label: 'Inspection completed', state: 'complete', time: '00:08' }],
+    ...(evidence ? { evidence } : {}),
+  };
+}
+
 beforeAll(async () => {
   await connectDatabase();
-  await prisma.inspectionEvent.deleteMany({ where: { id: eventId } });
+  await prisma.inspectionEvent.deleteMany({ where: { id: { in: [eventId, pendingEventId] } } });
   await seedSyntheticData(config, true);
+
   const accepted = await request(app)
     .post('/api/ingest/events')
     .set('Authorization', `Bearer ${serviceToken}`)
-    .send({
-      id: eventId,
-      cameraId: 'CAM-01',
-      cameraName: 'Camera 1',
-      zone: 'Inspection Zone 1',
-      timestamp: '2026-07-31T11:00:00.000Z',
-      outcome: 'completed',
-      reason: 'COMPLETED',
-      confidence: 95,
-      summary: 'Certification evidence fixture.',
-      modelVersion: 'model-test-v1',
-      ruleVersion: 'rules-test-v1',
-      configVersion: 'config-test-v1',
-      edgeVersion: 'edge-test-v1',
-      schemaVersion: 1,
-      source: 'edge',
-      steps: [{ label: 'Inspection completed', state: 'complete', time: '00:08' }],
-    });
+    .send(eventPayload(eventId, '2026-07-31T11:00:00.000Z'));
   expect(accepted.status).toBe(202);
+
+  const pending = await request(app)
+    .post('/api/ingest/events')
+    .set('Authorization', `Bearer ${serviceToken}`)
+    .send(eventPayload(pendingEventId, '2026-07-31T11:01:00.000Z', {
+      id: pendingEvidenceId,
+      state: 'pending',
+      type: 'snapshot',
+      mimeType: 'image/png',
+      storageKey: `pending/${pendingEvidenceId}.png`,
+    }));
+  expect(pending.status).toBe(202);
 });
 
 afterAll(async () => {
-  await prisma.inspectionEvent.deleteMany({ where: { id: eventId } });
+  await prisma.inspectionEvent.deleteMany({ where: { id: { in: [eventId, pendingEventId] } } });
   await resetSyntheticData(config);
   await disconnectDatabase();
   rmSync(evidenceRoot, { recursive: true, force: true });
@@ -103,6 +123,26 @@ it('atomically uploads evidence and supports authenticated byte ranges', async (
   expect(Buffer.from(content.body).equals(bytes.subarray(0, 4))).toBe(true);
 });
 
+it('finalizes matching pending metadata when the evidence bytes arrive', async () => {
+  const bytes = Buffer.from('ffd8ffe000104a464946000101000001', 'hex');
+  const checksum = createHash('sha256').update(bytes).digest('hex');
+  const uploaded = await request(app)
+    .post(`/api/ingest/evidence/${pendingEventId}`)
+    .set('Authorization', `Bearer ${serviceToken}`)
+    .set('Content-Type', 'image/jpeg')
+    .set('X-Evidence-ID', pendingEvidenceId)
+    .set('X-Checksum-SHA256', checksum)
+    .send(bytes);
+  expect(uploaded.status).toBe(201);
+  expect(uploaded.body.finalizedPendingMetadata).toBe(true);
+
+  const stored = await prisma.evidenceMetadata.findUnique({ where: { id: pendingEvidenceId } });
+  expect(stored?.state).toBe('available');
+  expect(stored?.checksum).toBe(checksum);
+  expect(stored?.storageKey).toMatch(/\.jpg$/);
+  expect((await prisma.inspectionEvent.findUnique({ where: { id: pendingEventId } }))?.evidenceAvailable).toBe(true);
+});
+
 it('rejects checksum mismatch and keeps pending evidence out of retention', async () => {
   const mismatch = await request(app)
     .post(`/api/ingest/evidence/${eventId}`)
@@ -129,6 +169,7 @@ it('reports evidence consistency and exposes the approved reason catalog', async
   const consistency = await supervisor.get('/api/operations/evidence/consistency');
   expect(consistency.status).toBe(200);
   expect(consistency.body.missingRecordIds).not.toContain(evidenceId);
+  expect(consistency.body.missingRecordIds).not.toContain(pendingEvidenceId);
   expect(consistency.body.unsafeRecordIds).toEqual([]);
 
   const catalog = await supervisor.get('/api/catalog/reason-codes');
