@@ -1,12 +1,12 @@
 import request from 'supertest';
-import { createApp } from '../app';
 import { loadConfig } from '../config';
 import { connectDatabase, disconnectDatabase, prisma } from '../db';
-import { createProductionReadyApp } from '../production-app';
+import { createRuntimeApp } from '../runtime-app';
 import { resetSyntheticData, seedSyntheticData } from '../seed-service';
 
 const password = 'A-Strong-Test-Password-2026!';
 const serviceToken = 'A-Separate-Machine-Ingestion-Token-2026!';
+const testEventId = 'TEST-INGEST-IDEMPOTENT-0001';
 const config = loadConfig({
   ...process.env,
   NODE_ENV: 'test',
@@ -19,7 +19,19 @@ const config = loadConfig({
   DATABASE_URL: process.env.DATABASE_URL ?? 'postgresql://ptc_app:ptc_local_change_me@127.0.0.1:5432/ptc_bale_test?schema=public',
   ALLOWED_ORIGINS: 'http://localhost',
 });
-const app = createProductionReadyApp(config, createApp(config));
+const app = createRuntimeApp(config);
+
+async function removeProductionTestRecords(): Promise<void> {
+  await prisma.inspectionEvent.deleteMany({
+    where: {
+      OR: [
+        { id: testEventId },
+        { id: { startsWith: 'SIM-CAM-' } },
+      ],
+    },
+  });
+  await prisma.healthMetric.deleteMany({ where: { id: 'TEST-EDGE-HEALTH' } });
+}
 
 async function login(username: string) {
   const agent = request.agent(app);
@@ -33,12 +45,12 @@ async function login(username: string) {
 
 beforeAll(async () => {
   await connectDatabase();
+  await removeProductionTestRecords();
   await seedSyntheticData(config, true);
 });
 
 afterAll(async () => {
-  await prisma.inspectionEvent.deleteMany({ where: { source: 'simulator' } });
-  await prisma.healthMetric.deleteMany({ where: { dataset: 'software-simulator' } });
+  await removeProductionTestRecords();
   await resetSyntheticData(config);
   await disconnectDatabase();
 });
@@ -75,9 +87,8 @@ it('rejects missing and invalid machine credentials', async () => {
 });
 
 it('accepts an event exactly once and returns a deterministic duplicate acknowledgement', async () => {
-  const eventId = 'TEST-INGEST-IDEMPOTENT-0001';
   const payload = {
-    id: eventId,
+    id: testEventId,
     cameraId: 'CAM-01',
     cameraName: 'Camera 1',
     zone: 'Inspection Zone 1',
@@ -97,11 +108,11 @@ it('accepts an event exactly once and returns a deterministic duplicate acknowle
       { label: 'Inspection completed', state: 'failed', time: '00:05' },
     ],
     evidence: {
-      id: `EVID-${eventId}`,
+      id: `EVID-${testEventId}`,
       state: 'pending',
       type: 'snapshot',
       mimeType: 'image/jpeg',
-      storageKey: `pending/${eventId}.jpg`,
+      storageKey: `pending/${testEventId}.jpg`,
     },
   };
 
@@ -118,8 +129,8 @@ it('accepts an event exactly once and returns a deterministic duplicate acknowle
     .send(payload);
   expect(duplicate.status).toBe(200);
   expect(duplicate.body.status).toBe('duplicate');
-  expect(await prisma.inspectionEvent.count({ where: { id: eventId } })).toBe(1);
-  expect(await prisma.evidenceMetadata.count({ where: { eventId } })).toBe(1);
+  expect(await prisma.inspectionEvent.count({ where: { id: testEventId } })).toBe(1);
+  expect(await prisma.evidenceMetadata.count({ where: { eventId: testEventId } })).toBe(1);
 });
 
 it('generates deterministic simulator events and synthetic protected evidence', async () => {
