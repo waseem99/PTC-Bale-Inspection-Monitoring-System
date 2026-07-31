@@ -1,98 +1,72 @@
-# PM Takeover and Project Closure Runbook
+# Final Two-Workstream Delivery and Closure Runbook
 
-**Controlling delivery issue:** #75  
-**Controlling AI epic:** #86  
-**Local software acceptance:** #83 and #102  
-**Factory-material baseline:** #74  
-**Actual hardware integration:** #84  
-**Actual model/site acceptance:** #85  
-**Software baseline:** `e5095cb39fd5e41e8deb869c0a8b99dc7ba6fedb`
+**Controlling PM issue:** #75  
+**Controlling technical/AI epic:** #86  
+**Certified software baseline:** `e5095cb39fd5e41e8deb869c0a8b99dc7ba6fedb`  
+**PM closure package baseline:** `a03c69032d271be6757c8cd8f96e69f6854a7ae3`
 
-## 1. Purpose
+## 1. Final status
 
-This is the single execution path for the Project Manager after the local application software has been merged and certified in automation. It replaces historical release-order assumptions that required AWS or Vercel before local acceptance.
+The repository-side application platform and one-machine deployment package are complete. The approved React dashboard, Node.js API, PostgreSQL/Prisma persistence, authentication and authorization, review/audit workflow, reports, protected evidence, realtime updates, camera/edge contracts, durable spool, simulator, backup/restore, local operations tooling, CI, and handover templates are implemented.
 
-The application platform is implemented. The remaining delivery work is limited to:
+No additional undefined software-platform work remains.
 
-1. governance and target-workstation acceptance;
-2. controlled factory-material preparation;
-3. PTC-specific AI development and evaluation;
-4. physical camera/hardware integration;
-5. actual-model integration and site UAT;
-6. training, handover, hypercare and formal closure.
+Only two delivery workstreams remain:
 
-No historical software or cloud ticket may be used to add scope outside this sequence without an approved change request.
+1. **Actual PTC AI and site technical implementation** — Zubair leads, Qamar supports runtime/hardware, Arif accepts.
+2. **PM/client feedback, acceptance, handover, and closure** — Arif leads and coordinates all client decisions.
+
+Repository administration under #14 is a one-time prerequisite, not a third implementation workstream.
 
 ## 2. Ownership
 
 | Responsibility | Owner |
 |---|---|
-| PM coordination, client decisions and acceptance | `arifkhannamal9288` |
+| PM coordination, client feedback, decisions, UAT and acceptance | `arifkhannamal9288` |
 | AI and technical implementation | `zubairahmed02` |
-| Local runtime, GPU, deployment and recovery | `qamarmujtaba` |
+| Local runtime, GPU, camera/hardware and recovery support | `qamarmujtaba` |
 | Repository and commercial/change control | `waseem99` |
 
-## 3. Gate 0 — governance before sensitive work
+## 3. One-time repository administration
 
-Owner: Waseem and Qamar. Tracked in #14.
+Tracked in #14. Complete before any client-sensitive operational material is introduced:
 
-Before factory material, camera configuration or model artifacts are introduced:
-
-- change the repository to private;
+- change repository visibility to private;
 - confirm Arif, Qamar and Zubair retain suitable access;
-- protect `main` with pull-request review and required checks;
+- protect `main` with pull-request review and applicable required checks;
 - restrict force pushes and branch deletion;
 - enable available secret, dependency and security scanning;
-- keep all restricted media, annotations, datasets, camera credentials, database backups, evidence and model binaries outside GitHub.
+- remove obsolete merged branches after preserving unique history;
+- keep footage, annotations, datasets, camera credentials, database backups, evidence and model binaries outside GitHub.
 
-GitHub may contain only code, safe schemas, sanitized manifests, storage reference IDs, checksums, experiment configuration, sanitized metrics, decisions and runbooks.
+GitHub may contain only source code, safe schemas, sanitized manifests, storage reference IDs, checksums, experiment configurations, sanitized metrics, decisions and runbooks.
 
-## 4. Gate 1 — target-workstation software acceptance
+## 4. Workstream A — actual PTC AI and site technical implementation
 
-Owners: Arif and Qamar. Tracked in #83, #100 and #102.
+**Controlling issue:** #86  
+**Implementation owner:** Zubair  
+**Runtime/site support:** Qamar  
+**PM acceptance:** Arif
 
-On the intended Windows 11/WSL2/Docker Desktop workstation:
+### A1. Factory material and approved baseline
 
-1. clone the repository and checkout the approved release commit;
-2. run the documented PowerShell bootstrap;
-3. record OS, Docker, Compose, workstation hardware, commit and local URL;
-4. execute every test in `docs/34-local-uat-record.md`;
-5. verify operation with internet disconnected;
-6. verify stop/start and workstation reboot recovery;
-7. create a database backup and evidence archive with checksums;
-8. execute the guarded restore test;
-9. verify simulator and hardware-ready modes remain distinct;
-10. record defects and close or formally accept every P0/P1 item;
-11. publish the local software release tag and completed manifest;
-12. record PM acceptance in #102 and close #83/#98/#100/#102 as appropriate.
+Use #74 and the PM/client decisions in #9, #10, #12, #13, #15, #27 and #59.
 
-No actual AI accuracy claim is permitted at this gate.
+Before bulk annotation or final model selection, confirm:
 
-## 5. Gate 2 — factory-material and operational baseline
-
-Owners: Arif and Zubair. Tracked in #74, #9, #10, #12, #13, #15, #27 and #59.
-
-Arif must create one restricted material location and provide Zubair access through the approved secure channel. Use `docs/36-restricted-material-manifest-template.md` for sanitized planning records.
-
-Required decisions before bulk annotation or final model selection:
-
-- approved ordered PTC bale-inspection SOP;
-- definitions of completed, missed, incomplete and unresolved;
+- ordered PTC bale-inspection SOP;
+- completed, missed, incomplete and unresolved definitions;
 - operational exceptions, rework and insufficient-visibility behavior;
 - approved reason codes;
-- four camera positions, zones, orientation and observable actions;
-- approved data-use permission, access list and retention/deletion position;
+- camera positions, zones, orientation and observable actions;
+- data-use permission, access list and retention/deletion position;
 - separation of training, validation, calibration and locked acceptance material;
 - locked UAT scenario matrix and acceptance method;
-- identification of missing scenarios requiring additional safe capture.
+- missing scenarios requiring additional safe capture.
 
 Raw factory media must never be attached to GitHub.
 
-## 6. Gate 3 — execute AI epic #86 in order
-
-Owner: Zubair. PM acceptance: Arif. Runtime support: Qamar.
-
-The mandatory order is:
+### A2. Execute AI epic #86 in order
 
 1. #27 — material audit, permission and split proposal;
 2. #28 — annotation guide and quality control;
@@ -103,82 +77,125 @@ The mandatory order is:
 7. #33 — deterministic versioned SOP state machine and reason codes;
 8. #34 — locked evaluation, model packaging and four-stream benchmark.
 
-Each issue must be delivered through an issue-linked pull request containing tests, reproducibility instructions, safe version identifiers, runtime impact and sanitized evidence. Model binaries and datasets remain in restricted storage.
+Each issue must be delivered through an issue-linked pull request with tests, reproducibility instructions, safe version identifiers, runtime impact, and sanitized evidence. Model binaries and datasets remain in restricted storage.
 
-Final model selection must not precede the controlled data, annotation and evaluation preparation.
+Final model selection must not precede controlled data, annotation and evaluation preparation.
 
-## 7. Gate 4 — actual cameras and hardware
+### A3. Actual camera and hardware integration
 
-Owners: Zubair and Qamar. PM/site acceptance: Arif. Tracked in #84.
-
-Required completion:
+Execute #84 as the site-adapter phase of this same technical workstream:
 
 - approve and mount four camera positions;
-- establish secure RTSP/approved stream access;
+- establish secure stream access;
 - record camera IDs, zones, orientation, codec, resolution, frame rate and time synchronization;
 - validate cable, PoE/network, workstation, storage and UPS readiness;
 - connect actual camera health, live view, frame sampling and rolling evidence capture;
 - prove reconnect and one-camera failure isolation;
-- verify opening/checking/frisking visibility under real conditions;
-- complete the required sustained four-stream stability test;
-- record CPU, GPU, RAM, network, disk and evidence baseline;
-- obtain PM/site approval.
+- complete sustained four-stream stability and resource measurements.
 
-Camera credentials and network details stay outside GitHub.
+Camera credentials and network details remain outside GitHub.
 
-## 8. Gate 5 — actual model integration and acceptance
+### A4. Actual model integration and site validation
 
-Owner: Zubair. Runtime support: Qamar. PM/client acceptance: Arif. Tracked in #85.
+Execute #85:
 
-Required completion:
-
-- replace the simulator through the existing AI adapter without frontend/backend redesign;
+- replace simulator outputs through the existing AI adapter without frontend/backend redesign;
 - run actual events through API, PostgreSQL, evidence, dashboard, review, audit and reporting;
 - verify camera/model failures never become false process violations;
-- run the locked evaluation with camera/scenario breakdowns;
-- review false positives, false negatives, unresolved cases and accepted limitations;
-- verify ONNX/export parity and the selected optimized runtime;
-- run four actual streams simultaneously and record performance, queue and recovery behavior;
+- run locked evaluation with camera/scenario breakdowns;
+- review false positives, false negatives, unresolved cases and limitations;
+- verify model export/runtime parity;
+- run all four actual streams and record throughput, latency, resources, queue and recovery behavior;
 - freeze model, dataset, annotation, rules, configuration and camera versions;
-- obtain PM/client acceptance in #85.
+- obtain PM/client acceptance.
 
 Use `docs/37-ai-acceptance-release-template.md` for the sanitized release record.
 
-## 9. Gate 6 — client UAT, handover and closure
+## 5. Workstream B — PM/client feedback, acceptance and closure
 
-Owners: Arif and Qamar, with Zubair supporting AI findings. Tracked in #52, #53 and #75.
+**Controlling issue:** #75  
+**Owner:** Arif  
+**Technical support:** Zubair and Qamar
 
-Required completion:
+### B1. Target-workstation software acceptance
 
-- execute the approved client UAT against the frozen release;
-- close or formally accept all P0/P1 defects;
+Execute #102 and record the decision under #83:
+
+- fresh bootstrap on the intended workstation;
+- complete `docs/34-local-uat-record.md`;
+- offline operation and reboot recovery;
+- database and evidence backup with checksums;
+- guarded restore;
+- simulator/hardware-ready separation;
+- no unresolved P0/P1 local software defect without written acceptance;
+- accepted local release manifest and tag.
+
+This is PM acceptance of the already-implemented software package; it is not new software development and makes no actual AI accuracy claim.
+
+### B2. Client feedback and decision control
+
+Arif owns all client communication and classifies every item as one of:
+
+1. **Defect** — implemented behavior does not meet an already-approved requirement.
+2. **In-scope completion** — an approved acceptance item is incomplete.
+3. **Clarification/configuration** — no architectural or scope expansion is required.
+4. **Change request** — new feature, integration, camera, report, identity method, workflow or commercial commitment.
+
+Only defects and approved in-scope completion enter the delivery backlog directly. Change requests require approval before implementation.
+
+### B3. Client UAT and handover
+
+Execute #52 and #53 after the technical release is frozen:
+
+- run the approved client UAT;
+- close or formally accept every P0/P1 defect;
 - train supervisors and administrators;
-- hand over daily operations, backup, restore, troubleshooting, escalation and secret-rotation procedures;
+- hand over daily operations, backup, restore, troubleshooting, escalation and secret rotation;
 - record hardware, camera, model, dataset, annotation, rules, configuration, edge, API, database and frontend versions;
-- publish final release notes and the approved MVP/final tag;
-- record client acceptance and support ownership;
-- classify every new request as defect, in-scope completion, clarification/configuration or change request.
+- publish final release notes and approved final tag;
+- record client acceptance and support ownership.
 
-## 10. Hypercare and final closure
+### B4. Feedback-driven stabilization and hypercare
 
-Unless formally waived or replaced in writing, execute the agreed hypercare work under #8 and #54–#57:
+Use #8 and #54–#57 only when required by the agreement, client feedback or an explicit PM decision. This work is conditional and must not be treated as an unfinished software-platform feature set.
 
-- establish the production monitoring and review cadence;
+During any approved hypercare:
+
+- establish monitoring and review cadence;
 - collect confirmed false-positive and false-negative candidates by event ID;
 - execute only evidence-supported model/rule/configuration improvements;
 - rerun locked regression after every material change;
 - resolve or accept production P0/P1 defects;
 - publish the final stabilization release and closure report.
 
-The project is closed only when final acceptance, documentation, release identity and support ownership are recorded.
+## 6. Completed repository-side scope
 
-## 11. PM reporting cadence
+The following is complete and should not be reopened without a specific defect or approved change request:
 
-Arif should publish one sanitized weekly update on #75 containing:
+- approved dashboard and live API integration;
+- PostgreSQL/Prisma schema and migrations;
+- authentication, sessions and server-side roles;
+- events, review, remarks and transactional audit history;
+- camera configuration/status and health contracts;
+- machine-authenticated idempotent ingestion;
+- durable local SQLite spool and outage replay;
+- protected evidence upload, checksum, range playback and reconciliation;
+- realtime SSE and polling fallback;
+- CSV and PDF reports;
+- Docker Compose local runtime and workstation-only ingress;
+- Windows and Ubuntu bootstrap/operations scripts;
+- backup, checksums, guarded restore, upgrade and secret rotation;
+- simulator and hardware-ready modes;
+- automated frontend, backend, recovery, contract, edge and local-runtime certification;
+- release, UAT, restricted-material and AI-acceptance templates.
 
-- current gate and issue;
+## 7. PM reporting cadence
+
+Arif posts one sanitized update on #75 whenever a material decision or acceptance event occurs, covering:
+
+- current workstream and issue;
 - completed deliverables;
-- decisions required from client/Waseem;
+- client decisions or feedback received;
 - blocked items and named owner;
 - P0/P1 defects;
 - data/annotation/model/rules/configuration versions;
@@ -186,17 +203,15 @@ Arif should publish one sanitized weekly update on #75 containing:
 
 Do not publish passwords, tokens, IP addresses, camera URLs, private network details, media, annotations, datasets, evidence, database files or model binaries.
 
-## 12. Closure definition
+## 8. Closure definition
 
-The project may be closed only when:
+Close #75 only when:
 
-- target-workstation local UAT is accepted;
-- repository and restricted-data governance are complete;
-- #86 and child workstreams #27–#34 are complete;
-- #84 actual hardware integration is accepted;
-- #85 actual model integration and client acceptance are recorded;
-- client UAT and operator training are complete;
-- final release and version manifest are published;
-- backup, restore, retention, monitoring and support ownership are accepted;
-- required hypercare is completed or formally waived;
-- all remaining issues are closed, accepted, deferred or converted to approved change requests with explicit reasons.
+- target-workstation local acceptance is recorded;
+- repository and restricted-data administration is complete;
+- #86 and #27–#34 are complete;
+- #84 and #85 are accepted;
+- client feedback/UAT and operator handover are complete;
+- final release identity and support ownership are recorded;
+- required hypercare is complete or formally waived;
+- every remaining issue is closed, accepted, deferred, or converted to an approved change request with an explicit reason.
