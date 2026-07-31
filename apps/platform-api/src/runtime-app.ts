@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { createApp } from './app';
+import { createCameraContractApp } from './camera-contract-app';
 import { createCertificationApp } from './certification-app';
 import type { AppConfig } from './config';
 import { errorHandler } from './errors';
@@ -37,6 +38,7 @@ function createRuntimeLimiter(limit: number, windowMs: number) {
 export function createRuntimeApp(config: AppConfig): Express {
   const coreApp = createApp(config);
   const certificationApp = createCertificationApp(config);
+  const cameraContractApp = createCameraContractApp(config);
   const productionApp = createProductionReadyApp(config, coreApp);
   const app = express();
   if (config.trustProxy) app.set('trust proxy', 1);
@@ -81,6 +83,17 @@ export function createRuntimeApp(config: AppConfig): Express {
     express.raw({ type: ['image/jpeg', 'image/png', 'video/mp4'], limit: config.maxEvidenceBytes ?? 25 * 1024 * 1024 }),
     createPendingEvidenceFinalizer(config),
   );
+
+  app.use((request, response, next) => {
+    const cameraContractPath = request.path === '/api/camera-config'
+      || request.path.startsWith('/api/camera-config/')
+      || request.path.startsWith('/api/ingest/cameras/');
+    if (cameraContractPath) {
+      cameraContractApp(request, response, next);
+      return;
+    }
+    next();
+  });
 
   app.use((request, response, next) => {
     const certificationPath = request.path.startsWith('/api/ingest/evidence/')
