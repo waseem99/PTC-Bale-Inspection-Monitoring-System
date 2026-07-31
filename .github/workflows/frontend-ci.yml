@@ -39,16 +39,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install dependencies
+      - name: Install dependencies from committed lockfile
         shell: bash
         run: |
-          if test -f pnpm-lock.yaml; then
-            pnpm install --frozen-lockfile
-          else
-            pnpm install --no-frozen-lockfile
-          fi
           test -s pnpm-lock.yaml
-      - name: Upload generated or validated lockfile
+          pnpm install --frozen-lockfile
+      - name: Upload validated lockfile
         uses: actions/upload-artifact@v4
         with:
           name: pnpm-lockfile-frontend-${{ github.sha }}
@@ -158,14 +154,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install dependencies
+      - name: Install dependencies from committed lockfile
         shell: bash
         run: |
-          if test -f pnpm-lock.yaml; then
-            pnpm install --frozen-lockfile
-          else
-            pnpm install --no-frozen-lockfile
-          fi
+          test -s pnpm-lock.yaml
+          pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
         working-directory: apps/dashboard-web
       - run: pnpm test:e2e
