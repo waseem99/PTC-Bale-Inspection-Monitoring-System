@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream';
+
 const BLOCKED_REQUEST_HEADERS = new Set([
   'accept-encoding',
   'connection',
@@ -77,23 +79,40 @@ function copyResponseHeaders(upstream, response) {
 
 export default async function handler(request, response) {
   try {
-    const target = `${apiOrigin()}/api/${requestPath(request)}${queryString(request)}`;
+    const path = requestPath(request);
+    const realtime = request.method === 'GET' && path === 'realtime';
+    const target = `${apiOrigin()}/api/${path}${queryString(request)}`;
     const upstream = await fetch(target, {
       method: request.method,
       headers: forwardedHeaders(request),
       body: requestBody(request),
       redirect: 'manual',
-      signal: AbortSignal.timeout(25_000),
+      ...(realtime ? {} : { signal: AbortSignal.timeout(25_000) }),
     });
 
     copyResponseHeaders(upstream, response);
+    response.status(upstream.status);
+    if (!upstream.body || request.method === 'HEAD') {
+      response.end();
+      return;
+    }
+
+    if (realtime) {
+      Readable.fromWeb(upstream.body).pipe(response);
+      return;
+    }
+
     const body = Buffer.from(await upstream.arrayBuffer());
-    response.status(upstream.status).send(body);
+    response.send(body);
   } catch (error) {
     console.error('PTC Vercel proxy failure', error);
-    response.status(502).json({
-      code: 'UPSTREAM_UNAVAILABLE',
-      message: 'The staging API is temporarily unavailable.',
-    });
+    if (!response.headersSent) {
+      response.status(502).json({
+        code: 'UPSTREAM_UNAVAILABLE',
+        message: 'The staging API is temporarily unavailable.',
+      });
+      return;
+    }
+    response.end();
   }
 }
