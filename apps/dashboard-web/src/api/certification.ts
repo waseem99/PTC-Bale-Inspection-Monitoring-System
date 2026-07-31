@@ -77,11 +77,16 @@ export const certificationApi = {
   },
 
   subscribe(onUpdate: (type: string) => void): () => void {
-    if (runtime.dataMode === 'mock' || typeof EventSource === 'undefined') return () => undefined;
+    if (runtime.dataMode === 'mock') return () => undefined;
+    const evidencePolling = window.setInterval(() => onUpdate('evidence-update'), 10_000);
+    if (typeof EventSource === 'undefined') return () => window.clearInterval(evidencePolling);
     const source = new EventSource(`${runtime.apiBaseUrl}/realtime`, { withCredentials: true });
     for (const type of ['inspection-event', 'health-update', 'evidence-update']) {
       source.addEventListener(type, () => onUpdate(type));
     }
-    return () => source.close();
+    return () => {
+      window.clearInterval(evidencePolling);
+      source.close();
+    };
   },
 };
