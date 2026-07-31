@@ -136,7 +136,6 @@ export function createCameraContractApp(config: AppConfig) {
     response.json({
       schemaVersion: 'camera-contract-v1',
       cameras: cameras.map(safeCamera),
-      prohibitedFields: ['streamUrl', 'rtspUrl', 'username', 'password', 'privateIp', 'networkDiagram'],
       generatedAt: new Date().toISOString(),
     });
   }));
@@ -164,7 +163,7 @@ export function createCameraContractApp(config: AppConfig) {
           targetId: cameraId,
           before: safeCamera(current),
           after: safeCamera(updated),
-          correlationId: response.locals.correlationId as string ?? randomUUID(),
+          correlationId: (response.locals.correlationId as string | undefined) ?? randomUUID(),
           occurredAt,
         },
       });
