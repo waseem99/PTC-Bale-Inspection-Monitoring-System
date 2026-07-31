@@ -34,7 +34,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      release_name: ${{ steps.release.outputs.name }}
+      release_name: ${{ steps.bundle.outputs.release_name }}
 
     steps:
       - name: Check out repository
@@ -56,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           DB_PASSWORD="$(openssl rand -hex 24)"
-          SEED_PASSWORD="$(openssl rand -base64 32 | tr -d '=+/\n' | head -c 32)"
+          SEED_PASSWORD="$(openssl rand -hex 24)"
           INGESTION_TOKEN="$(openssl rand -hex 32)"
           {
             echo "CI_DB_PASSWORD=${DB_PASSWORD}"
@@ -92,23 +92,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate database and backend
+      - name: Validate application and database
         shell: bash
         run: |
           set -euo pipefail
           pnpm --filter @ptc-bale/platform-api db:generate
           pnpm --filter @ptc-bale/platform-api db:migrate:deploy
           pnpm --filter @ptc-bale/platform-api check
-
-      - name: Validate frontend and Vercel proxy
-        shell: bash
-        run: |
-          set -euo pipefail
           pnpm --filter @ptc-bale/dashboard-web check
           node --check 'apps/dashboard-web/api/[...path].mjs'
           node -e "JSON.parse(require('fs').readFileSync('apps/dashboard-web/vercel.json', 'utf8'))"
 
-      - name: Validate deployment scripts and Compose configuration
+      - name: Validate scripts and Compose configuration
         shell: bash
         run: |
           set -euo pipefail
@@ -175,10 +170,10 @@ jobs:
             "ptc-bale-api:${GITHUB_SHA}" \
             "ptc-bale-tools:${GITHUB_SHA}" \
             "ptc-bale-dashboard:${GITHUB_SHA}" >/dev/null
-          test "$(docker image inspect --format '{{.Config.User}}' "ptc-bale-api:${GITHUB_SHA}")" = "app"
+          test "$(docker image inspect --format '{{.Config.User}}' "ptc-bale-api:${GITHUB_SHA}")" = app
 
-      - name: Create release bundle
-        id: release
+      - name: Create checksummed release bundle
+        id: bundle
         shell: bash
         run: |
           set -euo pipefail
@@ -197,15 +192,15 @@ jobs:
             | gzip -9 > release/images.tar.gz
           tar -C release -czf "${RELEASE_NAME}.tar.gz" .
           sha256sum "${RELEASE_NAME}.tar.gz" > "${RELEASE_NAME}.tar.gz.sha256"
-          echo "name=${RELEASE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "release_name=${RELEASE_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload release artifact
+      - name: Upload validated release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.release.outputs.name }}
+          name: ${{ steps.bundle.outputs.release_name }}
           path: |
-            ${{ steps.release.outputs.name }}.tar.gz
-            ${{ steps.release.outputs.name }}.tar.gz.sha256
+            ${{ steps.bundle.outputs.release_name }}.tar.gz
+            ${{ steps.bundle.outputs.release_name }}.tar.gz.sha256
           if-no-files-found: error
           retention-days: 7
 
@@ -227,6 +222,9 @@ jobs:
       id-token: write
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Validate protected deployment variables
         shell: bash
         env:
@@ -250,7 +248,7 @@ jobs:
               exit 1
             fi
           done
-          [[ "$AWS_API_DOMAIN_VALUE" == "api.ptc-aibale.codistan.org" ]]
+          [[ "$AWS_API_DOMAIN_VALUE" == api.ptc-aibale.codistan.org ]]
 
       - name: Download validated release
         uses: actions/download-artifact@v4
@@ -276,8 +274,11 @@ jobs:
           set -euo pipefail
           RELEASE_NAME='${{ needs.validate-and-package.outputs.release_name }}'
           PREFIX="s3://${{ vars.AWS_ARTIFACT_BUCKET }}/releases/${GITHUB_SHA}"
+          sha256sum "${RELEASE_NAME}.tar.gz" \
+            | sed "s|${RELEASE_NAME}.tar.gz|release.tar.gz|" \
+            > /tmp/release.tar.gz.sha256
           aws s3 cp "${RELEASE_NAME}.tar.gz" "${PREFIX}/release.tar.gz" --only-show-errors
-          aws s3 cp "${RELEASE_NAME}.tar.gz.sha256" "${PREFIX}/release.tar.gz.sha256" --only-show-errors
+          aws s3 cp /tmp/release.tar.gz.sha256 "${PREFIX}/release.tar.gz.sha256" --only-show-errors
 
       - name: Deploy through Systems Manager
         shell: bash
@@ -295,13 +296,13 @@ jobs:
             '{commands: [
               "set -euo pipefail",
               ("rm -rf " + $release_dir + " && mkdir -p " + $release_dir),
-              ("aws s3 cp " + $s3_prefix + "/release.tar.gz /tmp/ptc-release.tar.gz --only-show-errors"),
-              ("aws s3 cp " + $s3_prefix + "/release.tar.gz.sha256 /tmp/ptc-release.tar.gz.sha256 --only-show-errors"),
-              "cd /tmp && sed -i 's|^[^ ]*|ptc-release.tar.gz|' ptc-release.tar.gz.sha256 && sha256sum --check ptc-release.tar.gz.sha256",
-              ("tar -xzf /tmp/ptc-release.tar.gz -C " + $release_dir),
+              ("aws s3 cp " + $s3_prefix + "/release.tar.gz /tmp/release.tar.gz --only-show-errors"),
+              ("aws s3 cp " + $s3_prefix + "/release.tar.gz.sha256 /tmp/release.tar.gz.sha256 --only-show-errors"),
+              "cd /tmp && sha256sum --check release.tar.gz.sha256",
+              ("tar -xzf /tmp/release.tar.gz -C " + $release_dir),
               ("chmod 0755 " + $release_dir + "/scripts/*.sh"),
               ("bash " + $release_dir + "/scripts/deploy-release.sh " + $sha + " " + $bucket + " " + $region + " " + $parameter),
-              "rm -f /tmp/ptc-release.tar.gz /tmp/ptc-release.tar.gz.sha256"
+              "rm -f /tmp/release.tar.gz /tmp/release.tar.gz.sha256"
             ]}' > /tmp/ptc-ssm-parameters.json
 
           COMMAND_ID="$(aws ssm send-command \
