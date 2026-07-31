@@ -1,6 +1,7 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { createApp } from './app';
 import type { AppConfig } from './config';
+import { createIngestionReplayGuard } from './ingestion-replay-guard';
 import { createProductionReadyApp } from './production-app';
 
 function createRuntimeLimiter(limit: number, windowMs: number) {
@@ -62,6 +63,11 @@ export function createRuntimeApp(config: AppConfig): Express {
     next();
   });
 
+  app.post(
+    '/api/ingest/events',
+    express.json({ limit: '512kb', strict: true }),
+    createIngestionReplayGuard(config),
+  );
   app.use(productionApp);
   return app;
 }
