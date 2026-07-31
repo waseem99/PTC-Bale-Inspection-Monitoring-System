@@ -254,7 +254,7 @@ jobs:
           [[ "$AWS_API_DOMAIN_VALUE" == api.ptc-aibale.codistan.org ]]
 
       - name: Download validated release
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ needs.validate-and-package.outputs.release_name }}
 
