@@ -1,5 +1,6 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { createApp } from './app';
+import { createCertificationApp } from './certification-app';
 import type { AppConfig } from './config';
 import { errorHandler } from './errors';
 import { createIngestionReplayGuard } from './ingestion-replay-guard';
@@ -33,10 +34,11 @@ function createRuntimeLimiter(limit: number, windowMs: number) {
 
 /**
  * Preserves the established authentication endpoints while adding the
- * production-readiness routes ahead of the legacy API fallback.
+ * production-readiness and final-certification routes ahead of the legacy API fallback.
  */
 export function createRuntimeApp(config: AppConfig): Express {
   const coreApp = createApp(config);
+  const certificationApp = createCertificationApp(config);
   const productionApp = createProductionReadyApp(config, coreApp);
   const app = express();
   if (config.trustProxy) app.set('trust proxy', 1);
@@ -59,6 +61,18 @@ export function createRuntimeApp(config: AppConfig): Express {
     const origin = request.header('origin');
     if (origin && !config.allowedOrigins.has(origin)) {
       response.status(403).json({ code: 'ORIGIN_NOT_ALLOWED', message: 'The request origin is not allowed.' });
+      return;
+    }
+    next();
+  });
+
+  app.use((request, response, next) => {
+    const certificationPath = request.path.startsWith('/api/ingest/evidence/')
+      || request.path.startsWith('/api/evidence/')
+      || request.path.startsWith('/api/catalog/')
+      || request.path.startsWith('/api/operations/');
+    if (certificationPath) {
+      certificationApp(request, response, next);
       return;
     }
     next();
