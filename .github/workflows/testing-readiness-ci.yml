@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'tools/testing/**'
+      - 'tools/edge-simulator/**'
       - 'scripts/testing/**'
       - 'services/ai-inference/config/**'
       - 'docs/42-testing-readiness-execution-package.md'
@@ -13,6 +14,7 @@ on:
     branches: [main]
     paths:
       - 'tools/testing/**'
+      - 'tools/edge-simulator/**'
       - 'scripts/testing/**'
       - 'services/ai-inference/config/**'
       - 'docs/42-testing-readiness-execution-package.md'
@@ -37,12 +39,15 @@ jobs:
         working-directory: services/ai-inference
         run: python -m pip install --upgrade pip && python -m pip install -e .
       - name: Compile testing and AI sources
-        run: python -m compileall -q tools/testing services/ai-inference/src services/ai-inference/tests scripts/testing
+        run: python -m compileall -q tools/testing tools/edge-simulator services/ai-inference/src services/ai-inference/tests scripts/testing
       - name: Existing AI tests
         working-directory: services/ai-inference
         run: python -m unittest discover -s tests -v
-      - name: Testing-readiness unit and recovery tests
+      - name: Testing-readiness scenario tests
         run: python -m unittest discover -s tools/testing/tests -v
+      - name: Existing edge retry and recovery tests
+        working-directory: tools/edge-simulator
+        run: python -m unittest -v test_ptc_edge_spool.py
       - name: Generate deterministic offline acceptance package
         run: python tools/testing/ptc_acceptance.py offline --output /tmp/ptc-testing-readiness
       - name: Validate generated strict event fixtures
