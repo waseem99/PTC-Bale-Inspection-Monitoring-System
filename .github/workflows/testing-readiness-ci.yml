@@ -1,0 +1,56 @@
+name: Testing Readiness CI
+
+on:
+  pull_request:
+    paths:
+      - 'tools/testing/**'
+      - 'scripts/testing/**'
+      - 'services/ai-inference/config/**'
+      - 'docs/42-testing-readiness-execution-package.md'
+      - 'docs/43-annotation-and-dataset-workflow.md'
+      - '.github/workflows/testing-readiness-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/testing/**'
+      - 'scripts/testing/**'
+      - 'services/ai-inference/config/**'
+      - 'docs/42-testing-readiness-execution-package.md'
+      - 'docs/43-annotation-and-dataset-workflow.md'
+      - '.github/workflows/testing-readiness-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: services/ai-inference/pyproject.toml
+      - name: Install AI core package
+        working-directory: services/ai-inference
+        run: python -m pip install --upgrade pip && python -m pip install -e .
+      - name: Compile testing and AI sources
+        run: python -m compileall -q tools/testing services/ai-inference/src services/ai-inference/tests scripts/testing
+      - name: Existing AI tests
+        working-directory: services/ai-inference
+        run: python -m unittest discover -s tests -v
+      - name: Testing-readiness unit and recovery tests
+        run: python -m unittest discover -s tools/testing/tests -v
+      - name: Generate deterministic offline acceptance package
+        run: python tools/testing/ptc_acceptance.py offline --output /tmp/ptc-testing-readiness
+      - name: Validate generated strict event fixtures
+        run: python tools/testing/ptc_acceptance.py validate --events /tmp/ptc-testing-readiness/synthetic-events.jsonl
+      - name: Upload sanitized offline record
+        uses: actions/upload-artifact@v4
+        with:
+          name: testing-readiness-offline-record
+          path: /tmp/ptc-testing-readiness
+          if-no-files-found: error
+          retention-days: 14
