@@ -52,10 +52,5 @@ jobs:
         run: python tools/testing/ptc_acceptance.py offline --output /tmp/ptc-testing-readiness
       - name: Validate generated strict event fixtures
         run: python tools/testing/ptc_acceptance.py validate --events /tmp/ptc-testing-readiness/synthetic-events.jsonl
-      - name: Upload sanitized offline record
-        uses: actions/upload-artifact@v4
-        with:
-          name: testing-readiness-offline-record
-          path: /tmp/ptc-testing-readiness
-          if-no-files-found: error
-          retention-days: 14
+      - name: Print sanitized acceptance record
+        run: cat /tmp/ptc-testing-readiness/offline-acceptance-record.json
