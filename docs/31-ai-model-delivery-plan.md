@@ -46,7 +46,7 @@ Recorded video / actual camera stream
 - Proper hand inspection is evaluated using pose/hand, duration, movement, proximity and temporal evidence. A temporal action model may supplement the baseline only when labeled evaluation proves it necessary.
 - Grading is detected only through visible and consistently labelable signals.
 - Accepted/rejected routing uses versioned camera ROIs; the left-side lane is rejected.
-- Weight is accepted only after OCR readings stabilize across consecutive frames.
+- Weight is accepted only after OCR readings stabilize across consecutive frames. If multiple routed bales could own one reading, the result is unresolved rather than guessed.
 - Ambiguous, occluded or low-confidence cases are `UNRESOLVED`, not fabricated violations.
 - Camera/model/service failures remain operational outcomes, never process violations.
 
@@ -131,3 +131,7 @@ One aggregate score must not hide weak minority scenarios.
 ## Definition of done
 
 The AI work is complete only when the code baseline, controlled data, trained artifacts, locked evaluation, actual camera/ROI integration, platform delivery and PM/client acceptance are all recorded under #86/#85.
+
+## Current platform event compatibility
+
+The existing `/api/ingest/events` endpoint accepts a strict `edge`/`simulator` payload. The AI runtime therefore sends only the supported platform fields and writes richer session/Bale/reason/OCR metadata to a protected local audit sidecar for evaluation. A future approved database-contract enhancement may persist those fields structurally; it is not required to begin video-model testing.

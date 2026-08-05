@@ -17,10 +17,9 @@ bale enters → opened → proper hand inspection → graded
 - accepted/rejected ROI routing, with left configured as rejection;
 - EasyOCR display adapter and temporal weight stabilization;
 - deterministic SOP/anomaly state machine;
-- platform-ingestion event mapping;
+- strict platform-ingestion event mapping plus protected AI audit sidecars;
 - component evaluation helpers;
 - reproducible YOLO training/export entry points;
-- recorded-video runner;
 - unit and deterministic replay tests.
 
 ## Required external release inputs
@@ -56,13 +55,17 @@ The runtime adapters require a PTC-trained weights file. A generic COCO model ma
 
 ## Recorded-video testing
 
+Use an ISO capture start time when it is known. Without it, the runner uses the current UTC time so generated events are never dated at the Unix epoch.
+
 ```bash
 python scripts/run_video.py \
   --video /restricted/sample.mp4 \
   --config /restricted/approved-camera-config.json \
   --camera CAM-01 \
   --weights /restricted/models/ptc-yolo-v1.pt \
-  --output /restricted/results/events.jsonl
+  --output /restricted/results/events.jsonl \
+  --audit-output /restricted/results/events.audit.jsonl \
+  --start-time 2026-08-05T10:00:00+05:00
 ```
 
 This command is ready for the team to use once the approved weights and camera ROI configuration exist.
@@ -80,3 +83,10 @@ python scripts/train_yolo.py \
 ## Delivery contract
 
 `ptc_ai.event_mapper.to_platform_payload` produces the current `/api/ingest/events` payload shape. Actual deployment should send the payload through the existing durable edge spool so API outages do not lose events.
+
+## Runtime safety notes
+
+- The current platform ingestion endpoint is strict. Platform payloads use `source: edge` and contain no unsupported fields.
+- Complete Bale ID, session ID, reason-code, route, weight and component metadata is written only to the optional protected audit sidecar.
+- When more than one routed bale is simultaneously awaiting a single scale reading, the runtime produces an unresolved association instead of assigning one weight to the wrong bale.
+- The supplied `Dockerfile` packages the dependency-light SOP/replay core. GPU computer-vision deployment must use the approved NVIDIA/runtime image and install the `runtime` dependency group with the selected model artifacts.

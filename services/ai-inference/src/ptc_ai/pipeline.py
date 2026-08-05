@@ -37,10 +37,16 @@ class ActiveBale:
     opened_emitted: bool = False
     hand_emitted: bool = False
     grading_emitted: bool = False
+    grading_candidate: str | None = None
+    grading_started_at: float | None = None
+    grading_confidence: float = 0.0
     expected_route: str | None = None
     route_emitted: bool = False
     observed_route: str | None = None
     weight_emitted: bool = False
+    ocr_attempts: int = 0
+    ocr_numeric_seen: bool = False
+    weight_ambiguity_emitted: bool = False
 
 
 class RuntimePipeline:
@@ -142,6 +148,25 @@ class RuntimePipeline:
     @staticmethod
     def _polygon_crop(frame: Any, polygon: tuple[tuple[float, float], ...]) -> Any:
         height, width = frame.shape[:2]
+        if len(polygon) == 4:
+            try:
+                import cv2  # type: ignore
+                import numpy as np  # type: ignore
+
+                source = np.float32([[x * width, y * height] for x, y in polygon])
+                top = math.dist(source[0], source[1])
+                bottom = math.dist(source[3], source[2])
+                left = math.dist(source[0], source[3])
+                right = math.dist(source[1], source[2])
+                target_width = max(2, int(round(max(top, bottom))))
+                target_height = max(2, int(round(max(left, right))))
+                destination = np.float32(
+                    [[0, 0], [target_width - 1, 0], [target_width - 1, target_height - 1], [0, target_height - 1]]
+                )
+                matrix = cv2.getPerspectiveTransform(source, destination)
+                return cv2.warpPerspective(frame, matrix, (target_width, target_height))
+            except Exception:
+                pass
         xs = [point[0] for point in polygon]
         ys = [point[1] for point in polygon]
         x1 = max(0, min(width - 1, int(min(xs) * width)))
@@ -181,11 +206,22 @@ class RuntimePipeline:
             for item in detections
             if item.class_name in self.GRADING_CLASSES
             and (intersection_over_union(state.box.expanded(0.3), item.box) > 0.0 or state.box.expanded(0.5).contains(item.box.center))
+            and item.confidence >= self.config.thresholds.min_observation_confidence
         ]
         if not candidates:
+            state.grading_candidate = None
+            state.grading_started_at = None
+            state.grading_confidence = 0.0
             return
         selected = max(candidates, key=lambda item: item.confidence)
-        if selected.confidence < self.config.thresholds.min_observation_confidence:
+        if state.grading_candidate != selected.class_name:
+            state.grading_candidate = selected.class_name
+            state.grading_started_at = timestamp
+            state.grading_confidence = selected.confidence
+            return
+        state.grading_confidence = min(state.grading_confidence, selected.confidence)
+        started_at = state.grading_started_at if state.grading_started_at is not None else timestamp
+        if timestamp - started_at < self.config.thresholds.grading_min_seconds:
             return
         if selected.class_name == "grade_accept":
             state.expected_route = "accepted"
@@ -196,9 +232,10 @@ class RuntimePipeline:
                 state.session.bale_id,
                 ObservationKind.GRADING_COMPLETED,
                 timestamp,
-                selected.confidence,
+                state.grading_confidence,
                 gradeSignal=selected.class_name,
                 expectedRoute=state.expected_route,
+                observedSeconds=max(0.0, timestamp - started_at),
             )
         )
         state.grading_emitted = True
@@ -226,18 +263,35 @@ class RuntimePipeline:
                 )
             )
 
-    def _candidate_for_weight(self) -> ActiveBale | None:
-        candidates = [state for state in self.active.values() if state.route_emitted and not state.weight_emitted]
-        return max(candidates, key=lambda item: item.last_seen, default=None)
+    def _weight_candidates(self) -> list[ActiveBale]:
+        return [state for state in self.active.values() if state.route_emitted and not state.weight_emitted]
 
     def _update_weight(self, frame: Any, timestamp: float) -> None:
-        state = self._candidate_for_weight()
-        if state is None:
+        candidates = self._weight_candidates()
+        if not candidates:
             return
+        if len(candidates) > 1:
+            for state in candidates:
+                if not state.weight_ambiguity_emitted:
+                    state.session.add(
+                        self._observation(
+                            state.session.bale_id,
+                            ObservationKind.TRACK_AMBIGUOUS,
+                            timestamp,
+                            0.0,
+                            context="multiple routed bales awaiting one scale reading",
+                        )
+                    )
+                    state.weight_ambiguity_emitted = True
+            return
+        state = candidates[0]
         crop = self._polygon_crop(frame, self.rois.scale_display)
         readings = self.display_reader.read(crop, timestamp)
+        state.ocr_attempts += 1
         stabilizer = self.weight_stabilizers[state.session.bale_id]
         for reading in readings:
+            if stabilizer.parse(reading) is not None:
+                state.ocr_numeric_seen = True
             stable = stabilizer.add(reading)
             if stable is None:
                 continue
@@ -278,7 +332,14 @@ class RuntimePipeline:
         if state.grading_emitted and not state.route_emitted:
             state.session.add(self._observation(bale_id, ObservationKind.ROUTING_MISSING, timestamp, 1.0))
         if state.route_emitted and not state.weight_emitted:
-            state.session.add(self._observation(bale_id, ObservationKind.WEIGHT_MISSING, timestamp, 1.0))
+            if state.weight_ambiguity_emitted:
+                pass
+            elif state.ocr_numeric_seen:
+                state.session.add(self._observation(bale_id, ObservationKind.WEIGHT_UNSTABLE, timestamp, 0.0))
+            elif state.ocr_attempts > 0:
+                state.session.add(self._observation(bale_id, ObservationKind.WEIGHT_UNREADABLE, timestamp, 0.0))
+            else:
+                state.session.add(self._observation(bale_id, ObservationKind.WEIGHT_MISSING, timestamp, 1.0))
         state.session.add(self._observation(bale_id, ObservationKind.BALE_EXITED, timestamp, 1.0))
         return state.session.finalize(timestamp)
 
@@ -286,7 +347,6 @@ class RuntimePipeline:
         detections = self.detector.infer(frame)
         bale_detections = [item for item in detections if item.class_name in self.BALE_CLASSES and self._track_id(item)]
         hand_points = self.hand_reader.points(frame)
-
         for detection in bale_detections:
             bale_id = self._track_id(detection)
             assert bale_id is not None

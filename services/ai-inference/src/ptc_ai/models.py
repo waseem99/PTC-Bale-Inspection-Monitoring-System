@@ -99,6 +99,6 @@ class InspectionEvent:
     model_version: str
     rule_version: str
     config_version: str
-    source: str = "actual-ai"
+    source: str = "edge"
     schema_version: int = 1
     metadata: dict[str, Any] = field(default_factory=dict)

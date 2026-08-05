@@ -60,3 +60,11 @@ Left-side routing is rejected. Direct scale integration is outside the present s
 - route and OCR weight metadata;
 - model, rule and configuration versions;
 - protected evidence reference.
+
+## Platform compatibility and protected metadata
+
+The current backend ingestion schema is strict. AI events are mapped to its existing `edge` event contract without extra top-level fields. A separate protected audit JSONL may preserve session ID, temporary Bale ID, reason code, route, OCR value and component metadata for technical evaluation. That audit sidecar is restricted operational data and must not be committed.
+
+## Conservative association rules
+
+The PoC assumes one active bale at the scale-reading point. If more than one routed bale is awaiting the same display reading, the runtime does not guess; it records an ambiguous association and returns an unresolved result for supervisor review.
