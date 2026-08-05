@@ -15,7 +15,7 @@
 - [AI acceptance and release record template](37-ai-acceptance-release-template.md)
 - [Final repository audit and closure baseline](38-final-repository-audit.md)
 
-## Solution design
+## Solution and AI design
 
 - [Solution architecture](03-solution-architecture.md)
 - [Technical stack](04-technical-stack.md)
@@ -26,7 +26,8 @@
 - [Frontend production readiness](22-frontend-production-readiness.md)
 - [Frontend/live API contract](23-frontend-api-contract.md)
 - [Backend API and persistent seeded PostgreSQL plan](27-backend-api-and-seeded-data-plan.md)
-- [PTC-specific AI model delivery plan](31-ai-model-delivery-plan.md)
+- [Finalized PTC AI delivery plan](31-ai-model-delivery-plan.md)
+- [Implemented AI runtime and testing baseline](39-ai-implementation-and-testing.md)
 
 ## Deployment and security
 
@@ -51,11 +52,11 @@
 
 ## Documentation rules
 
-1. The awarded proposal, BOQ, approved SOP, and signed change requests are authoritative.
+1. The awarded proposal, BOQ, approved SOP and signed change requests are authoritative.
 2. Reference-project media informs design but does not add PTC scope without written confirmation.
-3. The repository currently reports as public and must be made private before client-sensitive operational material is introduced.
-4. Site-sensitive details, runtime secrets, database URLs/backups, evidence, and restricted media must never be committed regardless of repository visibility.
+3. The repository is private, but restricted client material remains prohibited from Git regardless of visibility.
+4. Site-sensitive details, runtime secrets, database URLs/backups, evidence and restricted media must never be committed.
 5. Architecture decisions must be recorded in the decision log.
 6. PostgreSQL schema changes require reviewed Prisma migrations and recovery impact.
 7. An issue is not complete until its acceptance criteria and documentation impact are addressed.
-8. Raw footage, datasets, evidence clips, credentials, production IPs, database dumps, and model binaries remain outside Git.
+8. Raw footage, datasets, evidence clips, credentials, production IPs, database dumps and model binaries remain outside Git.

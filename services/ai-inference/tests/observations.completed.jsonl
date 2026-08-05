@@ -1,0 +1,6 @@
+{"kind":"bale.entered","cameraId":"CAM-01","baleId":"BALE-001","timestamp":100.0,"confidence":0.99}
+{"kind":"bale.opened","cameraId":"CAM-01","baleId":"BALE-001","timestamp":102.0,"confidence":0.92}
+{"kind":"hand_inspection.proper","cameraId":"CAM-01","baleId":"BALE-001","timestamp":106.0,"confidence":0.88}
+{"kind":"grading.completed","cameraId":"CAM-01","baleId":"BALE-001","timestamp":109.0,"confidence":0.85}
+{"kind":"routing.rejected","cameraId":"CAM-01","baleId":"BALE-001","timestamp":112.0,"confidence":0.94,"metadata":{"route":"rejected"}}
+{"kind":"weight.read","cameraId":"CAM-01","baleId":"BALE-001","timestamp":115.0,"confidence":0.91,"metadata":{"value":52.1,"unit":"kg"}}

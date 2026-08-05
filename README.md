@@ -1,43 +1,48 @@
 # PTC Bale Inspection & Monitoring System
 
-Local-first AI-assisted Proof of Concept for monitoring the PTC bale inspection process through four fixed cameras, a durable edge adapter, timestamped evidence, PostgreSQL, and an operational browser dashboard.
+Local-first AI-assisted Proof of Concept for monitoring the complete PTC tobacco-bale inspection process through four fixed cameras, a durable edge adapter, timestamped evidence, PostgreSQL, and an operational browser dashboard.
 
-## Final delivery status
+## Delivery status
 
-The repository-side application and local one-machine deployment package are complete and automation-certified.
+The application platform and the testable AI implementation baseline are now present in the repository.
 
-Only two delivery workstreams remain:
+Completed repository-side components include:
 
-1. **Actual PTC AI and site technical implementation** — controlled by #86, child issues #27–#34, actual camera/site integration #84, and actual model/site validation #85.
-2. **PM/client feedback, acceptance, handover, and closure** — controlled by #75, including workstation acceptance #83/#102, client UAT #52, handover #53, and any explicitly required feedback-driven stabilization.
+- React dashboard, Node.js API, PostgreSQL, evidence, reporting, review, audit and realtime services;
+- local one-machine Docker Compose deployment and durable edge spool;
+- YOLO/ByteTrack runtime adapter interfaces and detector training/export scripts;
+- hand-interaction analysis, grading observation, accepted/rejected routing and scale-display OCR stabilization;
+- deterministic end-to-end SOP/anomaly engine;
+- platform event mapping, evaluation helpers, recorded-video runner and AI Pipeline CI.
 
-The repository administration actions in #14 are a one-time prerequisite, not a third implementation workstream.
+The remaining AI work requires restricted external inputs and execution rather than additional undefined platform development:
 
-Authoritative closure path: [`docs/35-pm-ai-project-closure-runbook.md`](docs/35-pm-ai-project-closure-runbook.md)
+1. audit and approve the available factory recordings;
+2. create and QA annotations/dataset manifests;
+3. train the PTC-specific detector and any required temporal model;
+4. configure actual camera and ROI values;
+5. run locked accuracy/performance evaluation;
+6. complete actual-camera and PM/client acceptance.
 
-## Immediate deployment target
+The controlling implementation path is issue #86 and issues #27–#34, #114–#116, #84 and #85.
 
-The current release target is **one local workstation**. AWS, Vercel, Azure, public DNS, and managed cloud services are deferred and do not block local software completion.
+## Finalized monitored process
 
-The local package runs:
+```text
+Bale enters
+→ bale is cut/opened
+→ proper hand inspection is completed
+→ grading is completed
+→ bale is routed to accepted or left-side rejected lane
+→ weight is read from the weighing-machine display through AI/OCR
+→ inspection completes
+```
 
-- approved React/TypeScript dashboard;
-- Node.js/Express/TypeScript API;
-- PostgreSQL 17 with committed Prisma migrations;
-- durable SQLite edge spool and deterministic four-camera simulator;
-- protected evidence storage outside PostgreSQL and the public web root;
-- authenticated realtime SSE with polling fallback;
-- CSV and generated PDF reports;
-- local reverse proxy providing one browser origin;
-- local database/evidence backup and recovery tooling.
+Missing, incomplete, inconsistent or technically unresolved steps produce an event with a specific reason code and evidence reference. Camera/model/service failures remain operational events and are not process violations.
 
-The deterministic simulator validates software workflows only. It is not actual PTC camera or AI acceptance evidence.
-
-## One-command local bootstrap
+## One-command local platform bootstrap
 
 ### Windows 11, WSL2, and Docker Desktop
-
-From PowerShell in the repository root:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
@@ -50,165 +55,82 @@ Set-ExecutionPolicy -Scope Process Bypass
 bash scripts/local/bootstrap.sh
 ```
 
-Then open:
+Open `http://localhost:8080`.
 
-```text
-http://localhost:8080
-```
+Full platform instructions: [`docs/32-local-machine-deployment.md`](docs/32-local-machine-deployment.md)
 
-Bootstrap generates strong local credentials but does not print them. Runtime configuration and all durable data are stored outside the repository.
-
-Full instructions: [`docs/32-local-machine-deployment.md`](docs/32-local-machine-deployment.md)
-
-## Daily operations
-
-Windows:
-
-```powershell
-.\scripts\local\ptc-local.ps1 status
-.\scripts\local\ptc-local.ps1 logs
-.\scripts\local\ptc-local.ps1 smoke
-.\scripts\local\ptc-local.ps1 backup
-```
-
-Ubuntu/WSL:
+## AI core tests and deterministic replay
 
 ```bash
-bash scripts/local/ptc-local.sh status
-bash scripts/local/ptc-local.sh logs
-bash scripts/local/ptc-local.sh smoke
-bash scripts/local/ptc-local.sh backup
+cd services/ai-inference
+python -m pip install -e .
+python -m unittest discover -s tests -v
+python -m ptc_ai replay \
+  --config config/poc.example.json \
+  --input tests/observations.completed.jsonl
 ```
 
-Supported commands also include start, stop, restart, guarded restore, upgrade, secret rotation, simulator/hardware-ready mode, trusted-LAN enable/disable, and uninstall with optional separately confirmed data deletion.
+Recorded-video testing with approved model weights:
 
-## Runtime modes
+```bash
+python -m pip install -e '.[runtime]'
+python scripts/run_video.py \
+  --video /restricted/sample.mp4 \
+  --config /restricted/approved-camera-config.json \
+  --camera CAM-01 \
+  --weights /restricted/models/ptc-yolo-v1.pt \
+  --output /restricted/results/events.jsonl
+```
 
-### Simulator
-
-Default software/UAT mode:
-
-- four logical cameras;
-- completed, missed, incomplete, and unresolved inspections;
-- online, offline, reconnecting, disabled, and degraded camera states;
-- deterministic evidence fixtures;
-- durable retry/replay across API outages;
-- explicit synthetic source/version labels.
-
-### Hardware-ready
-
-The same local application stack with simulator generation disabled. Machine-authenticated event, health, camera-status, evidence, and durable-spool contracts remain active for actual adapters.
-
-Actual cameras and the actual PTC model are part of the single technical AI/site workstream. They must integrate through the completed contracts without redesigning the frontend or platform API.
-
-## Implemented workflows
-
-- fixed viewer, supervisor, and administrator login;
-- server-side cookie sessions and role authorization;
-- operations summary and four-camera monitoring;
-- camera-safe configuration without credentials or stream addresses;
-- sequence-aware camera status ingestion;
-- paginated, filterable, sortable inspection events;
-- event detail and ordered SOP steps;
-- supervisor confirm/dismiss decisions and remarks;
-- optimistic concurrency and transactional audit history;
-- machine-authenticated idempotent event and health ingestion;
-- conflicting event-ID replay rejection;
-- atomic evidence finalization with SHA-256 verification;
-- authenticated snapshots and MP4 byte-range delivery;
-- evidence consistency, retention, and reconciliation controls;
-- realtime SSE and bounded polling fallback;
-- PostgreSQL-backed CSV and PDF reporting;
-- release, schema, contract, model, rules, configuration, and edge versions;
-- deterministic seed/bootstrap and production reset guards;
-- PostgreSQL restart, dump, checksum, and restore validation;
-- local offline operation after images/dependencies are installed.
+Generic pretrained weights may be used only for plumbing experiments. They cannot be presented as PTC accuracy evidence.
 
 ## Architecture
 
-The PoC is local-first. The supplied workstation is the operational boundary for the current milestone.
-
 ```text
-Browser
-  |
-Local reverse proxy (workstation-only by default)
-  |-- React dashboard
-  |-- Node.js API
-        |-- PostgreSQL 17
-        |-- protected evidence storage
-        |-- realtime/reporting/review/audit services
-  |
-Durable Python/SQLite edge spool
-  |-- simulator now
-  |-- actual camera/AI adapters later
+Recorded video / actual camera stream
+  → YOLO custom object/state detection
+  → ByteTrack camera-local bale tracking
+  → inspector-to-bale association
+  → pose/hand and temporal interaction analysis
+  → grading verification
+  → accepted/rejected ROI verification
+  → scale-display OCR and temporal stabilization
+  → deterministic SOP/anomaly engine
+  → durable edge delivery
+  → Node.js API
+  → PostgreSQL, evidence, dashboard, review and reporting
 ```
-
-PostgreSQL, API, dashboard, edge spool, and evidence storage are not published directly to the host network. Only the local reverse-proxy port is exposed, bound to `127.0.0.1` by default.
 
 ## Technical stack
 
 - **Dashboard:** React, TypeScript, Vite
 - **API:** Node.js, Express, TypeScript
-- **Database:** PostgreSQL 17, Prisma, committed SQL migrations
-- **Edge contract:** Python standard library, SQLite WAL durable spool
-- **Evidence:** protected local filesystem plus relational metadata
+- **Database:** PostgreSQL 17, Prisma and committed migrations
+- **Edge delivery:** Python, SQLite WAL durable spool
+- **AI:** Python, Ultralytics YOLO, ByteTrack, optional MediaPipe/pose/action adapters, EasyOCR-compatible display reader
+- **Evidence:** protected local filesystem with relational metadata
 - **Realtime:** authenticated Server-Sent Events with polling fallback
-- **Local packaging:** Docker Compose and Caddy
-- **Testing:** Jest, Supertest, Vitest, Playwright, Python unittest, GitHub Actions
-- **Future AI runtime:** Python, OpenCV/PyTorch training, approved optimized inference runtime
+- **Packaging:** Docker Compose and Caddy
+- **Testing:** Jest, Supertest, Vitest, Playwright, Python unittest and GitHub Actions
 
-No MongoDB/Mongoose or paid cloud database is required for the local release.
+## Repository and restricted-data rules
 
-## Local data and secrets
-
-Default data locations:
-
-- Windows: `%LOCALAPPDATA%\PTC-Bale`
-- Ubuntu/WSL: `~/.ptc-bale`
-
-They contain generated runtime configuration, PostgreSQL data, evidence, spool state, backups, and logs. None belongs in Git.
-
-## Local certification
-
-The release candidate must pass:
-
-- Frontend CI;
-- Backend CI and live browser tests;
-- PostgreSQL recovery CI;
-- OpenAPI contract CI;
-- durable edge-spool CI;
-- Local Runtime CI, which builds and runs the actual one-machine stack.
-
-Target-workstation acceptance is recorded in:
-
-- [`docs/33-local-release-manifest.md`](docs/33-local-release-manifest.md)
-- [`docs/34-local-uat-record.md`](docs/34-local-uat-record.md)
-
-Automated CI is not a substitute for executing the final UAT record on the intended workstation.
-
-## Optional cloud alignment
-
-Cloud deployment assets remain available for later approval. A future cloud layer may provide central access, identity, synchronized metadata/evidence, managed storage, monitoring, or backup. It must not silently replace or block the local operating scope.
-
-## Source of truth
-
-The awarded BOQ, approved technical proposal, confirmed PTC SOP, written clarifications, and signed change requests are authoritative. The Bangladesh reference project informs feasibility and workflow understanding but does not automatically add PTC scope or provide PTC acceptance evidence.
-
-## Documentation
-
-See [`docs/README.md`](docs/README.md) for the complete index and [`docs/38-final-repository-audit.md`](docs/38-final-repository-audit.md) for the final audit record.
-
-## Security
-
-This repository currently reports as **public** and must be changed to **private before any client-sensitive operational information is introduced**.
+The repository is private. Private visibility does not authorize committing restricted client material.
 
 Never commit or attach:
 
-- generated runtime configuration or secrets;
-- database URLs, dumps, or backups;
-- camera URLs, credentials, production/private IP details, or site diagrams;
-- factory footage, annotations, or evidence;
-- actual model binaries or restricted datasets;
+- factory footage or extracted frames;
+- annotations or datasets;
+- trained model binaries or OCR crops;
+- camera URLs, credentials, private IP details or site diagrams;
+- runtime configuration, secrets, database dumps, evidence or backups;
 - personal data.
 
-Restricted materials remain in approved protected local/external storage and are referenced only through safe IDs, manifests, and checksums.
+Restricted materials remain in approved protected storage and are referenced through safe IDs, manifests and checksums.
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [AI implementation and testing baseline](docs/39-ai-implementation-and-testing.md)
+- [Local deployment](docs/32-local-machine-deployment.md)
+- [PM/AI closure runbook](docs/35-pm-ai-project-closure-runbook.md)

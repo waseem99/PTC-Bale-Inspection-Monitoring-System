@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ptc-bale-ai"
+version = "0.1.0"
+description = "PTC tobacco bale inspection AI orchestration, SOP reasoning, OCR stabilization, and evaluation"
+requires-python = ">=3.11"
+readme = "README.md"
+license = {text = "Proprietary"}
+authors = [{name = "Codistan"}]
+dependencies = []
+
+[project.optional-dependencies]
+runtime = [
+  "numpy>=1.26,<3",
+  "opencv-python-headless>=4.10,<5",
+  "ultralytics>=8.3,<9",
+  "mediapipe>=0.10.14,<0.11",
+  "easyocr>=1.7.2,<2",
+]
+train = [
+  "numpy>=1.26,<3",
+  "ultralytics>=8.3,<9",
+  "torch>=2.4,<3",
+]
+
+[project.scripts]
+ptc-ai = "ptc_ai.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

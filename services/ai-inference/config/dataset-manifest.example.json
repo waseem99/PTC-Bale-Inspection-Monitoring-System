@@ -1,0 +1,29 @@
+{
+  "datasetVersion": "ptc-dataset-v1",
+  "annotationVersion": "ptc-annotations-v1",
+  "restrictedStorageReference": "REPLACE_WITH_APPROVED_REFERENCE_ID",
+  "splits": {
+    "train": [],
+    "validation": [],
+    "lockedTest": []
+  },
+  "classes": [
+    "bale_closed",
+    "bale_opened",
+    "inspector",
+    "grade_indicator",
+    "scale_display"
+  ],
+  "actions": [
+    "opening_completed",
+    "hand_inspection_proper",
+    "hand_inspection_incomplete",
+    "hand_inspection_none",
+    "grading_completed",
+    "routing_accepted",
+    "routing_rejected",
+    "weight_stable",
+    "weight_unreadable"
+  ],
+  "notes": "Do not place raw paths, client footage, annotations, or model binaries in GitHub."
+}
