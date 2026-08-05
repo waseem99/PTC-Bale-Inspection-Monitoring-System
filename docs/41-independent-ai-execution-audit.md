@@ -10,9 +10,17 @@ Independently execute every AI-model and integrated-testing check possible with 
 
 ## Verified code-level execution
 
-The AI Pipeline CI job for PR #117 was re-run on 2026-08-05 against head `342736e7654f14758db55714bb8111ffa6559260`.
+The AI Pipeline CI job for PR #117 was independently re-run on 2026-08-05 against head `342736e7654f14758db55714bb8111ffa6559260`.
 
-The gate installs the dependency-light package, compiles source/tests/scripts, runs the complete 27-test unit/integration suite and performs a deterministic backend-compatible replay. The re-run result must be referenced in #86/#85; it is code-level evidence only and is not PTC model-accuracy evidence.
+- workflow run: `31011952267`;
+- re-run job: `92340921592`;
+- conclusion: `success`;
+- package installation: passed;
+- Python compilation: passed;
+- complete 27-test unit/integration suite: passed;
+- deterministic backend-compatible replay: passed.
+
+This is code-level evidence only and is not PTC model-accuracy evidence.
 
 ## Connected media inspected
 
@@ -67,7 +75,7 @@ Therefore the following cannot be executed from the current connected environmen
 ### Completed independently
 
 - repository and AI source review;
-- code-level CI re-run request;
+- successful code-level CI re-run with compilation, 27 tests and deterministic replay;
 - reference-media inventory, metadata, checksum and suitability audit;
 - search for trained models, datasets, annotations, ROIs and deployment access;
 - confirmation that reference/demo videos cannot be treated as actual PTC acceptance evidence;
@@ -88,4 +96,4 @@ These are operational assets, not missing repository framework code. Creating fa
 
 ## Status wording
 
-> The AI implementation and deterministic integration framework are code-complete. Independent inspection found only reference/demo media and no accessible PTC-trained weights, approved dataset/ROIs or deployed backend test access. Actual PTC model validation and integrated deployed UAT remain blocked until the controlled operational handoff package is provided.
+> The AI implementation and deterministic integration framework are code-complete and the complete code-level test gate passed independently. Inspection found only reference/demo media and no accessible PTC-trained weights, approved dataset/ROIs or deployed backend test access. Actual PTC model validation and integrated deployed UAT remain blocked until the controlled operational handoff package is provided.
