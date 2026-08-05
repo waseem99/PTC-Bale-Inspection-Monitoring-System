@@ -1,0 +1,41 @@
+{
+  "recordVersion": "ptc-acceptance-record-v1",
+  "status": "pending",
+  "environment": {
+    "name": "REPLACE",
+    "frontendBuild": "REPLACE",
+    "backendBuild": "REPLACE",
+    "databaseEngine": "PostgreSQL 17",
+    "migrationVersion": "REPLACE",
+    "edgeBuild": "REPLACE",
+    "aiBuild": "REPLACE"
+  },
+  "aiRelease": {
+    "datasetVersion": "REPLACE",
+    "annotationVersion": "REPLACE",
+    "modelVersion": "REPLACE",
+    "modelSha256": "REPLACE",
+    "rulesVersion": "ptc-sop-v1",
+    "roiConfigVersion": "REPLACE",
+    "ocrVersion": "REPLACE"
+  },
+  "testManifest": {
+    "restrictedReferenceId": "REPLACE",
+    "lockedAt": "REPLACE",
+    "scenarioCount": 0
+  },
+  "results": {
+    "componentMetricsReference": "REPLACE",
+    "eventMetricsReference": "REPLACE",
+    "ocrMetricsReference": "REPLACE",
+    "performanceReference": "REPLACE",
+    "recoveryReference": "REPLACE",
+    "knownLimitations": []
+  },
+  "approvals": {
+    "technicalOwner": null,
+    "pm": null,
+    "client": null
+  },
+  "restrictedMaterialCommittedToGit": false
+}

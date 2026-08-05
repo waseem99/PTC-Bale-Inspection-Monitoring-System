@@ -30,6 +30,7 @@
 - [Backend API and persistent seeded PostgreSQL plan](27-backend-api-and-seeded-data-plan.md)
 - [Finalized PTC AI delivery plan](31-ai-model-delivery-plan.md)
 - [Implemented AI runtime and testing baseline](39-ai-implementation-and-testing.md)
+- [Annotation and dataset workflow](43-annotation-and-dataset-workflow.md)
 
 ## Deployment and security
 
@@ -51,6 +52,7 @@
 - [Backend/PostgreSQL validation and local runbook](28-backend-validation-and-local-runbook.md)
 - [PostgreSQL validation status and external runner gate](29-postgresql-validation-status.md)
 - [Target workstation local UAT record](34-local-uat-record.md)
+- [Testing-readiness execution package](42-testing-readiness-execution-package.md)
 
 ## Documentation rules
 

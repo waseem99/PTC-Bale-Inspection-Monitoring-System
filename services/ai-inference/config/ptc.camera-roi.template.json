@@ -1,0 +1,51 @@
+{
+  "approval": {
+    "approved": false,
+    "approvedBy": "REPLACE_WITH_PM_OR_CLIENT_APPROVER",
+    "approvedAt": null,
+    "notes": "Placeholder normalized ROIs. Replace from actual PTC footage and obtain approval before model acceptance."
+  },
+  "versions": {
+    "model": "REPLACE_WITH_TRAINED_PTC_MODEL_VERSION",
+    "rules": "ptc-sop-v1",
+    "config": "ptc-camera-roi-template-v1"
+  },
+  "weightUnit": "kg",
+  "weightPattern": "\\d+(?:\\.\\d+)?",
+  "thresholds": {
+    "minObservationConfidence": 0.55,
+    "handMinContactSeconds": 2.0,
+    "handMinMotion": 0.04,
+    "gradingMinSeconds": 0.5,
+    "ocrMinConfidence": 0.7,
+    "ocrStableFrames": 3,
+    "ocrTolerance": 0.05,
+    "sessionTimeoutSeconds": 180
+  },
+  "cameras": {
+    "CAM-01": {
+      "inspection": [[0.1, 0.1], [0.7, 0.1], [0.7, 0.85], [0.1, 0.85]],
+      "accepted": [[0.7, 0.1], [1.0, 0.1], [1.0, 0.85], [0.7, 0.85]],
+      "rejected": [[0.0, 0.1], [0.1, 0.1], [0.1, 0.85], [0.0, 0.85]],
+      "scaleDisplay": [[0.75, 0.0], [1.0, 0.0], [1.0, 0.2], [0.75, 0.2]]
+    },
+    "CAM-02": {
+      "inspection": [[0.1, 0.1], [0.7, 0.1], [0.7, 0.85], [0.1, 0.85]],
+      "accepted": [[0.7, 0.1], [1.0, 0.1], [1.0, 0.85], [0.7, 0.85]],
+      "rejected": [[0.0, 0.1], [0.1, 0.1], [0.1, 0.85], [0.0, 0.85]],
+      "scaleDisplay": [[0.75, 0.0], [1.0, 0.0], [1.0, 0.2], [0.75, 0.2]]
+    },
+    "CAM-03": {
+      "inspection": [[0.1, 0.1], [0.7, 0.1], [0.7, 0.85], [0.1, 0.85]],
+      "accepted": [[0.7, 0.1], [1.0, 0.1], [1.0, 0.85], [0.7, 0.85]],
+      "rejected": [[0.0, 0.1], [0.1, 0.1], [0.1, 0.85], [0.0, 0.85]],
+      "scaleDisplay": [[0.75, 0.0], [1.0, 0.0], [1.0, 0.2], [0.75, 0.2]]
+    },
+    "CAM-04": {
+      "inspection": [[0.1, 0.1], [0.7, 0.1], [0.7, 0.85], [0.1, 0.85]],
+      "accepted": [[0.7, 0.1], [1.0, 0.1], [1.0, 0.85], [0.7, 0.85]],
+      "rejected": [[0.0, 0.1], [0.1, 0.1], [0.1, 0.85], [0.0, 0.85]],
+      "scaleDisplay": [[0.75, 0.0], [1.0, 0.0], [1.0, 0.2], [0.75, 0.2]]
+    }
+  }
+}

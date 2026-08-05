@@ -1,0 +1,124 @@
+{
+  "specificationVersion": "ptc-annotations-v1",
+  "status": "template-pending-pilot-qa-and-pm-approval",
+  "purpose": "Create reproducible labels for the finalized PTC bale inspection workflow without inventing unobservable states.",
+  "objectClasses": [
+    {
+      "name": "bale_closed",
+      "type": "bounding_box",
+      "definition": "A bale that has entered the inspection area and is not yet visibly opened.",
+      "requiredAttributes": ["cameraId", "visibility", "occlusion"]
+    },
+    {
+      "name": "bale_opened",
+      "type": "bounding_box",
+      "definition": "A bale with visibly opened/cut wrapping or exposed material.",
+      "requiredAttributes": ["cameraId", "visibility", "occlusion"]
+    },
+    {
+      "name": "inspector",
+      "type": "bounding_box",
+      "definition": "A person participating in the inspection process. Do not identify the person.",
+      "requiredAttributes": ["cameraId", "visibility", "occlusion"]
+    },
+    {
+      "name": "grade_indicator",
+      "type": "bounding_box_or_keyframe",
+      "definition": "Only a visible grade signal, label, gesture, screen or artifact that humans can label consistently.",
+      "requiredAttributes": ["gradeValue", "visibility"]
+    },
+    {
+      "name": "scale_display",
+      "type": "polygon",
+      "definition": "The complete visible weighing-machine display used for OCR.",
+      "requiredAttributes": ["displayReadable", "glare", "occlusion"]
+    }
+  ],
+  "temporalLabels": [
+    {
+      "name": "opening_completed",
+      "definition": "The bale changes from closed to visibly opened.",
+      "minimumEvidence": "Clear before/after visual evidence within one camera-local bale track."
+    },
+    {
+      "name": "hand_inspection_proper",
+      "definition": "Sustained hand interaction with the opened bale, with meaningful movement and sufficient visibility.",
+      "minimumEvidence": "Contact duration and movement are visible for the approved process duration."
+    },
+    {
+      "name": "hand_inspection_incomplete",
+      "definition": "Some hand interaction is visible but it does not meet the approved duration, movement or coverage rule.",
+      "minimumEvidence": "A brief/partial interaction is visible and distinguishable from full inspection."
+    },
+    {
+      "name": "hand_inspection_none",
+      "definition": "The bale leaves the applicable stage with no observable hand inspection.",
+      "minimumEvidence": "Sufficient visibility exists to rule out inspection."
+    },
+    {
+      "name": "grading_completed",
+      "definition": "The approved visible grading signal is observed.",
+      "minimumEvidence": "A visible, PM-approved grading signal; do not infer hidden/manual decisions."
+    },
+    {
+      "name": "routing_accepted",
+      "definition": "The tracked bale enters the approved accepted-lane ROI.",
+      "minimumEvidence": "Bale center/track crosses the accepted ROI with sufficient continuity."
+    },
+    {
+      "name": "routing_rejected",
+      "definition": "The tracked bale enters the approved left-side rejected-lane ROI.",
+      "minimumEvidence": "Bale center/track crosses the rejected ROI with sufficient continuity."
+    },
+    {
+      "name": "weight_stable",
+      "definition": "The scale display shows a stable numeric value across the approved consecutive-frame window.",
+      "minimumEvidence": "Human-readable display crop and ground-truth numeric value."
+    },
+    {
+      "name": "weight_unreadable",
+      "definition": "The display is present but no reliable numeric value can be read.",
+      "minimumEvidence": "Display ROI is visible; glare, blur, obstruction or resolution prevents reading."
+    },
+    {
+      "name": "insufficient_visibility",
+      "definition": "The process state cannot be determined because the relevant area is obstructed, out of frame or technically unusable.",
+      "minimumEvidence": "The annotator records the cause rather than assigning a process violation."
+    }
+  ],
+  "attributes": {
+    "visibility": ["clear", "partial", "insufficient"],
+    "occlusion": ["none", "minor", "major"],
+    "displayReadable": ["yes", "no", "uncertain"],
+    "glare": ["none", "minor", "major"],
+    "gradeValue": ["accepted", "rejected", "other_visible_grade", "unknown"]
+  },
+  "qualityRules": {
+    "pilotBatchMinimumClips": 20,
+    "doubleAnnotationRate": 0.2,
+    "minimumAgreementTarget": 0.9,
+    "reviewAllAmbiguousLabels": true,
+    "rejectUnobservableLabels": true,
+    "recordAnnotatorAndReviewVersion": true
+  },
+  "splitRules": {
+    "unit": "complete source video, camera session or collection block",
+    "neverRandomlySplitAdjacentFrames": true,
+    "requiredSplits": ["train", "validation", "lockedTest"],
+    "lockedTestFrozenBeforeFinalTuning": true,
+    "preventSameBaleOrSessionAcrossSplits": true
+  },
+  "restrictedHandling": {
+    "rawMediaInGit": false,
+    "annotationsInGit": false,
+    "modelBinariesInGit": false,
+    "allowedGitArtifacts": [
+      "sanitized manifest IDs",
+      "checksums",
+      "annotation specification",
+      "commands/configuration",
+      "sanitized metrics",
+      "known limitations"
+    ]
+  }
+}
