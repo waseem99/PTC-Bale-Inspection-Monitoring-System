@@ -1,145 +1,80 @@
 # Final Repository Audit and Closure Baseline
 
-**Audit date:** 2026-07-31  
+**Original audit date:** 2026-07-31  
+**Final testing-readiness review:** 2026-08-05  
 **Repository:** `waseem99/PTC-Bale-Inspection-Monitoring-System`  
 **Certified application release:** `e5095cb39fd5e41e8deb869c0a8b99dc7ba6fedb`  
-**PM closure package:** `a03c69032d271be6757c8cd8f96e69f6854a7ae3`
+**Final audit cleanup:** `b603e7a1448f8691880ce017a02c232cc9672e24`  
+**Current AI/testing baseline:** `2e1857da8acbf1915b6e1550e828a378dc152bde`
 
-## 1. Audit purpose
+## Current correction
 
-Confirm that all repository-side software, deployment, security-boundary, testing, documentation, and handover work that can be completed before actual PTC AI/site execution and client feedback is complete, coherent, and safe.
+This document originally recorded that the repository was public and that actual AI implementation had not yet been added. Those findings are now superseded:
 
-This audit does not claim that actual factory cameras, the actual PTC model, client UAT, or client acceptance have occurred.
+- the repository is verified **private**;
+- Arif, Qamar and Zubair have verified write access;
+- no pull requests are currently open;
+- PR #117 merged the testable PTC AI runtime into `main`;
+- AI Pipeline CI passed compile, 27 unit/integration tests and deterministic backend-compatible replay on the final PR head.
 
-## 2. Areas reviewed
+The authoritative current readiness record is [`40-final-testing-readiness-audit.md`](40-final-testing-readiness-audit.md).
 
-- repository visibility, collaborator access, branches, open pull requests, and issue structure;
-- certified release commit and same-head pull-request workflow evidence;
-- README and documentation index;
-- PM/AI closure runbook and acceptance templates;
-- `.gitignore` restricted-artifact exclusions;
-- CODEOWNERS paths and ownership;
-- local Docker Compose topology and host exposure;
-- runtime environment template and generated-secret handling;
-- Bash and PowerShell bootstrap/operations tooling;
-- guarded backup, restore, upgrade, LAN exposure, secret rotation, and uninstall behavior;
-- fixed-user seed/upsert and session-revocation behavior;
-- frontend, backend, recovery, contract, edge, and local-runtime workflows;
-- TODO/FIXME and obvious committed-secret pattern searches;
-- open backlog duplication and deferred-cloud conflicts.
+## Repository-side scope confirmed complete
 
-## 3. Confirmed repository-side baseline
+The following repository-side components are implemented and should remain frozen except for demonstrated defects, approved security changes or approved change requests:
 
-The following is implemented and should remain frozen except for a specific defect, approved security fix, or change request:
-
-- React/Vite dashboard and live same-origin API integration;
+- React/Vite dashboard and same-origin API integration;
 - Node.js/Express/TypeScript platform API;
-- PostgreSQL 17 and committed Prisma migrations;
-- fixed viewer, supervisor, and administrator roles;
-- server-side sessions, authorization, origin protection, and safe errors;
-- event search, filtering, pagination, detail, review, remarks, concurrency, and audit history;
-- camera configuration/status and health contracts;
-- machine-authenticated idempotent ingestion;
-- durable SQLite edge spool with restart-safe replay;
-- protected evidence finalization, checksum verification, authenticated retrieval, and byte ranges;
-- evidence consistency, reconciliation, and retention controls;
-- realtime SSE and polling fallback;
-- PostgreSQL-backed CSV and PDF reporting;
-- Docker Compose one-machine runtime with workstation-only ingress by default;
-- external durable storage for PostgreSQL, evidence, spool, backups, and logs;
-- Windows and Ubuntu bootstrap and daily operations tooling;
-- database/evidence backup, SHA-256 manifest, guarded restore, upgrade, secret rotation, and uninstall controls;
-- deterministic simulator and hardware-ready modes;
-- release manifest, workstation UAT, restricted-material, and AI-acceptance templates.
+- PostgreSQL/Prisma schema and committed migrations;
+- authentication, authorization, review, audit, reports and realtime updates;
+- protected evidence handling, range playback, reconciliation and retention controls;
+- durable SQLite edge spool with retry and idempotent replay;
+- local Docker Compose deployment, backup, restore, upgrade and operations tooling;
+- simulator and hardware-ready modes;
+- YOLO/ByteTrack runtime adapters and training/export commands;
+- hand-inspection, grading, routing and scale-display OCR processing baselines;
+- deterministic SOP/anomaly engine and strict backend-compatible event mapping;
+- recorded-video runner, evaluation helpers, Docker packaging and AI CI;
+- PM, restricted-material, UAT and AI acceptance templates.
 
-## 4. Certification evidence
+## What this audit does not prove
 
-PR #97 records all required workflows passing on the same release head `0f30064dcda2492938623409d1e7811df5dccf16` before merge:
+Repository completion is not the same as operational acceptance. The following still require external execution evidence:
 
-- Frontend CI;
-- Backend CI;
-- Backend Recovery CI;
-- Contracts CI;
-- Edge Simulator CI;
-- Local Runtime CI;
-- existing AWS deployment-package regression.
+- that the deployed frontend/backend/database use the intended commit and migrations;
+- deployment health, configuration, secrets, backup and recovery checks;
+- approved factory-video inventory, permissions, annotations and dataset lineage;
+- trained PTC-specific weights and locked evaluation results;
+- approved inspection, grading, accepted/rejected and scale-display ROIs;
+- actual video/camera performance, false positives, false negatives and unresolved cases;
+- four-stream throughput, latency, stability and recovery;
+- PM/client UAT, known limitations, training, handover and sign-off.
 
-The merged application release is `e5095cb39fd5e41e8deb869c0a8b99dc7ba6fedb`.
+## Security and governance status
 
-The merged commit itself does not contain a separate duplicate status set; the authoritative certification record is the same-head PR evidence and sanitized Local Runtime CI artifact referenced in PR #97.
+Confirmed:
 
-## 5. Final cleanup fixes
+- repository visibility is private;
+- collaborators required for delivery have write access;
+- CODEOWNERS and CI workflows exist;
+- restricted material remains prohibited from Git regardless of visibility;
+- no open pull requests remain.
 
-This final audit cleanup applies the following corrections:
+Still requiring manual GitHub Settings verification under #14:
 
-1. Local Runtime CI now fails when the certification harness is absent instead of printing a success-path informational message.
-2. Frontend and backend workflows require the committed `pnpm-lock.yaml` and always use `pnpm install --frozen-lockfile`.
-3. The local deployment data-layout typo `vidence/` is corrected to `evidence/`.
-4. The PM closure runbook and README are normalized to exactly two remaining workstreams.
-5. Historical cloud, umbrella, and duplicate issues are reconciled so they do not appear as current implementation scope.
+- branch protection and required checks on `main`;
+- force-push and branch-deletion restrictions;
+- deployment-environment reviewer controls;
+- available secret scanning, dependency alerts and security settings;
+- cleanup of obsolete historical branches after confirming no unique required history.
 
-## 6. Security and repository hygiene findings
+## Final project boundary
 
-### Confirmed
+No additional undefined platform development remains. New code work must be tied to one of:
 
-- `.gitignore` excludes generated environment files, credentials, raw/annotated data, evidence, footage, model binaries, dumps, backups, logs, and local runtime state.
-- CODEOWNERS covers application, infrastructure, workflows, documentation, and repository governance.
-- PostgreSQL, API, dashboard, and edge services are not directly published by the local Compose runtime.
-- The proxy binds to `127.0.0.1` by default.
-- generated credentials are stored outside Git and are not printed;
-- secret rotation updates existing fixed users and revokes their sessions;
-- restore and local-data deletion require explicit confirmation;
-- no TODO/FIXME markers or obvious committed private-key/AWS-access-key patterns were found in the final audit searches;
-- no open pull requests remained before this cleanup PR was opened.
-
-### Manual administration still required
-
-The repository currently reports as public. The connector used for this audit cannot change repository visibility, configure branch rules, enable security settings, or delete branch refs.
-
-Complete #14 manually in GitHub Settings before introducing any client-sensitive material:
-
-- make the repository private;
-- protect `main` with pull-request review and applicable required checks;
-- block force pushes and deletion;
-- enable available secret scanning, dependency alerts, and security features;
-- confirm collaborator access after the visibility change;
-- remove obsolete merged branches after confirming no unique required history remains.
-
-Branches observed during the audit:
-
-- `agent/aws-ec2-staging-deployment`
-- `agent/final-software-certification`
-- `agent/software-production-readiness`
-- `chore/pm-ai-closure-handover`
-- `chore/register-local-runtime-ci`
-- `feature/44-dashboard-v1`
-- `feature/68-platform-api`
-- `feature/68-platform-api-plan`
-- `project-foundation`
-
-Keep `main`. Delete the listed historical branches only after the repository owner verifies that their merged/unique history is no longer needed.
-
-## 7. Only two remaining workstreams
-
-### Workstream A — actual PTC AI and site technical implementation
-
-Controlled by #86 and executed through #27–#34, #84, and #85.
-
-It includes controlled data preparation, annotation, detector experiments, tracking/association, interaction recognition, SOP logic, locked evaluation, model packaging, actual cameras, four-stream performance, actual adapter integration, and site validation.
-
-### Workstream B — PM/client feedback, acceptance, and closure
-
-Controlled by #75.
-
-It includes target-workstation acceptance, client/process decisions, client feedback classification, client UAT, training, handover, final release identity, support ownership, and any explicitly required feedback-driven stabilization or hypercare.
-
-## 8. Final boundary
-
-No additional repository-side platform feature is considered open merely because an old issue remains in history. New work must be tied to:
-
-- an objectively demonstrated defect;
+- a demonstrated defect;
 - an approved in-scope acceptance gap;
-- a configuration/clarification action; or
+- a required configuration/calibration change;
 - an approved change request.
 
-Actual AI performance, hardware stability, and client acceptance must be supported by their own restricted evidence and formal acceptance records. Simulator or CI results must never be represented as actual PTC AI/site performance.
+The project is ready to enter proper testing. It becomes formally complete only after the external testing and acceptance gates in `docs/40-final-testing-readiness-audit.md`, #85, #52 and #53 are recorded.
