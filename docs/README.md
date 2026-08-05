@@ -15,6 +15,7 @@
 - [AI acceptance and release record template](37-ai-acceptance-release-template.md)
 - [Final repository audit and closure baseline](38-final-repository-audit.md)
 - [Final testing-readiness audit and blockers](40-final-testing-readiness-audit.md)
+- [Independent AI execution audit](41-independent-ai-execution-audit.md)
 
 ## Solution and AI design
 
