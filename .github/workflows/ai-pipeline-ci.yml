@@ -45,5 +45,7 @@ jobs:
           assert len(lines) == 1
           payload = json.loads(lines[0])
           assert payload['outcome'] == 'completed'
-          assert payload['aiMetadata']['reasonCode'] == 'NONE'
+          assert payload['source'] == 'edge'
+          assert 'aiMetadata' not in payload
+          assert 'Reason NONE' in payload['summary']
           PY
