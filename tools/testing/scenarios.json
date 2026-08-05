@@ -1,0 +1,112 @@
+{
+  "manifestVersion": "ptc-synthetic-acceptance-v1",
+  "purpose": "Deterministic platform and workflow testing only; never actual PTC AI accuracy evidence.",
+  "scenarios": [
+    {
+      "code": "VALID_ACCEPTED",
+      "outcome": "completed",
+      "reason": "Inspection completed",
+      "confidence": 94,
+      "route": "accepted",
+      "weight": 52.1,
+      "stepStates": ["complete", "complete", "complete", "complete", "complete", "complete"]
+    },
+    {
+      "code": "VALID_REJECTED_LEFT",
+      "outcome": "completed",
+      "reason": "Inspection completed",
+      "confidence": 93,
+      "route": "rejected",
+      "weight": 51.8,
+      "stepStates": ["complete", "complete", "complete", "complete", "complete", "complete"]
+    },
+    {
+      "code": "BALE_NOT_OPENED",
+      "outcome": "missed",
+      "reason": "BALE_NOT_OPENED",
+      "confidence": 91,
+      "stepStates": ["complete", "failed", "failed", "failed", "failed", "failed"]
+    },
+    {
+      "code": "HAND_INSPECTION_MISSING",
+      "outcome": "incomplete",
+      "reason": "HAND_INSPECTION_MISSING",
+      "confidence": 90,
+      "stepStates": ["complete", "complete", "failed", "failed", "failed", "failed"]
+    },
+    {
+      "code": "HAND_INSPECTION_INCOMPLETE",
+      "outcome": "incomplete",
+      "reason": "HAND_INSPECTION_INCOMPLETE",
+      "confidence": 84,
+      "stepStates": ["complete", "complete", "failed", "failed", "failed", "failed"]
+    },
+    {
+      "code": "GRADING_MISSING",
+      "outcome": "incomplete",
+      "reason": "GRADING_MISSING",
+      "confidence": 89,
+      "stepStates": ["complete", "complete", "complete", "failed", "failed", "failed"]
+    },
+    {
+      "code": "ROUTING_MISSING",
+      "outcome": "incomplete",
+      "reason": "ROUTING_MISSING",
+      "confidence": 88,
+      "stepStates": ["complete", "complete", "complete", "complete", "failed", "failed"]
+    },
+    {
+      "code": "ROUTING_MISMATCH",
+      "outcome": "incomplete",
+      "reason": "ROUTING_MISMATCH",
+      "confidence": 87,
+      "route": "rejected",
+      "stepStates": ["complete", "complete", "complete", "complete", "failed", "failed"]
+    },
+    {
+      "code": "WEIGHT_MISSING",
+      "outcome": "incomplete",
+      "reason": "WEIGHT_MISSING",
+      "confidence": 92,
+      "route": "accepted",
+      "stepStates": ["complete", "complete", "complete", "complete", "complete", "failed"]
+    },
+    {
+      "code": "WEIGHT_UNREADABLE",
+      "outcome": "unresolved",
+      "reason": "WEIGHT_UNREADABLE",
+      "confidence": 42,
+      "route": "accepted",
+      "stepStates": ["complete", "complete", "complete", "complete", "complete", "unknown"]
+    },
+    {
+      "code": "WEIGHT_UNSTABLE",
+      "outcome": "unresolved",
+      "reason": "WEIGHT_UNSTABLE",
+      "confidence": 44,
+      "route": "accepted",
+      "stepStates": ["complete", "complete", "complete", "complete", "complete", "unknown"]
+    },
+    {
+      "code": "TRACK_ASSOCIATION_AMBIGUOUS",
+      "outcome": "unresolved",
+      "reason": "TRACK_OR_ASSOCIATION_AMBIGUOUS",
+      "confidence": 38,
+      "stepStates": ["complete", "complete", "unknown", "unknown", "unknown", "unknown"]
+    },
+    {
+      "code": "INSUFFICIENT_VISIBILITY",
+      "outcome": "unresolved",
+      "reason": "INSUFFICIENT_VISIBILITY",
+      "confidence": 35,
+      "stepStates": ["complete", "unknown", "unknown", "unknown", "unknown", "unknown"]
+    },
+    {
+      "code": "MODEL_FAILURE_OPERATIONAL",
+      "outcome": "unresolved",
+      "reason": "MODEL_FAILURE",
+      "confidence": 0,
+      "stepStates": ["complete", "unknown", "unknown", "unknown", "unknown", "unknown"]
+    }
+  ]
+}
