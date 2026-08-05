@@ -1,20 +1,82 @@
-# AI Inference
+# PTC Bale AI Runtime
 
-Planned Python computer-vision runtime for the local GPU workstation.
+This service contains the testable orchestration and deterministic compliance logic for the finalized PTC process:
 
-## Responsibilities
+```text
+bale enters → opened → proper hand inspection → graded
+→ accepted or left-side rejected route → weight read by AI/OCR → completed
+```
 
-- model loading and runtime health;
-- bale and anonymous-person detection;
-- temporary camera/zone tracking;
-- inference metadata and model version reporting;
-- ONNX Runtime CUDA deployment and four-stream benchmarking.
+## Implemented in this package
 
-## Exclusions
+- versioned camera/ROI and threshold configuration;
+- YOLO + ByteTrack runtime adapter with mandatory custom-weights input;
+- MediaPipe hands adapter;
+- explainable proper/incomplete/no hand-inspection baseline;
+- grading observation contract;
+- accepted/rejected ROI routing, with left configured as rejection;
+- EasyOCR display adapter and temporal weight stabilization;
+- deterministic SOP/anomaly state machine;
+- platform-ingestion event mapping;
+- component evaluation helpers;
+- reproducible YOLO training/export entry points;
+- recorded-video runner;
+- unit and deterministic replay tests.
 
-- no worker identity or face recognition;
-- no permanent bale identity;
-- no business review workflow;
-- no direct dashboard data access.
+## Required external release inputs
 
-Implementation is tracked under issues #27–#34.
+The repository intentionally does not contain:
+
+- factory videos or extracted frames;
+- annotations or datasets;
+- trained model weights;
+- OCR crops;
+- camera credentials or production ROIs.
+
+Those inputs must be supplied from approved restricted storage. Until trained PTC weights and locked evaluation data are supplied, the runtime is implementation-complete but not accuracy-certified.
+
+## Core tests
+
+```bash
+cd services/ai-inference
+python -m pip install -e .
+python -m unittest discover -s tests -v
+python -m ptc_ai replay \
+  --config config/poc.example.json \
+  --input tests/observations.completed.jsonl
+```
+
+## Runtime dependencies
+
+```bash
+python -m pip install -e '.[runtime]'
+```
+
+The runtime adapters require a PTC-trained weights file. A generic COCO model may be used only for plumbing experiments and cannot be reported as PTC accuracy.
+
+## Recorded-video testing
+
+```bash
+python scripts/run_video.py \
+  --video /restricted/sample.mp4 \
+  --config /restricted/approved-camera-config.json \
+  --camera CAM-01 \
+  --weights /restricted/models/ptc-yolo-v1.pt \
+  --output /restricted/results/events.jsonl
+```
+
+This command is ready for the team to use once the approved weights and camera ROI configuration exist.
+
+## Detector training
+
+```bash
+python -m pip install -e '.[train]'
+python scripts/train_yolo.py \
+  --data /restricted/dataset-v1/data.yaml \
+  --project /restricted/runs \
+  --name ptc-yolo-v1
+```
+
+## Delivery contract
+
+`ptc_ai.event_mapper.to_platform_payload` produces the current `/api/ingest/events` payload shape. Actual deployment should send the payload through the existing durable edge spool so API outages do not lose events.

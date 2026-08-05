@@ -1,0 +1,49 @@
+name: AI Pipeline CI
+
+on:
+  pull_request:
+    paths:
+      - 'services/ai-inference/**'
+      - '.github/workflows/ai-pipeline-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'services/ai-inference/**'
+      - '.github/workflows/ai-pipeline-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  core-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: services/ai-inference/pyproject.toml
+      - name: Install package
+        working-directory: services/ai-inference
+        run: python -m pip install --upgrade pip && python -m pip install -e .
+      - name: Compile
+        working-directory: services/ai-inference
+        run: python -m compileall -q src tests scripts
+      - name: Unit tests
+        working-directory: services/ai-inference
+        run: python -m unittest discover -s tests -v
+      - name: Deterministic replay smoke test
+        working-directory: services/ai-inference
+        run: |
+          python -m ptc_ai replay --config config/poc.example.json --input tests/observations.completed.jsonl --output /tmp/events.jsonl
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          lines = Path('/tmp/events.jsonl').read_text().splitlines()
+          assert len(lines) == 1
+          payload = json.loads(lines[0])
+          assert payload['outcome'] == 'completed'
+          assert payload['aiMetadata']['reasonCode'] == 'NONE'
+          PY
