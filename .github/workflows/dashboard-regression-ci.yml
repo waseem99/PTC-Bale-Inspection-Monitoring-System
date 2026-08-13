@@ -1,0 +1,28 @@
+name: Dashboard Regression CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/dashboard-web/**'
+      - '.github/workflows/dashboard-regression-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @ptc-bale/dashboard-web lint
+      - run: pnpm --filter @ptc-bale/dashboard-web typecheck
+      - run: pnpm --filter @ptc-bale/dashboard-web test
+      - run: pnpm --filter @ptc-bale/dashboard-web build
