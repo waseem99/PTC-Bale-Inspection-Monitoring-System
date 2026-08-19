@@ -2,12 +2,12 @@ name: Deploy PTC Bale (staging)
 
 on:
   push:
-    branches: [main]       # deploys whenever main updates
-  workflow_dispatch: {}    # allows manual "Run workflow" from the Actions tab
+    branches: [main]     
+  workflow_dispatch: {}    
 
 concurrency:
   group: ptc-bale-staging-deploy
-  cancel-in-progress: false   # don't cancel a deploy mid-flight if another push comes in
+  cancel-in-progress: false   
 
 jobs:
   deploy:
