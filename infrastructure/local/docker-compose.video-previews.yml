@@ -1,0 +1,15 @@
+services:
+  dashboard:
+    build:
+      args:
+        VITE_CAMERA_01_PREVIEW_URL: ${VITE_CAMERA_01_PREVIEW_URL:-}
+        VITE_CAMERA_02_PREVIEW_URL: ${VITE_CAMERA_02_PREVIEW_URL:-}
+        VITE_CAMERA_03_PREVIEW_URL: ${VITE_CAMERA_03_PREVIEW_URL:-}
+        VITE_CAMERA_04_PREVIEW_URL: ${VITE_CAMERA_04_PREVIEW_URL:-}
+    volumes:
+      - type: bind
+        source: ${PTC_DATA_ROOT}/media
+        target: /usr/share/nginx/html/media
+        read_only: true
+        bind:
+          create_host_path: true
