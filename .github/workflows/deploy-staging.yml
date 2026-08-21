@@ -2,12 +2,12 @@ name: Deploy PTC Bale (staging)
 
 on:
   push:
-    branches: [main]     
-  workflow_dispatch: {}    
+    branches: [main]
+  workflow_dispatch: {}
 
 concurrency:
   group: ptc-bale-staging-deploy
-  cancel-in-progress: false   
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -29,11 +29,37 @@ jobs:
             git reset --hard origin/main
 
             cd infrastructure/local
-            docker compose --env-file .env -f docker-compose.local.yml up -d --build
+
+            MEDIA_ROOT="$(awk -F= '/^PTC_DATA_ROOT=/{sub(/^PTC_DATA_ROOT=/, ""); print; exit}' .env)"
+            if [ -z "$MEDIA_ROOT" ]; then
+              echo "PTC_DATA_ROOT is missing from infrastructure/local/.env"
+              exit 1
+            fi
+            mkdir -p "$MEDIA_ROOT/media"
+
+            CONFIGURED_PREVIEWS="$(awk -F= '/^VITE_CAMERA_0[1-4]_PREVIEW_URL=/{value=$0; sub(/^[^=]*=/, "", value); if (length(value) > 0) count++} END {print count+0}' .env)"
+            LOCAL_PREVIEWS="$(find "$MEDIA_ROOT/media" -maxdepth 1 -type f \( -name 'camera-01.mp4' -o -name 'camera-02.mp4' -o -name 'camera-03.mp4' -o -name 'camera-04.mp4' \) | wc -l | tr -d ' ')"
+
+            echo "Configured external preview sources: $CONFIGURED_PREVIEWS"
+            echo "Local camera preview files: $LOCAL_PREVIEWS"
+            if [ "$CONFIGURED_PREVIEWS" -eq 0 ] && [ "$LOCAL_PREVIEWS" -eq 0 ]; then
+              echo "No dashboard video sources are available. Add camera-01.mp4 ... camera-04.mp4 under PTC_DATA_ROOT/media or configure VITE_CAMERA_XX_PREVIEW_URL in .env."
+              exit 1
+            fi
+
+            docker compose \
+              --env-file .env \
+              -f docker-compose.local.yml \
+              -f docker-compose.video-previews.yml \
+              up -d --build
 
             echo "Waiting for services to settle..."
             sleep 15
-            docker compose --env-file .env -f docker-compose.local.yml ps
+            docker compose \
+              --env-file .env \
+              -f docker-compose.local.yml \
+              -f docker-compose.video-previews.yml \
+              ps
 
       - name: Verify deployment
         uses: appleboy/ssh-action@v1.0.3
@@ -43,4 +69,23 @@ jobs:
           key: ${{ secrets.STAGING_SSH_KEY }}
           port: ${{ secrets.STAGING_SSH_PORT || 22 }}
           script: |
-            curl -sf http://127.0.0.1:9081/healthz || (echo "Health check failed" && exit 1)
+            set -e
+            curl -sf http://127.0.0.1:9081/healthz >/dev/null || (echo "Health check failed" && exit 1)
+
+            cd ~/PTC-Bale-Inspection-Monitoring-System/infrastructure/local
+            MEDIA_ROOT="$(awk -F= '/^PTC_DATA_ROOT=/{sub(/^PTC_DATA_ROOT=/, ""); print; exit}' .env)"
+            LOCAL_PREVIEWS="$(find "$MEDIA_ROOT/media" -maxdepth 1 -type f \( -name 'camera-01.mp4' -o -name 'camera-02.mp4' -o -name 'camera-03.mp4' -o -name 'camera-04.mp4' \) | wc -l | tr -d ' ')"
+
+            if [ "$LOCAL_PREVIEWS" -gt 0 ]; then
+              VERIFIED=0
+              for camera in 01 02 03 04; do
+                if [ -f "$MEDIA_ROOT/media/camera-${camera}.mp4" ]; then
+                  curl -sf --range 0-1023 "http://127.0.0.1:9081/media/camera-${camera}.mp4" >/dev/null
+                  VERIFIED=$((VERIFIED + 1))
+                fi
+              done
+              echo "Verified local dashboard video endpoints: $VERIFIED"
+              [ "$VERIFIED" -gt 0 ]
+            else
+              echo "Dashboard uses configured HTTPS/Drive preview source(s); local media endpoint verification is not applicable."
+            fi
