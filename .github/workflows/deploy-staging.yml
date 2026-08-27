@@ -37,13 +37,21 @@ jobs:
             fi
             mkdir -p "$MEDIA_ROOT/media"
 
+            # Sync compressed camera previews from the repo into the runtime media mount.
+            REPO_MEDIA="$HOME/PTC-Bale-Inspection-Monitoring-System/apps/dashboard-web/public/media"
+            for camera in 01 02 03 04; do
+              if [ -f "$REPO_MEDIA/camera-${camera}.mp4" ]; then
+                cp -f "$REPO_MEDIA/camera-${camera}.mp4" "$MEDIA_ROOT/media/camera-${camera}.mp4"
+              fi
+            done
+
             CONFIGURED_PREVIEWS="$(awk -F= '/^VITE_CAMERA_0[1-4]_PREVIEW_URL=/{value=$0; sub(/^[^=]*=/, "", value); if (length(value) > 0) count++} END {print count+0}' .env)"
             LOCAL_PREVIEWS="$(find "$MEDIA_ROOT/media" -maxdepth 1 -type f \( -name 'camera-01.mp4' -o -name 'camera-02.mp4' -o -name 'camera-03.mp4' -o -name 'camera-04.mp4' \) | wc -l | tr -d ' ')"
 
             echo "Configured external preview sources: $CONFIGURED_PREVIEWS"
             echo "Local camera preview files: $LOCAL_PREVIEWS"
             if [ "$CONFIGURED_PREVIEWS" -eq 0 ] && [ "$LOCAL_PREVIEWS" -eq 0 ]; then
-              echo "No dashboard video sources are available. Add camera-01.mp4 ... camera-04.mp4 under PTC_DATA_ROOT/media or configure VITE_CAMERA_XX_PREVIEW_URL in .env."
+              echo "No dashboard video sources are available. Add camera-01.mp4 ... camera-04.mp4 under apps/dashboard-web/public/media (or PTC_DATA_ROOT/media) or configure VITE_CAMERA_XX_PREVIEW_URL in .env."
               exit 1
             fi
 

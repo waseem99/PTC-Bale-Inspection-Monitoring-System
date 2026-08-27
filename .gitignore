@@ -19,11 +19,14 @@ models/*.onnx
 models/*.engine
 !models/README.md
 
-# Large local camera preview clips (served from public/media or PTC_DATA_ROOT/media)
-apps/dashboard-web/public/media/
-*.mp4
+# Large media dumps — keep only the 4 compressed dashboard camera previews in git
 *.webm
 *.mov
+apps/dashboard-web/public/media/**
+!apps/dashboard-web/public/media/camera-01.mp4
+!apps/dashboard-web/public/media/camera-02.mp4
+!apps/dashboard-web/public/media/camera-03.mp4
+!apps/dashboard-web/public/media/camera-04.mp4
 
 # Database backups and local state
 *.dump
