@@ -19,14 +19,11 @@ models/*.onnx
 models/*.engine
 !models/README.md
 
-# Large media dumps — keep only the 4 compressed dashboard camera previews in git
+# Large media dumps stay out of git. Camera feeds use shared Google Drive links by default.
+*.mp4
 *.webm
 *.mov
-apps/dashboard-web/public/media/**
-!apps/dashboard-web/public/media/camera-01.mp4
-!apps/dashboard-web/public/media/camera-02.mp4
-!apps/dashboard-web/public/media/camera-03.mp4
-!apps/dashboard-web/public/media/camera-04.mp4
+apps/dashboard-web/public/media/
 
 # Database backups and local state
 *.dump
