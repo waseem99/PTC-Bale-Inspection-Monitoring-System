@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Run the baseline PTC AI pipeline against a recorded video.
 
-Requires approved PTC-trained YOLO weights and the runtime dependency group.
-The command writes strict platform-compatible event JSONL and may write a
-protected AI audit sidecar. It does not upload restricted video or crops.
+Requires approved PTC-trained YOLO weights for bale tracking and for inspection
+detection, plus the runtime dependency group. Tracking runs first on each frame,
+then inspection detection is associated onto those tracks.
 """
 
 from __future__ import annotations
@@ -29,7 +29,9 @@ def main() -> int:
     parser.add_argument("--video", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--camera", required=True)
-    parser.add_argument("--weights", type=Path, required=True)
+    parser.add_argument("--weights", type=Path, help="Bale-tracking YOLO weights")
+    parser.add_argument("--inspection-weights", type=Path, help="Inspected / not-inspected YOLO weights")
+    parser.add_argument("--models-dir", type=Path, help="Folder containing both .pt files (defaults to repo models/)")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--audit-output", type=Path)
     parser.add_argument("--start-time", help="ISO-8601 capture start time; defaults to current UTC")
@@ -39,20 +41,34 @@ def main() -> int:
 
     try:
         import cv2  # type: ignore
-    except ImportError as exc:
-        raise SystemExit("Install runtime dependencies: pip install -e '.[runtime]'") from exc
+    except ImportError as extra:
+        raise SystemExit("Install runtime dependencies: pip install -e '.[runtime]'") from extra
 
     from ptc_ai.config import AiConfig
     from ptc_ai.event_mapper import to_audit_payload, to_platform_payload
     from ptc_ai.models import InspectionEvent, ObservationKind
     from ptc_ai.pipeline import RuntimePipeline
-    from ptc_ai.runtime_adapters import EasyOcrDisplayAdapter, MediaPipeHandAdapter, UltralyticsByteTrackAdapter
+    from ptc_ai.runtime_adapters import EasyOcrDisplayAdapter, MediaPipeHandAdapter, SequentialBaleInspectionAdapter
+    from ptc_ai.weights import resolve_model_weights
+
+    try:
+        track_weights, inspection_weights = resolve_model_weights(
+            args.weights,
+            args.inspection_weights,
+            args.models_dir,
+        )
+    except FileNotFoundError as extra:
+        raise SystemExit(str(extra)) from extra
 
     config = AiConfig.load(args.config)
     pipeline = RuntimePipeline(
         config=config,
         camera_id=args.camera,
-        detector=UltralyticsByteTrackAdapter(args.weights, tracker=args.tracker),
+        detector=SequentialBaleInspectionAdapter.from_weights(
+            track_weights,
+            inspection_weights,
+            tracker=args.tracker,
+        ),
         hand_reader=MediaPipeHandAdapter(),
         display_reader=EasyOcrDisplayAdapter(gpu=not args.cpu_ocr),
     )
@@ -77,9 +93,9 @@ def main() -> int:
             timestamp = start_epoch + relative
             last_timestamp = timestamp
             events.extend(pipeline.process_frame(frame, timestamp))
-    except Exception as exc:
+    except Exception as extra:
         events.extend(pipeline.fail_active(ObservationKind.MODEL_FAILURE, last_timestamp))
-        failure = exc
+        failure = extra
     finally:
         capture.release()
     events.extend(pipeline.finish(last_timestamp))
@@ -101,6 +117,8 @@ def main() -> int:
                 "frames": frame_index,
                 "events": len(events),
                 "captureStart": datetime.fromtimestamp(start_epoch, timezone.utc).isoformat().replace("+00:00", "Z"),
+                "trackWeights": str(track_weights),
+                "inspectionWeights": str(inspection_weights),
                 "output": str(args.output),
                 "auditOutput": str(args.audit_output) if args.audit_output else None,
             },

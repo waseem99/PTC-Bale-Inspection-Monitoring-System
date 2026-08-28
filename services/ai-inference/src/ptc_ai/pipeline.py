@@ -11,7 +11,15 @@ from .interaction import HandInspectionClassifier, HandSample
 from .models import InspectionEvent, Observation, ObservationKind
 from .ocr import OcrReading, WeightStabilizer
 from .routing import RouteVerifier
-from .runtime_adapters import Detection
+from .runtime_adapters import (
+    Detection,
+    GRADING_CLASSES,
+    is_bale_track_class,
+    is_grading_class,
+    is_inspected_class,
+    is_not_inspected_class,
+    is_opened_class,
+)
 from .sop import InspectionSession
 
 
@@ -47,19 +55,24 @@ class ActiveBale:
     ocr_attempts: int = 0
     ocr_numeric_seen: bool = False
     weight_ambiguity_emitted: bool = False
+    inspection_model_used: bool = False
+    inspection_not_inspected: bool = False
+    inspection_candidate: str | None = None
+    inspection_started_at: float | None = None
+    inspection_confidence: float = 0.0
 
 
 class RuntimePipeline:
     """Frame-by-frame baseline pipeline for recorded-video and live-camera testing.
 
-    The implementation intentionally requires custom PTC detector weights. It uses
-    explainable hand-contact features as the baseline; an evaluated temporal model
-    may replace or supplement those observations without changing the SOP contract.
+    The implementation requires PTC detector weights. Bale tracking runs first,
+    then inspection detection is associated onto those tracks. MediaPipe hand
+    features remain a fallback when the inspection model does not fire.
     """
 
     BALE_CLASSES = {"bale", "bale_closed", "bale_opened"}
     OPENED_CLASSES = {"bale_opened", "opened_bale"}
-    GRADING_CLASSES = {"grade_indicator", "grading_action", "grade_accept", "grade_reject"}
+    GRADING_CLASSES = set(GRADING_CLASSES)
 
     def __init__(
         self,
@@ -175,6 +188,59 @@ class RuntimePipeline:
         y2 = max(y1 + 1, min(height, int(max(ys) * height)))
         return frame[y1:y2, x1:x2]
 
+    def _matches_state(self, state: ActiveBale, detection: Detection) -> bool:
+        if detection.track_id is not None and self._track_id(detection) == state.session.bale_id:
+            return True
+        return intersection_over_union(state.box.expanded(0.3), detection.box) > 0.1
+
+    def _mark_opened(self, state: ActiveBale, timestamp: float, confidence: float) -> None:
+        if state.opened_emitted:
+            return
+        state.session.add(self._observation(state.session.bale_id, ObservationKind.BALE_OPENED, timestamp, confidence))
+        state.opened_emitted = True
+
+    def _update_inspection_detection(self, state: ActiveBale, detections: list[Detection], timestamp: float) -> None:
+        matches = [
+            item
+            for item in detections
+            if self._matches_state(state, item)
+            and (is_inspected_class(item.class_name) or is_not_inspected_class(item.class_name))
+            and item.confidence >= self.config.thresholds.min_observation_confidence
+        ]
+        if not matches:
+            return
+        state.inspection_model_used = True
+        selected = max(matches, key=lambda item: item.confidence)
+        if is_not_inspected_class(selected.class_name):
+            state.inspection_not_inspected = True
+            state.inspection_candidate = None
+            state.inspection_started_at = None
+            state.inspection_confidence = 0.0
+            return
+        self._mark_opened(state, timestamp, selected.confidence)
+        if state.hand_emitted:
+            return
+        if state.inspection_candidate != "inspected":
+            state.inspection_candidate = "inspected"
+            state.inspection_started_at = timestamp
+            state.inspection_confidence = selected.confidence
+            return
+        state.inspection_confidence = min(state.inspection_confidence, selected.confidence)
+        started_at = state.inspection_started_at if state.inspection_started_at is not None else timestamp
+        if timestamp - started_at < self.config.thresholds.inspection_min_seconds:
+            return
+        state.session.add(
+            self._observation(
+                state.session.bale_id,
+                ObservationKind.HAND_INSPECTION_PROPER,
+                timestamp,
+                state.inspection_confidence,
+                inspectionSignal=selected.class_name,
+                observedSeconds=max(0.0, timestamp - started_at),
+            )
+        )
+        state.hand_emitted = True
+
     def _update_hand_observation(self, state: ActiveBale, points: list[tuple[float, float, float]], timestamp: float) -> None:
         expanded = state.box.expanded(0.15)
         center = self._hand_center(points, expanded)
@@ -182,7 +248,7 @@ class RuntimePipeline:
         confidence = max((point[2] for point in points), default=0.0)
         state.hand_samples.append(HandSample(timestamp, center is not None, motion, confidence, visible=True))
         state.last_hand_center = center
-        if state.hand_emitted or not state.opened_emitted:
+        if state.hand_emitted or not state.opened_emitted or state.inspection_model_used:
             return
         decision = self.hand_classifier.classify(state.hand_samples)
         if decision.classification == "proper":
@@ -204,7 +270,7 @@ class RuntimePipeline:
         candidates = [
             item
             for item in detections
-            if item.class_name in self.GRADING_CLASSES
+            if is_grading_class(item.class_name)
             and (intersection_over_union(state.box.expanded(0.3), item.box) > 0.0 or state.box.expanded(0.5).contains(item.box.center))
             and item.confidence >= self.config.thresholds.min_observation_confidence
         ]
@@ -314,7 +380,9 @@ class RuntimePipeline:
     def _finalize_state(self, bale_id: str, timestamp: float) -> InspectionEvent:
         state = self.active.pop(bale_id)
         self.weight_stabilizers.pop(bale_id, None)
-        if not state.hand_emitted and state.opened_emitted:
+        if not state.hand_emitted and state.inspection_model_used and state.inspection_not_inspected:
+            pass
+        elif not state.hand_emitted and state.opened_emitted:
             decision = self.hand_classifier.classify(state.hand_samples)
             if decision.classification == "incomplete":
                 state.session.add(
@@ -345,7 +413,7 @@ class RuntimePipeline:
 
     def process_frame(self, frame: Any, timestamp: float) -> list[InspectionEvent]:
         detections = self.detector.infer(frame)
-        bale_detections = [item for item in detections if item.class_name in self.BALE_CLASSES and self._track_id(item)]
+        bale_detections = [item for item in detections if is_bale_track_class(item.class_name) and self._track_id(item)]
         hand_points = self.hand_reader.points(frame)
         for detection in bale_detections:
             bale_id = self._track_id(detection)
@@ -357,9 +425,9 @@ class RuntimePipeline:
                 state = self._new_bale(bale_id, detection.box, timestamp, detection.confidence)
             state.box = detection.box
             state.last_seen = timestamp
-            if detection.class_name in self.OPENED_CLASSES and not state.opened_emitted:
-                state.session.add(self._observation(bale_id, ObservationKind.BALE_OPENED, timestamp, detection.confidence))
-                state.opened_emitted = True
+            if is_opened_class(detection.class_name):
+                self._mark_opened(state, timestamp, detection.confidence)
+            self._update_inspection_detection(state, detections, timestamp)
             self._update_hand_observation(state, hand_points, timestamp)
             self._update_grading(state, detections, timestamp)
             self._update_route(state, timestamp, detection.confidence)

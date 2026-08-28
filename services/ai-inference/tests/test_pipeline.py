@@ -106,6 +106,56 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual("rejected", events[0].metadata["route"])
         self.assertEqual(52.1, events[0].metadata["weight"])
 
+    def test_inspection_model_marks_proper_after_tracking(self):
+        box = Box(0.4, 0.4, 0.6, 0.6)
+        rejected = Box(0.02, 0.4, 0.18, 0.6)
+        detector = SequenceDetector(
+            [
+                [Detection("bale", 0.95, box, "1")],
+                [Detection("bale", 0.95, box, "1"), Detection("inspected", 0.92, box, "1")],
+                [Detection("bale", 0.95, box, "1"), Detection("inspected", 0.91, box, "1")],
+                [Detection("bale", 0.95, box, "1"), Detection("inspected", 0.9, box, "1"), Detection("grade_reject", 0.9, box, None)],
+                [Detection("bale", 0.95, box, "1"), Detection("grade_reject", 0.9, box, None)],
+                [Detection("bale", 0.95, rejected, "1")],
+                [Detection("bale", 0.95, rejected, "1")],
+                [Detection("bale", 0.95, rejected, "1")],
+            ]
+        )
+        hands = SequenceHands([[], [], [], [], [], [], [], []])
+        ocr = SequenceOcr(
+            [
+                [OcrReading(7, "52.10", 0.9)],
+                [OcrReading(8, "52.10", 0.9)],
+            ]
+        )
+        pipeline = RuntimePipeline(self.config(), "CAM-01", detector, hands, ocr)
+        events = []
+        for timestamp in range(1, 9):
+            events.extend(pipeline.process_frame(FakeFrame(), float(timestamp)))
+        self.assertEqual(1, len(events))
+        self.assertEqual("completed", events[0].outcome.value)
+
+    def test_not_inspected_model_does_not_count_as_proper(self):
+        box = Box(0.4, 0.4, 0.6, 0.6)
+        detector = SequenceDetector(
+            [
+                [Detection("bale_opened", 0.95, box, "1"), Detection("not_inspected", 0.9, box, "1")],
+                [Detection("bale_opened", 0.95, box, "1"), Detection("not_inspected", 0.9, box, "1")],
+            ]
+        )
+        pipeline = RuntimePipeline(
+            self.config(sessionTimeoutSeconds=0.5),
+            "CAM-01",
+            detector,
+            SequenceHands([[], []]),
+            SequenceOcr([]),
+        )
+        events = []
+        events.extend(pipeline.process_frame(FakeFrame(), 1.0))
+        events.extend(pipeline.process_frame(FakeFrame(), 2.0))
+        events.extend(pipeline.finish(3.0))
+        self.assertEqual("HAND_INSPECTION_MISSING", events[0].reason_code.value)
+
     def test_grading_requires_configured_duration(self):
         box = Box(0.4, 0.4, 0.6, 0.6)
         detector = SequenceDetector(

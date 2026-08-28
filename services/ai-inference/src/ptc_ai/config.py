@@ -37,6 +37,7 @@ class Thresholds:
     hand_min_contact_seconds: float = 2.0
     hand_min_motion: float = 0.04
     grading_min_seconds: float = 0.5
+    inspection_min_seconds: float = 0.5
     ocr_min_confidence: float = 0.70
     ocr_stable_frames: int = 3
     ocr_tolerance: float = 0.05
@@ -85,6 +86,7 @@ class AiConfig:
             hand_min_contact_seconds=float(threshold_data.get("handMinContactSeconds", 2.0)),
             hand_min_motion=float(threshold_data.get("handMinMotion", 0.04)),
             grading_min_seconds=float(threshold_data.get("gradingMinSeconds", 0.5)),
+            inspection_min_seconds=float(threshold_data.get("inspectionMinSeconds", 0.5)),
             ocr_min_confidence=float(threshold_data.get("ocrMinConfidence", 0.70)),
             ocr_stable_frames=int(threshold_data.get("ocrStableFrames", 3)),
             ocr_tolerance=float(threshold_data.get("ocrTolerance", 0.05)),

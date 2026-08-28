@@ -62,7 +62,8 @@ python scripts/run_video.py \
   --video /restricted/sample.mp4 \
   --config /restricted/approved-camera-config.json \
   --camera CAM-01 \
-  --weights /restricted/models/ptc-yolo-v1.pt \
+  --weights /restricted/models/ptc-bale-track.pt \
+  --inspection-weights /restricted/models/ptc-bale-inspect.pt \
   --output /restricted/results/events.jsonl \
   --audit-output /restricted/results/events.audit.jsonl \
   --start-time 2026-08-05T10:00:00+05:00

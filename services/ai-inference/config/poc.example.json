@@ -11,6 +11,7 @@
     "handMinContactSeconds": 2.0,
     "handMinMotion": 0.04,
     "gradingMinSeconds": 0.5,
+    "inspectionMinSeconds": 0.5,
     "ocrMinConfidence": 0.7,
     "ocrStableFrames": 3,
     "ocrTolerance": 0.05,
