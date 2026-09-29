@@ -114,8 +114,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('ptc:auth-expired', handleAuthExpired);
   }, [clearSession]);
 
+  const liveSessionUserId = session?.user.id;
+
   useEffect(() => {
-    if (runtime.dataMode !== 'live' || !session) return;
+    if (runtime.dataMode !== 'live' || !liveSessionUserId) return;
 
     let active = true;
     let inFlight = false;
@@ -148,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [clearSession, session?.user.id]);
+  }, [clearSession, liveSessionUserId]);
 
   useEffect(() => {
     if (!session) return;
