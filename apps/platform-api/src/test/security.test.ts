@@ -1,6 +1,6 @@
 import { loadConfig } from '../config';
 import { resetSyntheticData } from '../seed-service';
-import { hashPassword, verifyPassword } from '../security';
+import { hashPassword, sessionExpiryForActivity, verifyPassword } from '../security';
 
 const productionDatabaseUrl = 'postgresql://ptc_app:test-only@127.0.0.1:5432/ptc_test?schema=public';
 
@@ -30,4 +30,28 @@ it('blocks destructive synthetic reset in production mode', async () => {
     SEED_DEMO_PASSWORD: 'Strong-Test-Password-2026!',
   });
   await expect(resetSyntheticData(config)).rejects.toThrow('Synthetic reset is disabled');
+});
+
+
+it('uses a 12-hour rolling session with a seven-day absolute cap by default', () => {
+  const config = loadConfig({ DATABASE_URL: productionDatabaseUrl });
+  expect(config.sessionTtlHours).toBe(12);
+  expect(config.sessionAbsoluteTtlHours).toBe(168);
+
+  const createdAt = new Date('2026-09-29T00:00:00.000Z');
+  const activeAt = new Date('2026-09-29T06:00:00.000Z');
+  expect(sessionExpiryForActivity(createdAt, activeAt, config).toISOString())
+    .toBe('2026-09-29T18:00:00.000Z');
+
+  const nearAbsoluteCap = new Date('2026-10-05T20:00:00.000Z');
+  expect(sessionExpiryForActivity(createdAt, nearAbsoluteCap, config).toISOString())
+    .toBe('2026-10-06T00:00:00.000Z');
+});
+
+it('rejects an absolute session lifetime shorter than the rolling lifetime', () => {
+  expect(() => loadConfig({
+    DATABASE_URL: productionDatabaseUrl,
+    SESSION_TTL_HOURS: '12',
+    SESSION_ABSOLUTE_TTL_HOURS: '8',
+  })).toThrow('SESSION_ABSOLUTE_TTL_HOURS must be greater than or equal to SESSION_TTL_HOURS');
 });

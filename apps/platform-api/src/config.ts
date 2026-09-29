@@ -7,7 +7,8 @@ const schema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   DATABASE_URL: z.string().startsWith('postgresql://'),
   SESSION_COOKIE_NAME: z.string().min(1).default('ptc_session'),
-  SESSION_TTL_HOURS: z.coerce.number().positive().max(168).default(8),
+  SESSION_TTL_HOURS: z.coerce.number().positive().max(168).default(12),
+  SESSION_ABSOLUTE_TTL_HOURS: z.coerce.number().positive().max(720).default(168),
   COOKIE_SECURE: booleanFromString,
   ALLOWED_ORIGINS: z.string().default('http://localhost:8080,http://localhost:4173'),
   TRUST_PROXY: booleanFromString,
@@ -30,6 +31,7 @@ export type AppConfig = {
   databaseUrl: string;
   sessionCookieName: string;
   sessionTtlHours: number;
+  sessionAbsoluteTtlHours: number;
   cookieSecure: boolean;
   allowedOrigins: Set<string>;
   trustProxy: boolean;
@@ -51,6 +53,9 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
   if (parsed.NODE_ENV === 'production' && environment.COOKIE_SECURE === undefined) {
     throw new Error('COOKIE_SECURE must be explicitly set for a production deployment. Use true behind HTTPS.');
   }
+  if (parsed.SESSION_ABSOLUTE_TTL_HOURS < parsed.SESSION_TTL_HOURS) {
+    throw new Error('SESSION_ABSOLUTE_TTL_HOURS must be greater than or equal to SESSION_TTL_HOURS.');
+  }
   if (parsed.NODE_ENV === 'production' && parsed.SIMULATOR_ENABLED) {
     throw new Error('SIMULATOR_ENABLED must remain false in production.');
   }
@@ -65,6 +70,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     databaseUrl: parsed.DATABASE_URL,
     sessionCookieName: parsed.SESSION_COOKIE_NAME,
     sessionTtlHours: parsed.SESSION_TTL_HOURS,
+    sessionAbsoluteTtlHours: parsed.SESSION_ABSOLUTE_TTL_HOURS,
     cookieSecure: parsed.COOKIE_SECURE,
     allowedOrigins: new Set(parsed.ALLOWED_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean)),
     trustProxy: parsed.TRUST_PROXY,

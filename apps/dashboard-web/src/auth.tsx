@@ -13,6 +13,7 @@ import { useQueryClient } from './query';
 import type { Role, Session, User } from './types';
 
 const SESSION_KEY = 'ptc-bale:session:v1';
+const LIVE_SESSION_REFRESH_MS = 5 * 60 * 1000;
 
 interface AuthContextValue {
   session: Session | null;
@@ -112,6 +113,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener('ptc:auth-expired', handleAuthExpired);
     return () => window.removeEventListener('ptc:auth-expired', handleAuthExpired);
   }, [clearSession]);
+
+  const liveSessionUserId = session?.user.id;
+
+  useEffect(() => {
+    if (runtime.dataMode !== 'live' || !liveSessionUserId) return;
+
+    let active = true;
+    let inFlight = false;
+    const refreshSession = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const validated = await api.getCurrentSession('');
+        if (active) setSession(validated);
+      } catch (error: unknown) {
+        if (!active) return;
+        if (error instanceof ApiError && error.code === 'REQUEST_ABORTED') return;
+        clearSession();
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const interval = window.setInterval(() => void refreshSession(), LIVE_SESSION_REFRESH_MS);
+    const handleFocus = () => void refreshSession();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') void refreshSession();
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [clearSession, liveSessionUserId]);
 
   useEffect(() => {
     if (!session) return;
