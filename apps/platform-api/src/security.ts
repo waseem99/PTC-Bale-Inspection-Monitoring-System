@@ -49,15 +49,22 @@ function getPresentedToken(request: Request, config: AppConfig): string | undefi
   return undefined;
 }
 
+export function sessionExpiryForActivity(createdAt: Date, now: Date, config: AppConfig): Date {
+  const slidingExpiryMs = now.getTime() + config.sessionTtlHours * 60 * 60 * 1000;
+  const absoluteExpiryMs = createdAt.getTime() + config.sessionAbsoluteTtlHours * 60 * 60 * 1000;
+  return new Date(Math.min(slidingExpiryMs, absoluteExpiryMs));
+}
+
 export async function createSession(userId: string, config: AppConfig): Promise<{ token: string; expiresAt: Date }> {
   const token = randomBytes(32).toString('base64url');
-  const expiresAt = new Date(Date.now() + config.sessionTtlHours * 60 * 60 * 1000);
+  const now = new Date();
+  const expiresAt = sessionExpiryForActivity(now, now, config);
   await prisma.session.create({
     data: {
       tokenHash: hashToken(token),
       userId,
       expiresAt,
-      lastSeenAt: new Date(),
+      lastSeenAt: now,
     },
   });
   return { token, expiresAt };
@@ -95,7 +102,15 @@ export function authenticate(config: AppConfig) {
       if (!session || session.revokedAt || session.expiresAt <= now) {
         throw new AppError(401, 'SESSION_EXPIRED', 'Your session has expired. Sign in again.');
       }
+      const absoluteExpiresAt = new Date(
+        session.createdAt.getTime() + config.sessionAbsoluteTtlHours * 60 * 60 * 1000,
+      );
+      if (absoluteExpiresAt <= now) {
+        throw new AppError(401, 'SESSION_EXPIRED', 'Your session has expired. Sign in again.');
+      }
       if (!session.user.enabled) throw new AppError(401, 'USER_DISABLED', 'This account is unavailable.');
+
+      const renewedExpiresAt = sessionExpiryForActivity(session.createdAt, now, config);
       response.locals.auth = {
         user: {
           id: session.user.id,
@@ -105,7 +120,12 @@ export function authenticate(config: AppConfig) {
         },
         sessionId: session.id,
       } satisfies AuthContext;
-      await prisma.session.update({ where: { id: session.id }, data: { lastSeenAt: now } });
+      await prisma.session.update({
+        where: { id: session.id },
+        data: { lastSeenAt: now, expiresAt: renewedExpiresAt },
+      });
+      setSessionCookie(response, token, renewedExpiresAt, config);
+      response.setHeader('X-Session-Expires-At', renewedExpiresAt.toISOString());
       next();
     } catch (error) {
       next(error);
