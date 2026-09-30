@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+  issues: write
+
 concurrency:
   group: ptc-bale-staging-deploy
   cancel-in-progress: false
@@ -228,3 +232,30 @@ jobs:
             )
 
             echo "Full staging acceptance passed for commit $BUILD_COMMIT."
+
+      - name: Record sanitized deployment acceptance
+        if: ${{ success() }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const body = [
+              '## Automated staging deployment acceptance — PASSED',
+              '',
+              `- Run: [${process.env.GITHUB_RUN_ID}](${runUrl})`,
+              `- Commit: \`${context.sha}\``,
+              '- Package: \`tools/testing/ptc_acceptance.py deployment\`',
+              '- Target: active SSH staging (internal endpoint omitted)',
+              '- Result: **passed**',
+              '- Checks passed: proxy health, authenticated Viewer session, release identity, cameras, system health, reports summary, and diagnostics',
+              '- Secrets recorded: **no**',
+              '- The same gated verification step also completed migration status, integrated synthetic acceptance, restart persistence, and checksummed database/evidence backup verification.',
+              '',
+              'Sanitized acceptance record only; no credentials, tokens, private URLs, raw evidence, or client data are included.'
+            ].join('\\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 83,
+              body,
+            });
