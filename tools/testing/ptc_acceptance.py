@@ -294,8 +294,9 @@ class Response:
 
 
 class ApiClient:
-    def __init__(self, base_url: str, timeout: int = 20) -> None:
+    def __init__(self, base_url: str, timeout: int = 20, origin: str | None = None) -> None:
         self.base_url = base_url.rstrip("/")
+        self.origin = (origin or base_url).rstrip("/")
         self.timeout = timeout
         self.cookies = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookies))
@@ -342,7 +343,7 @@ class ApiClient:
             "/api/auth/login",
             {200},
             json_body={"username": username, "password": password},
-            headers={"Origin": self.base_url},
+            headers={"Origin": self.origin},
         )
         payload = response.json()
         role = str(payload.get("user", {}).get("role", ""))
@@ -360,8 +361,9 @@ def _required_env(name: str) -> str:
 
 def deployment_record(output_path: Path) -> dict[str, Any]:
     base_url = _required_env("PTC_BASE_URL")
+    origin = os.environ.get("PTC_ORIGIN", "").strip() or base_url
     viewer_password = _required_env("SEED_VIEWER_PASSWORD")
-    client = ApiClient(base_url)
+    client = ApiClient(base_url, origin=origin)
     checks: dict[str, Any] = {}
     checks["proxyHealth"] = client.require("GET", "/healthz", {200}).status
     client.login("viewer", viewer_password)
@@ -399,12 +401,13 @@ def _ingest(client: ApiClient, token: str, event: dict[str, Any]) -> Response:
 
 def integrated_record(manifest_path: Path, output_path: Path) -> dict[str, Any]:
     base_url = _required_env("PTC_BASE_URL")
+    origin = os.environ.get("PTC_ORIGIN", "").strip() or base_url
     token = _required_env("INGESTION_SERVICE_TOKEN")
     viewer_password = _required_env("SEED_VIEWER_PASSWORD")
     supervisor_password = _required_env("SEED_SUPERVISOR_PASSWORD")
     manifest = load_manifest(manifest_path)
     events = generate_events(manifest)
-    client = ApiClient(base_url)
+    client = ApiClient(base_url, origin=origin)
     ingestion_results: list[dict[str, Any]] = []
     for event in events:
         response = _ingest(client, token, event)
@@ -465,7 +468,7 @@ def integrated_record(manifest_path: Path, output_path: Path) -> dict[str, Any]:
         "/api/exports/events",
         {200},
         json_body={"format": "csv"},
-        headers={"Origin": base_url},
+        headers={"Origin": origin},
     )
     if b"TEST-" not in csv_export.body:
         raise AcceptanceError("CSV export does not contain synthetic acceptance events")
@@ -473,7 +476,7 @@ def integrated_record(manifest_path: Path, output_path: Path) -> dict[str, Any]:
     if not pdf.body.startswith(b"%PDF"):
         raise AcceptanceError("PDF report response does not contain a PDF signature")
 
-    supervisor = ApiClient(base_url)
+    supervisor = ApiClient(base_url, origin=origin)
     supervisor.login("supervisor", supervisor_password)
     target = supervisor.require(
         "GET", f"/api/events/{urllib.parse.quote(str(events[0]['id']), safe='')}", {200}
@@ -490,7 +493,7 @@ def integrated_record(manifest_path: Path, output_path: Path) -> dict[str, Any]:
             "remarks": "Synthetic acceptance fixture reviewed by automated test.",
             "expectedVersion": version,
         },
-        headers={"Origin": base_url},
+        headers={"Origin": origin},
     ).json()
     if reviewed.get("reviewStatus") != "confirmed":
         raise AcceptanceError("Supervisor review was not persisted")
