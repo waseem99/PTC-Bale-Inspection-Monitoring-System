@@ -123,8 +123,8 @@ jobs:
           NODE_ENV=production
           PORT=4000
           SESSION_COOKIE_NAME=ptc_session
-          SESSION_TTL_HOURS=12
-          SESSION_ABSOLUTE_TTL_HOURS=168
+          SESSION_TTL_HOURS=720
+          SESSION_ABSOLUTE_TTL_HOURS=720
           COOKIE_SECURE=true
           TRUST_PROXY=true
           ALLOWED_ORIGINS=https://ptc-aibale.codistan.org,https://aws.ptc-aibale.codistan.org

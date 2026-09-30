@@ -99,8 +99,8 @@ POSTGRES_USER=ptc_app
 POSTGRES_PASSWORD=$DB_PASSWORD
 DATABASE_URL=postgresql://ptc_app:$DB_PASSWORD@postgres:5432/ptc_bale?schema=public
 SESSION_COOKIE_NAME=ptc_session
-SESSION_TTL_HOURS=12
-SESSION_ABSOLUTE_TTL_HOURS=168
+SESSION_TTL_HOURS=720
+SESSION_ABSOLUTE_TTL_HOURS=720
 SEED_VIEWER_PASSWORD=$VIEWER_PASSWORD
 SEED_SUPERVISOR_PASSWORD=$SUPERVISOR_PASSWORD
 SEED_ADMIN_PASSWORD=$ADMIN_PASSWORD
@@ -129,8 +129,8 @@ validate_compose() {
     (.services["edge-spool"].ports == null) and
     (.services.proxy.ports | length == 1) and
     (.services.proxy.ports[0].host_ip == "127.0.0.1") and
-    (.services.api.environment.SESSION_TTL_HOURS == "12") and
-    (.services.api.environment.SESSION_ABSOLUTE_TTL_HOURS == "168") and
+    (.services.api.environment.SESSION_TTL_HOURS == "720") and
+    (.services.api.environment.SESSION_ABSOLUTE_TTL_HOURS == "720") and
     (.networks.backend.internal == true) and
     ((.networks.frontend.internal // false) == false)
   ' "$WORK_ROOT/compose.json" >/dev/null
