@@ -35,8 +35,8 @@ jobs:
             cd infrastructure/local
 
             # Runtime overrides take precedence over .env without mutating protected server files.
-            export SESSION_TTL_HOURS=12
-            export SESSION_ABSOLUTE_TTL_HOURS=168
+            export SESSION_TTL_HOURS=720
+            export SESSION_ABSOLUTE_TTL_HOURS=720
             export BUILD_COMMIT="$(git rev-parse HEAD)"
             export BUILD_VERSION="staging-${BUILD_COMMIT:0:12}"
             export IMAGE_TAG="$BUILD_VERSION"
@@ -86,8 +86,8 @@ jobs:
 
             cd ~/PTC-Bale-Inspection-Monitoring-System/infrastructure/local
 
-            export SESSION_TTL_HOURS=12
-            export SESSION_ABSOLUTE_TTL_HOURS=168
+            export SESSION_TTL_HOURS=720
+            export SESSION_ABSOLUTE_TTL_HOURS=720
             export BUILD_COMMIT="$(git -C ../.. rev-parse HEAD)"
             export BUILD_VERSION="staging-${BUILD_COMMIT:0:12}"
             export IMAGE_TAG="$BUILD_VERSION"
@@ -95,8 +95,8 @@ jobs:
             COMPOSE=(docker compose --env-file .env -f docker-compose.local.yml -f docker-compose.video-previews.yml)
             SESSION_TTL="$("${COMPOSE[@]}" exec -T api printenv SESSION_TTL_HOURS | tr -d '\r')"
             SESSION_ABSOLUTE_TTL="$("${COMPOSE[@]}" exec -T api printenv SESSION_ABSOLUTE_TTL_HOURS | tr -d '\r')"
-            [ "$SESSION_TTL" = "12" ] || { echo "Unexpected SESSION_TTL_HOURS=$SESSION_TTL"; exit 1; }
-            [ "$SESSION_ABSOLUTE_TTL" = "168" ] || { echo "Unexpected SESSION_ABSOLUTE_TTL_HOURS=$SESSION_ABSOLUTE_TTL"; exit 1; }
+            [ "$SESSION_TTL" = "720" ] || { echo "Unexpected SESSION_TTL_HOURS=$SESSION_TTL"; exit 1; }
+            [ "$SESSION_ABSOLUTE_TTL" = "720" ] || { echo "Unexpected SESSION_ABSOLUTE_TTL_HOURS=$SESSION_ABSOLUTE_TTL"; exit 1; }
 
             # Exercise the deployed API session lifecycle for all dashboard roles.
             "${COMPOSE[@]}" exec -T api node <<'NODE'
@@ -127,6 +127,11 @@ jobs:
               if (login.status !== 200) throw new Error(`${username} login failed: ${login.status}`);
               let cookie = requireCookie(login);
               const first = await login.json();
+              const firstExpiry = Date.parse(first.expiresAt);
+              const remainingHours = (firstExpiry - Date.now()) / 3_600_000;
+              if (remainingHours < 719 || remainingHours > 721) {
+                throw new Error(`${username} session is not approximately 30 days: ${remainingHours.toFixed(2)}h`);
+              }
 
               await new Promise((resolve) => setTimeout(resolve, 1200));
 
@@ -134,8 +139,9 @@ jobs:
               if (me.status !== 200) throw new Error(`${username} session refresh failed: ${me.status}`);
               cookie = requireCookie(me);
               const second = await me.json();
-              if (!(Date.parse(second.expiresAt) > Date.parse(first.expiresAt))) {
-                throw new Error(`${username} rolling expiry did not advance`);
+              const secondExpiry = Date.parse(second.expiresAt);
+              if (Math.abs(secondExpiry - firstExpiry) > 5000) {
+                throw new Error(`${username} 30-day absolute expiry changed unexpectedly`);
               }
               if (me.headers.get('x-session-expires-at') !== second.expiresAt) {
                 throw new Error(`${username} expiry header/body mismatch`);
