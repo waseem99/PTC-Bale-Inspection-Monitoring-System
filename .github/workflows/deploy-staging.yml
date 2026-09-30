@@ -30,6 +30,20 @@ jobs:
 
             cd infrastructure/local
 
+            upsert_env() {
+              key="$1"
+              value="$2"
+              if grep -q "^${key}=" .env; then
+                sed -i "s|^${key}=.*|${key}=${value}|" .env
+              else
+                printf '%s=%s\n' "$key" "$value" >> .env
+              fi
+            }
+
+            # Keep the staging runtime aligned with the approved rolling-session policy.
+            upsert_env SESSION_TTL_HOURS 12
+            upsert_env SESSION_ABSOLUTE_TTL_HOURS 168
+
             MEDIA_ROOT="$(awk -F= '/^PTC_DATA_ROOT=/{sub(/^PTC_DATA_ROOT=/, ""); print; exit}' .env)"
             if [ -z "$MEDIA_ROOT" ]; then
               echo "PTC_DATA_ROOT is missing from infrastructure/local/.env"
@@ -72,6 +86,70 @@ jobs:
             curl -sf http://127.0.0.1:9081/healthz >/dev/null || (echo "Health check failed" && exit 1)
 
             cd ~/PTC-Bale-Inspection-Monitoring-System/infrastructure/local
+
+            COMPOSE=(docker compose --env-file .env -f docker-compose.local.yml -f docker-compose.video-previews.yml)
+            SESSION_TTL="$("${COMPOSE[@]}" exec -T api printenv SESSION_TTL_HOURS | tr -d '\r')"
+            SESSION_ABSOLUTE_TTL="$("${COMPOSE[@]}" exec -T api printenv SESSION_ABSOLUTE_TTL_HOURS | tr -d '\r')"
+            [ "$SESSION_TTL" = "12" ] || { echo "Unexpected SESSION_TTL_HOURS=$SESSION_TTL"; exit 1; }
+            [ "$SESSION_ABSOLUTE_TTL" = "168" ] || { echo "Unexpected SESSION_ABSOLUTE_TTL_HOURS=$SESSION_ABSOLUTE_TTL"; exit 1; }
+
+            # Exercise the deployed API session lifecycle for all dashboard roles.
+            "${COMPOSE[@]}" exec -T api node <<'NODE'
+            const base = 'http://127.0.0.1:4000';
+            const roles = [
+              ['viewer', 'SEED_VIEWER_PASSWORD'],
+              ['supervisor', 'SEED_SUPERVISOR_PASSWORD'],
+              ['admin', 'SEED_ADMIN_PASSWORD'],
+            ];
+
+            function requireCookie(response) {
+              const raw = response.headers.get('set-cookie');
+              if (!raw) throw new Error('Missing session Set-Cookie header');
+              if (!raw.includes('HttpOnly')) throw new Error('Session cookie is not HttpOnly');
+              if (!raw.includes('SameSite=Strict')) throw new Error('Session cookie is not SameSite=Strict');
+              return raw.split(';', 1)[0];
+            }
+
+            for (const [username, passwordKey] of roles) {
+              const password = process.env[passwordKey];
+              if (!password) throw new Error(`Missing ${passwordKey}`);
+
+              const login = await fetch(`${base}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ username, password }),
+              });
+              if (login.status !== 200) throw new Error(`${username} login failed: ${login.status}`);
+              let cookie = requireCookie(login);
+              const first = await login.json();
+
+              await new Promise((resolve) => setTimeout(resolve, 1200));
+
+              const me = await fetch(`${base}/api/auth/me`, { headers: { cookie } });
+              if (me.status !== 200) throw new Error(`${username} session refresh failed: ${me.status}`);
+              cookie = requireCookie(me);
+              const second = await me.json();
+              if (!(Date.parse(second.expiresAt) > Date.parse(first.expiresAt))) {
+                throw new Error(`${username} rolling expiry did not advance`);
+              }
+              if (me.headers.get('x-session-expires-at') !== second.expiresAt) {
+                throw new Error(`${username} expiry header/body mismatch`);
+              }
+
+              const logout = await fetch(`${base}/api/auth/logout`, {
+                method: 'POST',
+                headers: { cookie },
+              });
+              if (logout.status !== 204) throw new Error(`${username} logout failed: ${logout.status}`);
+
+              const afterLogout = await fetch(`${base}/api/auth/me`, { headers: { cookie } });
+              if (afterLogout.status !== 401) {
+                throw new Error(`${username} revoked session remained valid: ${afterLogout.status}`);
+              }
+            }
+
+            console.log('Session runtime smoke passed for viewer, supervisor and admin.');
+            NODE
             MEDIA_ROOT="$(awk -F= '/^PTC_DATA_ROOT=/{sub(/^PTC_DATA_ROOT=/, ""); print; exit}' .env)"
             LOCAL_PREVIEWS="$(find "$MEDIA_ROOT/media" -maxdepth 1 -type f \( -name 'camera-01.mp4' -o -name 'camera-02.mp4' -o -name 'camera-03.mp4' -o -name 'camera-04.mp4' \) | wc -l | tr -d ' ')"
 

@@ -99,7 +99,8 @@ POSTGRES_USER=ptc_app
 POSTGRES_PASSWORD=$DB_PASSWORD
 DATABASE_URL=postgresql://ptc_app:$DB_PASSWORD@postgres:5432/ptc_bale?schema=public
 SESSION_COOKIE_NAME=ptc_session
-SESSION_TTL_HOURS=8
+SESSION_TTL_HOURS=12
+SESSION_ABSOLUTE_TTL_HOURS=168
 SEED_VIEWER_PASSWORD=$VIEWER_PASSWORD
 SEED_SUPERVISOR_PASSWORD=$SUPERVISOR_PASSWORD
 SEED_ADMIN_PASSWORD=$ADMIN_PASSWORD
@@ -128,6 +129,8 @@ validate_compose() {
     (.services["edge-spool"].ports == null) and
     (.services.proxy.ports | length == 1) and
     (.services.proxy.ports[0].host_ip == "127.0.0.1") and
+    (.services.api.environment.SESSION_TTL_HOURS == "12") and
+    (.services.api.environment.SESSION_ABSOLUTE_TTL_HOURS == "168") and
     (.networks.backend.internal == true) and
     ((.networks.frontend.internal // false) == false)
   ' "$WORK_ROOT/compose.json" >/dev/null
@@ -162,6 +165,19 @@ authenticated_checks() {
     --data "{\"username\":\"supervisor\",\"password\":\"$SUPERVISOR_PASSWORD\"}" \
     "$BASE_URL/api/auth/login" > "$WORK_ROOT/supervisor-login.json"
   jq -e '.user.role == "supervisor"' "$WORK_ROOT/supervisor-login.json" >/dev/null
+
+  local first_expiry second_expiry
+  first_expiry="$(jq -er '.expiresAt' "$WORK_ROOT/supervisor-login.json")"
+  sleep 2
+  curl --fail --silent --show-error \
+    --cookie "$WORK_ROOT/supervisor.cookies" \
+    --cookie-jar "$WORK_ROOT/supervisor.cookies" \
+    --dump-header "$WORK_ROOT/supervisor-me.headers" \
+    "$BASE_URL/api/auth/me" > "$WORK_ROOT/supervisor-me.json"
+  second_expiry="$(jq -er '.expiresAt' "$WORK_ROOT/supervisor-me.json")"
+  [[ "$second_expiry" > "$first_expiry" ]] || fail "Active session expiry did not advance"
+  grep -qi '^set-cookie: .*HttpOnly' "$WORK_ROOT/supervisor-me.headers" || fail "Refreshed session cookie is not HttpOnly"
+  grep -qi '^set-cookie: .*SameSite=Strict' "$WORK_ROOT/supervisor-me.headers" || fail "Refreshed session cookie is not SameSite=Strict"
 
   curl --fail --silent --show-error --cookie "$WORK_ROOT/supervisor.cookies" \
     "$BASE_URL/api/camera-config" > "$WORK_ROOT/camera-config.json"
