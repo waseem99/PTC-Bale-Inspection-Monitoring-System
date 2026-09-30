@@ -177,6 +177,8 @@ jobs:
 
             # Reuse the repository's existing end-to-end acceptance runner against staging.
             export PTC_BASE_URL="http://127.0.0.1:9081"
+            export PTC_ORIGIN="$("${COMPOSE[@]}" exec -T api printenv ALLOWED_ORIGINS | tr -d '\r' | cut -d',' -f1)"
+            [ -n "$PTC_ORIGIN" ] || { echo "No approved origin available for acceptance runner"; exit 1; }
             export SEED_VIEWER_PASSWORD="$("${COMPOSE[@]}" exec -T api printenv SEED_VIEWER_PASSWORD | tr -d '\r')"
             export SEED_SUPERVISOR_PASSWORD="$("${COMPOSE[@]}" exec -T api printenv SEED_SUPERVISOR_PASSWORD | tr -d '\r')"
             export INGESTION_SERVICE_TOKEN="$("${COMPOSE[@]}" exec -T api printenv INGESTION_SERVICE_TOKEN | tr -d '\r')"
