@@ -3,6 +3,7 @@ import { createApp } from '../app';
 import { loadConfig } from '../config';
 import { connectDatabase, disconnectDatabase, prisma } from '../db';
 import { resetSyntheticData, seedSyntheticData } from '../seed-service';
+import { createSession } from '../security';
 
 const password = 'A-Strong-Test-Password-2026!';
 const config = loadConfig({
@@ -23,6 +24,17 @@ async function login(username: string) {
     .send({ username, password });
   expect(response.status).toBe(200);
   return agent;
+}
+
+async function directSession(username: string) {
+  const user = await prisma.user.findUnique({ where: { username } });
+  expect(user).not.toBeNull();
+  const session = await createSession(user!.id, config);
+  return {
+    user: user!,
+    session,
+    cookie: `${config.sessionCookieName}=${encodeURIComponent(session.token)}`,
+  };
 }
 
 beforeAll(async () => {
@@ -142,11 +154,9 @@ it('logs out and invalidates the session', async () => {
 
 
 it('renews an active session, updates its expiry, and refreshes cookie metadata', async () => {
-  const agent = await login('viewer');
-  const user = await prisma.user.findUnique({ where: { username: 'viewer' } });
-  expect(user).not.toBeNull();
+  const direct = await directSession('viewer');
   const session = await prisma.session.findFirst({
-    where: { userId: user!.id, revokedAt: null },
+    where: { userId: direct.user.id, revokedAt: null },
     orderBy: { createdAt: 'desc' },
   });
   expect(session).not.toBeNull();
@@ -157,7 +167,7 @@ it('renews an active session, updates its expiry, and refreshes cookie metadata'
     data: { expiresAt: forcedExpiry, lastSeenAt: new Date(Date.now() - 60_000) },
   });
 
-  const response = await agent.get('/api/auth/me');
+  const response = await request(app).get('/api/auth/me').set('Cookie', direct.cookie);
   expect(response.status).toBe(200);
   expect(response.body.user.role).toBe('viewer');
 
@@ -175,11 +185,9 @@ it('renews an active session, updates its expiry, and refreshes cookie metadata'
 });
 
 it('caps rolling renewal at the absolute session lifetime', async () => {
-  const agent = await login('supervisor');
-  const user = await prisma.user.findUnique({ where: { username: 'supervisor' } });
-  expect(user).not.toBeNull();
+  const direct = await directSession('supervisor');
   const session = await prisma.session.findFirst({
-    where: { userId: user!.id, revokedAt: null },
+    where: { userId: direct.user.id, revokedAt: null },
     orderBy: { createdAt: 'desc' },
   });
   expect(session).not.toBeNull();
@@ -195,7 +203,7 @@ it('caps rolling renewal at the absolute session lifetime', async () => {
     },
   });
 
-  const response = await agent.get('/api/auth/me');
+  const response = await request(app).get('/api/auth/me').set('Cookie', direct.cookie);
   expect(response.status).toBe(200);
 
   const renewedExpiry = Date.parse(response.body.expiresAt);
@@ -204,11 +212,9 @@ it('caps rolling renewal at the absolute session lifetime', async () => {
 });
 
 it('rejects expired, revoked, and disabled sessions instead of renewing them', async () => {
-  const expiredAgent = await login('viewer');
-  const viewer = await prisma.user.findUnique({ where: { username: 'viewer' } });
-  expect(viewer).not.toBeNull();
+  const expiredDirect = await directSession('viewer');
   const expiredSession = await prisma.session.findFirst({
-    where: { userId: viewer!.id, revokedAt: null },
+    where: { userId: expiredDirect.user.id, revokedAt: null },
     orderBy: { createdAt: 'desc' },
   });
   expect(expiredSession).not.toBeNull();
@@ -216,15 +222,13 @@ it('rejects expired, revoked, and disabled sessions instead of renewing them', a
     where: { id: expiredSession!.id },
     data: { expiresAt: new Date(Date.now() - 1_000) },
   });
-  const expired = await expiredAgent.get('/api/auth/me');
+  const expired = await request(app).get('/api/auth/me').set('Cookie', expiredDirect.cookie);
   expect(expired.status).toBe(401);
   expect(expired.body.code).toBe('SESSION_EXPIRED');
 
-  const revokedAgent = await login('admin');
-  const admin = await prisma.user.findUnique({ where: { username: 'admin' } });
-  expect(admin).not.toBeNull();
+  const revokedDirect = await directSession('admin');
   const revokedSession = await prisma.session.findFirst({
-    where: { userId: admin!.id, revokedAt: null },
+    where: { userId: revokedDirect.user.id, revokedAt: null },
     orderBy: { createdAt: 'desc' },
   });
   expect(revokedSession).not.toBeNull();
@@ -232,19 +236,17 @@ it('rejects expired, revoked, and disabled sessions instead of renewing them', a
     where: { id: revokedSession!.id },
     data: { revokedAt: new Date() },
   });
-  const revoked = await revokedAgent.get('/api/auth/me');
+  const revoked = await request(app).get('/api/auth/me').set('Cookie', revokedDirect.cookie);
   expect(revoked.status).toBe(401);
   expect(revoked.body.code).toBe('SESSION_EXPIRED');
 
-  const disabledAgent = await login('supervisor');
-  const supervisor = await prisma.user.findUnique({ where: { username: 'supervisor' } });
-  expect(supervisor).not.toBeNull();
-  await prisma.user.update({ where: { id: supervisor!.id }, data: { enabled: false } });
+  const disabledDirect = await directSession('supervisor');
+  await prisma.user.update({ where: { id: disabledDirect.user.id }, data: { enabled: false } });
   try {
-    const disabled = await disabledAgent.get('/api/auth/me');
+    const disabled = await request(app).get('/api/auth/me').set('Cookie', disabledDirect.cookie);
     expect(disabled.status).toBe(401);
     expect(disabled.body.code).toBe('USER_DISABLED');
   } finally {
-    await prisma.user.update({ where: { id: supervisor!.id }, data: { enabled: true } });
+    await prisma.user.update({ where: { id: disabledDirect.user.id }, data: { enabled: true } });
   }
 });
