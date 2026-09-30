@@ -33,19 +33,19 @@ it('blocks destructive synthetic reset in production mode', async () => {
 });
 
 
-it('uses a 12-hour rolling session with a seven-day absolute cap by default', () => {
+it('uses a 30-day session lifetime by default', () => {
   const config = loadConfig({ DATABASE_URL: productionDatabaseUrl });
-  expect(config.sessionTtlHours).toBe(12);
-  expect(config.sessionAbsoluteTtlHours).toBe(168);
+  expect(config.sessionTtlHours).toBe(720);
+  expect(config.sessionAbsoluteTtlHours).toBe(720);
 
   const createdAt = new Date('2026-09-29T00:00:00.000Z');
   const activeAt = new Date('2026-09-29T06:00:00.000Z');
   expect(sessionExpiryForActivity(createdAt, activeAt, config).toISOString())
-    .toBe('2026-09-29T18:00:00.000Z');
+    .toBe('2026-10-29T00:00:00.000Z');
 
-  const nearAbsoluteCap = new Date('2026-10-05T20:00:00.000Z');
+  const nearAbsoluteCap = new Date('2026-10-28T20:00:00.000Z');
   expect(sessionExpiryForActivity(createdAt, nearAbsoluteCap, config).toISOString())
-    .toBe('2026-10-06T00:00:00.000Z');
+    .toBe('2026-10-29T00:00:00.000Z');
 });
 
 it('rejects an absolute session lifetime shorter than the rolling lifetime', () => {
