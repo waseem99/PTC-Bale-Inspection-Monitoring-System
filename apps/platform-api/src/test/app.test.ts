@@ -139,3 +139,112 @@ it('logs out and invalidates the session', async () => {
   expect((await agent.post('/api/auth/logout').set('Origin', 'http://localhost')).status).toBe(204);
   expect((await agent.get('/api/auth/me')).status).toBe(401);
 });
+
+
+it('renews an active session, updates its expiry, and refreshes cookie metadata', async () => {
+  const agent = await login('viewer');
+  const user = await prisma.user.findUnique({ where: { username: 'viewer' } });
+  expect(user).not.toBeNull();
+  const session = await prisma.session.findFirst({
+    where: { userId: user!.id, revokedAt: null },
+    orderBy: { createdAt: 'desc' },
+  });
+  expect(session).not.toBeNull();
+
+  const forcedExpiry = new Date(Date.now() + 60_000);
+  await prisma.session.update({
+    where: { id: session!.id },
+    data: { expiresAt: forcedExpiry, lastSeenAt: new Date(Date.now() - 60_000) },
+  });
+
+  const response = await agent.get('/api/auth/me');
+  expect(response.status).toBe(200);
+  expect(response.body.user.role).toBe('viewer');
+
+  const renewed = await prisma.session.findUnique({ where: { id: session!.id } });
+  expect(renewed).not.toBeNull();
+  expect(renewed!.expiresAt.getTime()).toBeGreaterThan(Date.now() + 11 * 60 * 60 * 1000);
+  expect(response.body.expiresAt).toBe(renewed!.expiresAt.toISOString());
+  expect(response.headers['x-session-expires-at']).toBe(response.body.expiresAt);
+
+  const setCookie = response.headers['set-cookie'];
+  const cookieHeader = Array.isArray(setCookie) ? setCookie.join('; ') : String(setCookie ?? '');
+  expect(cookieHeader).toContain('ptc_session=');
+  expect(cookieHeader).toContain('HttpOnly');
+  expect(cookieHeader).toContain('SameSite=Strict');
+});
+
+it('caps rolling renewal at the absolute session lifetime', async () => {
+  const agent = await login('supervisor');
+  const user = await prisma.user.findUnique({ where: { username: 'supervisor' } });
+  expect(user).not.toBeNull();
+  const session = await prisma.session.findFirst({
+    where: { userId: user!.id, revokedAt: null },
+    orderBy: { createdAt: 'desc' },
+  });
+  expect(session).not.toBeNull();
+
+  const now = Date.now();
+  const createdAt = new Date(now - (config.sessionAbsoluteTtlHours * 60 * 60 * 1000) + 2 * 60 * 1000);
+  await prisma.session.update({
+    where: { id: session!.id },
+    data: {
+      createdAt,
+      expiresAt: new Date(now + 30 * 60 * 1000),
+      lastSeenAt: new Date(now - 60_000),
+    },
+  });
+
+  const response = await agent.get('/api/auth/me');
+  expect(response.status).toBe(200);
+
+  const renewedExpiry = Date.parse(response.body.expiresAt);
+  expect(renewedExpiry).toBeGreaterThan(now + 60_000);
+  expect(renewedExpiry).toBeLessThanOrEqual(now + 2 * 60 * 1000 + 5_000);
+});
+
+it('rejects expired, revoked, and disabled sessions instead of renewing them', async () => {
+  const expiredAgent = await login('viewer');
+  const viewer = await prisma.user.findUnique({ where: { username: 'viewer' } });
+  expect(viewer).not.toBeNull();
+  const expiredSession = await prisma.session.findFirst({
+    where: { userId: viewer!.id, revokedAt: null },
+    orderBy: { createdAt: 'desc' },
+  });
+  expect(expiredSession).not.toBeNull();
+  await prisma.session.update({
+    where: { id: expiredSession!.id },
+    data: { expiresAt: new Date(Date.now() - 1_000) },
+  });
+  const expired = await expiredAgent.get('/api/auth/me');
+  expect(expired.status).toBe(401);
+  expect(expired.body.code).toBe('SESSION_EXPIRED');
+
+  const revokedAgent = await login('admin');
+  const admin = await prisma.user.findUnique({ where: { username: 'admin' } });
+  expect(admin).not.toBeNull();
+  const revokedSession = await prisma.session.findFirst({
+    where: { userId: admin!.id, revokedAt: null },
+    orderBy: { createdAt: 'desc' },
+  });
+  expect(revokedSession).not.toBeNull();
+  await prisma.session.update({
+    where: { id: revokedSession!.id },
+    data: { revokedAt: new Date() },
+  });
+  const revoked = await revokedAgent.get('/api/auth/me');
+  expect(revoked.status).toBe(401);
+  expect(revoked.body.code).toBe('SESSION_EXPIRED');
+
+  const disabledAgent = await login('supervisor');
+  const supervisor = await prisma.user.findUnique({ where: { username: 'supervisor' } });
+  expect(supervisor).not.toBeNull();
+  await prisma.user.update({ where: { id: supervisor!.id }, data: { enabled: false } });
+  try {
+    const disabled = await disabledAgent.get('/api/auth/me');
+    expect(disabled.status).toBe(401);
+    expect(disabled.body.code).toBe('USER_DISABLED');
+  } finally {
+    await prisma.user.update({ where: { id: supervisor!.id }, data: { enabled: true } });
+  }
+});
