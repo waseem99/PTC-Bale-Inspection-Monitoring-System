@@ -33,6 +33,9 @@ jobs:
             # Runtime overrides take precedence over .env without mutating protected server files.
             export SESSION_TTL_HOURS=12
             export SESSION_ABSOLUTE_TTL_HOURS=168
+            export BUILD_COMMIT="$(git rev-parse HEAD)"
+            export BUILD_VERSION="staging-${BUILD_COMMIT:0:12}"
+            export IMAGE_TAG="$BUILD_VERSION"
 
             MEDIA_ROOT="$(awk -F= '/^PTC_DATA_ROOT=/{sub(/^PTC_DATA_ROOT=/, ""); print; exit}' .env)"
             if [ -z "$MEDIA_ROOT" ]; then
@@ -76,6 +79,12 @@ jobs:
             curl -sf http://127.0.0.1:9081/healthz >/dev/null || (echo "Health check failed" && exit 1)
 
             cd ~/PTC-Bale-Inspection-Monitoring-System/infrastructure/local
+
+            export SESSION_TTL_HOURS=12
+            export SESSION_ABSOLUTE_TTL_HOURS=168
+            export BUILD_COMMIT="$(git -C ../.. rev-parse HEAD)"
+            export BUILD_VERSION="staging-${BUILD_COMMIT:0:12}"
+            export IMAGE_TAG="$BUILD_VERSION"
 
             COMPOSE=(docker compose --env-file .env -f docker-compose.local.yml -f docker-compose.video-previews.yml)
             SESSION_TTL="$("${COMPOSE[@]}" exec -T api printenv SESSION_TTL_HOURS | tr -d '\r')"
@@ -156,3 +165,66 @@ jobs:
             else
               echo "Dashboard uses built-in Google Drive camera previews; local media endpoint verification is not applicable."
             fi
+
+            # Prove schema state on the exact deployed stack.
+            "${COMPOSE[@]}" run --rm migrate pnpm --filter @ptc-bale/platform-api exec prisma migrate status
+
+            # Reuse the repository's existing end-to-end acceptance runner against staging.
+            export PTC_BASE_URL="http://127.0.0.1:9081"
+            export SEED_VIEWER_PASSWORD="$("${COMPOSE[@]}" exec -T api printenv SEED_VIEWER_PASSWORD | tr -d '\r')"
+            export SEED_SUPERVISOR_PASSWORD="$("${COMPOSE[@]}" exec -T api printenv SEED_SUPERVISOR_PASSWORD | tr -d '\r')"
+            export INGESTION_SERVICE_TOKEN="$("${COMPOSE[@]}" exec -T api printenv INGESTION_SERVICE_TOKEN | tr -d '\r')"
+
+            ACCEPTANCE_DIR="$(mktemp -d)"
+            trap 'rm -rf "$ACCEPTANCE_DIR"' EXIT
+            cd ~/PTC-Bale-Inspection-Monitoring-System
+            python3 tools/testing/ptc_acceptance.py deployment --output "$ACCEPTANCE_DIR/deployment-record.json"
+            python3 tools/testing/ptc_acceptance.py integrated --output "$ACCEPTANCE_DIR/integrated-record.json"
+
+            # Restart PostgreSQL + API and prove a committed synthetic event survives.
+            cd infrastructure/local
+            "${COMPOSE[@]}" restart postgres api
+            READY=0
+            for _ in $(seq 1 60); do
+              if "${COMPOSE[@]}" exec -T api wget -qO- http://127.0.0.1:4000/readyz >/dev/null 2>&1; then
+                READY=1
+                break
+              fi
+              sleep 2
+            done
+            [ "$READY" = "1" ] || { echo "API did not recover after PostgreSQL/API restart"; exit 1; }
+
+            "${COMPOSE[@]}" exec -T api node <<'NODE'
+            const base = 'http://127.0.0.1:4000';
+            const password = process.env.SEED_VIEWER_PASSWORD;
+            const login = await fetch(`${base}/api/auth/login`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ username: 'viewer', password }),
+            });
+            if (login.status !== 200) throw new Error(`viewer login after restart failed: ${login.status}`);
+            const rawCookie = login.headers.get('set-cookie');
+            if (!rawCookie) throw new Error('missing session cookie after restart');
+            const cookie = rawCookie.split(';', 1)[0];
+            const event = await fetch(`${base}/api/events/TEST-001-VALID_ACCEPTED`, { headers: { cookie } });
+            if (event.status !== 200) throw new Error(`persisted event missing after restart: ${event.status}`);
+            console.log('Restart persistence check passed.');
+            NODE
+
+            # Produce and verify a protected database + evidence backup without restoring over staging.
+            MEDIA_ROOT="$(awk -F= '/^PTC_DATA_ROOT=/{sub(/^PTC_DATA_ROOT=/, ""); print; exit}' .env)"
+            STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+            DUMP="ptc-bale-${STAMP}.dump"
+            EVIDENCE="ptc-bale-evidence-${STAMP}.tar.gz"
+            MANIFEST="ptc-bale-${STAMP}.sha256"
+            "${COMPOSE[@]}" --profile tools run --rm backup-tools pg_dump --format=custom --file="/backups/$DUMP"
+            "${COMPOSE[@]}" --profile tools run --rm archive-tools sh -c "tar -C /evidence -czf /backups/$EVIDENCE ."
+            (
+              cd "$MEDIA_ROOT/backups"
+              test -s "$DUMP"
+              test -s "$EVIDENCE"
+              sha256sum "$DUMP" "$EVIDENCE" > "$MANIFEST"
+              sha256sum -c "$MANIFEST"
+            )
+
+            echo "Full staging acceptance passed for commit $BUILD_COMMIT."
