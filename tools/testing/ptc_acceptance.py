@@ -363,6 +363,7 @@ def deployment_record(output_path: Path) -> dict[str, Any]:
     base_url = _required_env("PTC_BASE_URL")
     origin = os.environ.get("PTC_ORIGIN", "").strip() or base_url
     viewer_password = _required_env("SEED_VIEWER_PASSWORD")
+    admin_password = _required_env("SEED_ADMIN_PASSWORD")
     client = ApiClient(base_url, origin=origin)
     checks: dict[str, Any] = {}
     checks["proxyHealth"] = client.require("GET", "/healthz", {200}).status
@@ -373,9 +374,11 @@ def deployment_record(output_path: Path) -> dict[str, Any]:
         ("cameras", "/api/cameras"),
         ("health", "/api/health"),
         ("reports", "/api/reports/summary"),
-        ("diagnostics", "/api/operations/diagnostics"),
     ):
         checks[name] = client.require("GET", path, {200}).status
+    admin = ApiClient(base_url, origin=origin)
+    admin.login("admin", admin_password)
+    checks["diagnostics"] = admin.require("GET", "/api/operations/diagnostics", {200}).status
     release = client.require("GET", "/api/system/release", {200}).json()
     record = {
         "status": "passed",
