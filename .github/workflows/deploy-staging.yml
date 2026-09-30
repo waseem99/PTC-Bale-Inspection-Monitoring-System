@@ -72,6 +72,8 @@ jobs:
               ps
 
       - name: Verify deployment
+        id: verify
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.STAGING_SSH_HOST }}
@@ -234,28 +236,41 @@ jobs:
             echo "Full staging acceptance passed for commit $BUILD_COMMIT."
 
       - name: Record sanitized deployment acceptance
-        if: ${{ success() }}
+        if: ${{ always() }}
         uses: actions/github-script@v7
+        env:
+          VERIFY_OUTCOME: ${{ steps.verify.outcome }}
         with:
           script: |
+            const outcome = process.env.VERIFY_OUTCOME || 'skipped';
+            const passed = outcome === 'success';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
             const body = [
-              '## Automated staging deployment acceptance — PASSED',
+              `## Automated staging deployment acceptance — ${passed ? 'PASSED' : 'FAILED'}`,
               '',
               `- Run: [${process.env.GITHUB_RUN_ID}](${runUrl})`,
               `- Commit: \`${context.sha}\``,
               '- Package: \`tools/testing/ptc_acceptance.py deployment\`',
               '- Target: active SSH staging (internal endpoint omitted)',
-              '- Result: **passed**',
-              '- Checks passed: proxy health, authenticated Viewer session, release identity, cameras, system health, reports summary, and diagnostics',
-              '- Secrets recorded: **no**',
-              '- The same gated verification step also completed migration status, integrated synthetic acceptance, restart persistence, and checksummed database/evidence backup verification.',
+              `- Verification outcome: **${outcome}**`,
+              `- Deployment package result: **${passed ? 'passed' : 'not accepted'}**`,
+              '- Secrets recorded in this issue: **no**',
+              passed
+                ? '- Checks passed: proxy health, authenticated Viewer session, release identity, cameras, system health, reports summary, and diagnostics'
+                : '- Acceptance is not complete; inspect the linked workflow run before closing #83.',
+              passed
+                ? '- The same gated verification step also completed migration status, integrated synthetic acceptance, restart persistence, and checksummed database/evidence backup verification.'
+                : '',
               '',
               'Sanitized acceptance record only; no credentials, tokens, private URLs, raw evidence, or client data are included.'
-            ].join('\\n');
+            ].filter(Boolean).join('\\n');
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: 83,
               body,
             });
+
+      - name: Enforce deployment acceptance result
+        if: ${{ steps.verify.outcome != 'success' }}
+        run: exit 1
