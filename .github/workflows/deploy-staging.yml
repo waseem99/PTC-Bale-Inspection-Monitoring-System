@@ -194,7 +194,16 @@ jobs:
             trap 'rm -rf "$ACCEPTANCE_DIR"' EXIT
             cd ~/PTC-Bale-Inspection-Monitoring-System
             python3 tools/testing/ptc_acceptance.py deployment --output "$ACCEPTANCE_DIR/deployment-record.json"
+            export PTC_ACCEPTANCE_RUN_ID="${{ github.run_id }}-${{ github.run_attempt }}"
             python3 tools/testing/ptc_acceptance.py integrated --output "$ACCEPTANCE_DIR/integrated-record.json"
+            export PTC_ACCEPTANCE_EVENT_ID="$(python3 - "$ACCEPTANCE_DIR/integrated-record.json" <<'PY'
+            import json
+            import sys
+            with open(sys.argv[1], encoding='utf-8') as handle:
+                print(json.load(handle)['ingestion'][0]['id'])
+            PY
+            )"
+            [ -n "$PTC_ACCEPTANCE_EVENT_ID" ] || { echo "Acceptance event ID was not recorded"; exit 1; }
 
             # Restart PostgreSQL + API and prove a committed synthetic event survives.
             cd infrastructure/local
@@ -209,9 +218,11 @@ jobs:
             done
             [ "$READY" = "1" ] || { echo "API did not recover after PostgreSQL/API restart"; exit 1; }
 
-            "${COMPOSE[@]}" exec -T api node <<'NODE'
+            "${COMPOSE[@]}" exec -T -e PTC_ACCEPTANCE_EVENT_ID="$PTC_ACCEPTANCE_EVENT_ID" api node <<'NODE'
             const base = 'http://127.0.0.1:4000';
             const password = process.env.SEED_VIEWER_PASSWORD;
+            const eventId = process.env.PTC_ACCEPTANCE_EVENT_ID;
+            if (!eventId) throw new Error('missing acceptance event ID');
             const login = await fetch(`${base}/api/auth/login`, {
               method: 'POST',
               headers: { 'content-type': 'application/json' },
@@ -221,7 +232,7 @@ jobs:
             const rawCookie = login.headers.get('set-cookie');
             if (!rawCookie) throw new Error('missing session cookie after restart');
             const cookie = rawCookie.split(';', 1)[0];
-            const event = await fetch(`${base}/api/events/TEST-001-VALID_ACCEPTED`, { headers: { cookie } });
+            const event = await fetch(`${base}/api/events/${encodeURIComponent(eventId)}`, { headers: { cookie } });
             if (event.status !== 200) throw new Error(`persisted event missing after restart: ${event.status}`);
             console.log('Restart persistence check passed.');
             NODE

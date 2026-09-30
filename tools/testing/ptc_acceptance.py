@@ -129,9 +129,11 @@ def load_manifest(path: Path) -> dict[str, Any]:
     return manifest
 
 
-def build_event(scenario: dict[str, Any], sequence: int) -> dict[str, Any]:
+def build_event(scenario: dict[str, Any], sequence: int, event_suffix: str = "") -> dict[str, Any]:
     code = str(scenario["code"])
     event_id = f"TEST-{sequence:03d}-{code}"
+    if event_suffix:
+        event_id = f"{event_id}-{event_suffix}"
     if len(event_id) > 64:
         raise AcceptanceError(f"Generated event ID exceeds platform limit: {event_id}")
     camera_number = sequence % 4 + 1
@@ -181,8 +183,11 @@ def build_event(scenario: dict[str, Any], sequence: int) -> dict[str, Any]:
     return payload
 
 
-def generate_events(manifest: dict[str, Any]) -> list[dict[str, Any]]:
-    return [build_event(scenario, index) for index, scenario in enumerate(manifest["scenarios"], start=1)]
+def generate_events(manifest: dict[str, Any], event_suffix: str = "") -> list[dict[str, Any]]:
+    return [
+        build_event(scenario, index, event_suffix)
+        for index, scenario in enumerate(manifest["scenarios"], start=1)
+    ]
 
 
 def validate_event(payload: dict[str, Any]) -> None:
@@ -409,7 +414,9 @@ def integrated_record(manifest_path: Path, output_path: Path) -> dict[str, Any]:
     viewer_password = _required_env("SEED_VIEWER_PASSWORD")
     supervisor_password = _required_env("SEED_SUPERVISOR_PASSWORD")
     manifest = load_manifest(manifest_path)
-    events = generate_events(manifest)
+    acceptance_run_id = os.environ.get("PTC_ACCEPTANCE_RUN_ID", "").strip()
+    event_suffix = hashlib.sha256(acceptance_run_id.encode("utf-8")).hexdigest()[:6] if acceptance_run_id else ""
+    events = generate_events(manifest, event_suffix)
     client = ApiClient(base_url, origin=origin)
     ingestion_results: list[dict[str, Any]] = []
     for event in events:
