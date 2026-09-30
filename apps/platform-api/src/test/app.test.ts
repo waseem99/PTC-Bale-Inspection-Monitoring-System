@@ -153,7 +153,7 @@ it('logs out and invalidates the session', async () => {
 });
 
 
-it('renews an active session, updates its expiry, and refreshes cookie metadata', async () => {
+it('restores an active session to the configured 30-day lifetime and refreshes cookie metadata', async () => {
   const direct = await directSession('viewer');
   const session = await prisma.session.findFirst({
     where: { userId: direct.user.id, revokedAt: null },
@@ -173,7 +173,7 @@ it('renews an active session, updates its expiry, and refreshes cookie metadata'
 
   const renewed = await prisma.session.findUnique({ where: { id: session!.id } });
   expect(renewed).not.toBeNull();
-  expect(renewed!.expiresAt.getTime()).toBeGreaterThan(Date.now() + 11 * 60 * 60 * 1000);
+  expect(renewed!.expiresAt.getTime()).toBeGreaterThan(Date.now() + 29 * 24 * 60 * 60 * 1000);
   expect(response.body.expiresAt).toBe(renewed!.expiresAt.toISOString());
   expect(response.headers['x-session-expires-at']).toBe(response.body.expiresAt);
 
