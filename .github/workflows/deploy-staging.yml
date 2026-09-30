@@ -30,19 +30,9 @@ jobs:
 
             cd infrastructure/local
 
-            upsert_env() {
-              key="$1"
-              value="$2"
-              if grep -q "^${key}=" .env; then
-                sed -i "s|^${key}=.*|${key}=${value}|" .env
-              else
-                printf '%s=%s\n' "$key" "$value" >> .env
-              fi
-            }
-
-            # Keep the staging runtime aligned with the approved rolling-session policy.
-            upsert_env SESSION_TTL_HOURS 12
-            upsert_env SESSION_ABSOLUTE_TTL_HOURS 168
+            # Runtime overrides take precedence over .env without mutating protected server files.
+            export SESSION_TTL_HOURS=12
+            export SESSION_ABSOLUTE_TTL_HOURS=168
 
             MEDIA_ROOT="$(awk -F= '/^PTC_DATA_ROOT=/{sub(/^PTC_DATA_ROOT=/, ""); print; exit}' .env)"
             if [ -z "$MEDIA_ROOT" ]; then
