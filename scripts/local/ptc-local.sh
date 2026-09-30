@@ -70,7 +70,8 @@ POSTGRES_USER=ptc_app
 POSTGRES_PASSWORD=$db_password
 DATABASE_URL=postgresql://ptc_app:$db_password@postgres:5432/ptc_bale?schema=public
 SESSION_COOKIE_NAME=ptc_session
-SESSION_TTL_HOURS=8
+SESSION_TTL_HOURS=12
+SESSION_ABSOLUTE_TTL_HOURS=168
 SEED_VIEWER_PASSWORD=$viewer_password
 SEED_SUPERVISOR_PASSWORD=$supervisor_password
 SEED_ADMIN_PASSWORD=$admin_password
