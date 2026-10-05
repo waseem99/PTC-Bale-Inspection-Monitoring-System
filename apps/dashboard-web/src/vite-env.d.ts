@@ -13,6 +13,7 @@ interface ImportMetaEnv {
   readonly VITE_ALLOW_DEMO_CREDENTIALS?: string;
   readonly VITE_BUILD_VERSION?: string;
   readonly VITE_ENVIRONMENT_NAME?: string;
+  readonly VITE_CAMERA_PREVIEW_MODE?: 'drive' | 'local';
 }
 
 interface ImportMeta {

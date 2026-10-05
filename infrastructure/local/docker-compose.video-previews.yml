@@ -2,10 +2,7 @@ services:
   dashboard:
     build:
       args:
-        VITE_CAMERA_01_PREVIEW_URL: ${VITE_CAMERA_01_PREVIEW_URL:-}
-        VITE_CAMERA_02_PREVIEW_URL: ${VITE_CAMERA_02_PREVIEW_URL:-}
-        VITE_CAMERA_03_PREVIEW_URL: ${VITE_CAMERA_03_PREVIEW_URL:-}
-        VITE_CAMERA_04_PREVIEW_URL: ${VITE_CAMERA_04_PREVIEW_URL:-}
+        VITE_CAMERA_PREVIEW_MODE: local
     volumes:
       - type: bind
         source: ${PTC_DATA_ROOT}/media

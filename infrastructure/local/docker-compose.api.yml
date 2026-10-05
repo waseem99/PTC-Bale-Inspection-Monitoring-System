@@ -65,6 +65,7 @@ services:
       COOKIE_SECURE: "false"
       TRUST_PROXY: "true"
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS}
+      SIMULATOR_ENABLED: "false"
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,10 +92,11 @@ services:
         VITE_ALLOW_DEMO_CREDENTIALS: "false"
         VITE_MOCK_LATENCY_MS: "0"
         VITE_MOCK_FAILURE_RATE: "0"
+        VITE_CAMERA_PREVIEW_MODE: drive
     image: ptc-bale-dashboard:${DASHBOARD_BUILD_VERSION:-local-api}
     restart: unless-stopped
     ports:
-      - "${DASHBOARD_PORT:-8080}:8080"
+      - "${LOCAL_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_PORT:-8080}:8080"
     volumes:
       - ../../apps/dashboard-web/deploy/nginx.local-api.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
