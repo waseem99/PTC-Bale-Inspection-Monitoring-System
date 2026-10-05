@@ -16,33 +16,19 @@ function FullPageLoading() {
   return <main className="full-page-loading"><LoadingPanel rows={5} label="Loading dashboard" /></main>;
 }
 
-function safeLoginDestination(): string {
-  const candidate = new URLSearchParams(window.location.search).get('returnTo');
-  return candidate?.startsWith('/') && !candidate.startsWith('//') ? candidate : '/overview';
-}
-
 export default function App() {
   const { pathname } = useRouter();
   const { isAuthenticated, isInitializing } = useAuth();
   const route = matchRoute(pathname);
 
   useEffect(() => {
-    if (isInitializing) return;
-
-    if (isAuthenticated && route.name === 'login') {
-      navigate(safeLoginDestination(), { replace: true, bypassBlocker: true });
-      return;
-    }
-
-    if (!isAuthenticated && route.name !== 'login') {
-      const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
-      navigate(`/login?returnTo=${returnTo}`, { replace: true, bypassBlocker: true });
-    }
+    if (isInitializing || isAuthenticated || route.name === 'login') return;
+    const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+    navigate(`/login?returnTo=${returnTo}`, { replace: true, bypassBlocker: true });
   }, [isAuthenticated, isInitializing, route.name]);
 
   if (isInitializing) return <FullPageLoading />;
   if (!isAuthenticated && route.name !== 'login') return <FullPageLoading />;
-  if (isAuthenticated && route.name === 'login') return <FullPageLoading />;
 
   let page: ReactNode = <NotFoundPage />;
   switch (route.name) {
