@@ -25,15 +25,7 @@ beforeEach(() => {
 });
 
 describe('camera preview', () => {
-  it('maps a configured direct preview to the matching camera', () => {
-    const environment = { VITE_CAMERA_01_PREVIEW_URL: 'https://media.example.test/camera-01.mp4' };
-    expect(cameraPreviewSource('CAM-01', environment)).toBe('https://media.example.test/camera-01.mp4');
-    expect(cameraPreviewSource('CAM-02', environment)).toBe(
-      'https://drive.google.com/file/d/1154WOX30kN0Mk9rvyJeZv4cVYQbW6R7_/preview',
-    );
-  });
-
-  it('defaults to the shared Google Drive camera clips when no override is configured', () => {
+  it('defaults to the shared Google Drive camera clips', () => {
     expect(resolveCameraPreviewSource('CAM-01', {})).toEqual({
       url: 'https://drive.google.com/file/d/1Upew9D7Ypwn0FOsmJRxbSiylwjQGb240/preview',
       kind: 'iframe',
@@ -46,19 +38,23 @@ describe('camera preview', () => {
     });
   });
 
-  it('normalizes Google Drive file links into iframe previews', () => {
-    const source = resolveCameraPreviewSource('CAM-01', {
-      VITE_CAMERA_01_PREVIEW_URL: 'https://drive.google.com/file/d/example-file-id/view?usp=sharing',
-    });
-    expect(source).toEqual({
-      url: 'https://drive.google.com/file/d/example-file-id/preview',
-      kind: 'iframe',
-      origin: 'configured',
+  it('uses only a non-secret preview-mode selector for local media', () => {
+    expect(resolveCameraPreviewSource('CAM-01', { VITE_CAMERA_PREVIEW_MODE: 'local' })).toEqual({
+      url: '/media/camera-01.mp4',
+      kind: 'video',
+      origin: 'local-default',
     });
   });
 
-  it('renders direct video media muted with continuous ping-pong playback', () => {
-    vi.stubEnv('VITE_CAMERA_01_PREVIEW_URL', '/media/camera-01.mp4');
+  it('ignores legacy per-camera Vite URL variables so RTSP credentials cannot enter the bundle path', () => {
+    vi.stubEnv('VITE_CAMERA_01_PREVIEW_URL', 'rtsp://camera-user:camera-password@10.0.0.10/stream');
+    expect(cameraPreviewSource('CAM-01')).toBe(
+      'https://drive.google.com/file/d/1Upew9D7Ypwn0FOsmJRxbSiylwjQGb240/preview',
+    );
+  });
+
+  it('renders local preview media only when the safe local mode is selected', () => {
+    vi.stubEnv('VITE_CAMERA_PREVIEW_MODE', 'local');
     render(<CameraPreview camera={camera} />);
     const video = screen.getByLabelText('Video preview for Camera 01').querySelector('video');
     expect(video).toBeTruthy();
@@ -79,7 +75,7 @@ describe('camera preview', () => {
   });
 
   it('falls back to the synthetic preview when local media fails to load', () => {
-    vi.stubEnv('VITE_CAMERA_01_PREVIEW_URL', '/media/camera-01.mp4');
+    vi.stubEnv('VITE_CAMERA_PREVIEW_MODE', 'local');
     render(<CameraPreview camera={camera} />);
     const video = screen.getByLabelText('Video preview for Camera 01').querySelector('video');
     expect(video).toBeTruthy();
