@@ -1,17 +1,14 @@
 type PreviewEnvironment = {
-  VITE_CAMERA_01_PREVIEW_URL?: string;
-  VITE_CAMERA_02_PREVIEW_URL?: string;
-  VITE_CAMERA_03_PREVIEW_URL?: string;
-  VITE_CAMERA_04_PREVIEW_URL?: string;
+  VITE_CAMERA_PREVIEW_MODE?: 'drive' | 'local';
 };
 
 export type CameraPreviewSource = {
   url: string;
   kind: 'video' | 'iframe';
-  origin: 'configured' | 'drive-default' | 'local-default';
+  origin: 'drive-default' | 'local-default';
 };
 
-/** Shared Drive camera-angle clips (folder AI Bale Detection). No git media required. */
+/** Shared Drive camera-angle clips (folder AI Bale Detection). Public preview media only. */
 const driveDefaultByCamera: Record<string, string> = {
   'CAM-01': 'https://drive.google.com/file/d/1Upew9D7Ypwn0FOsmJRxbSiylwjQGb240/view',
   'CAM-02': 'https://drive.google.com/file/d/1154WOX30kN0Mk9rvyJeZv4cVYQbW6R7_/view',
@@ -26,23 +23,12 @@ const localPreviewByCamera: Record<string, string> = {
   'CAM-04': '/media/camera-04.mp4',
 };
 
-export function normalizeCameraPreviewUrl(raw: string | undefined): string | undefined {
-  const value = raw?.trim();
-  if (!value) return undefined;
-  if (value.startsWith('/') && !value.startsWith('//')) return value;
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return undefined;
-    return parsed.toString();
-  } catch {
-    return undefined;
-  }
-}
-
 function googleDrivePreviewUrl(value: string): string | undefined {
   try {
     const parsed = new URL(value, 'https://ptc.local');
-    if (parsed.hostname !== 'drive.google.com') return undefined;
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'drive.google.com' || parsed.username || parsed.password) {
+      return undefined;
+    }
     const match = parsed.pathname.match(/^\/file\/d\/([^/]+)\/(?:view|preview)?/);
     if (!match?.[1]) return undefined;
     return `https://drive.google.com/file/d/${encodeURIComponent(match[1])}/preview`;
@@ -51,41 +37,19 @@ function googleDrivePreviewUrl(value: string): string | undefined {
   }
 }
 
-function toPreviewSource(raw: string, origin: CameraPreviewSource['origin']): CameraPreviewSource | undefined {
-  const normalized = normalizeCameraPreviewUrl(raw);
-  if (!normalized) return undefined;
-  const drivePreview = googleDrivePreviewUrl(normalized);
-  return {
-    url: drivePreview ?? normalized,
-    kind: drivePreview ? 'iframe' : 'video',
-    origin,
-  };
-}
-
-function configuredPreview(cameraId: string, environment: PreviewEnvironment): string | undefined {
-  return cameraId === 'CAM-01' ? environment.VITE_CAMERA_01_PREVIEW_URL
-    : cameraId === 'CAM-02' ? environment.VITE_CAMERA_02_PREVIEW_URL
-      : cameraId === 'CAM-03' ? environment.VITE_CAMERA_03_PREVIEW_URL
-        : cameraId === 'CAM-04' ? environment.VITE_CAMERA_04_PREVIEW_URL
-          : undefined;
+function selectedPreviewMode(environment?: PreviewEnvironment): 'drive' | 'local' {
+  const configured = environment?.VITE_CAMERA_PREVIEW_MODE ?? import.meta.env.VITE_CAMERA_PREVIEW_MODE;
+  return configured === 'local' ? 'local' : 'drive';
 }
 
 export function resolveCameraPreviewSource(cameraId: string, environment?: PreviewEnvironment): CameraPreviewSource | undefined {
-  const configured: PreviewEnvironment = environment ?? {
-    VITE_CAMERA_01_PREVIEW_URL: import.meta.env.VITE_CAMERA_01_PREVIEW_URL,
-    VITE_CAMERA_02_PREVIEW_URL: import.meta.env.VITE_CAMERA_02_PREVIEW_URL,
-    VITE_CAMERA_03_PREVIEW_URL: import.meta.env.VITE_CAMERA_03_PREVIEW_URL,
-    VITE_CAMERA_04_PREVIEW_URL: import.meta.env.VITE_CAMERA_04_PREVIEW_URL,
-  };
+  if (selectedPreviewMode(environment) === 'local') {
+    const localDefault = localPreviewByCamera[cameraId];
+    return localDefault ? { url: localDefault, kind: 'video', origin: 'local-default' } : undefined;
+  }
 
-  const fromEnv = toPreviewSource(configuredPreview(cameraId, configured) ?? '', 'configured');
-  if (fromEnv) return fromEnv;
-
-  const fromDrive = toPreviewSource(driveDefaultByCamera[cameraId] ?? '', 'drive-default');
-  if (fromDrive) return fromDrive;
-
-  const localDefault = localPreviewByCamera[cameraId];
-  return localDefault ? { url: localDefault, kind: 'video', origin: 'local-default' } : undefined;
+  const drivePreview = googleDrivePreviewUrl(driveDefaultByCamera[cameraId] ?? '');
+  return drivePreview ? { url: drivePreview, kind: 'iframe', origin: 'drive-default' } : undefined;
 }
 
 export function cameraPreviewSource(cameraId: string, environment?: PreviewEnvironment): string | undefined {
