@@ -71,26 +71,35 @@ assertBoundary(
   'Production workstation backend network must remain internal.',
 );
 
-const browserBoundaryFiles = [
+const frontendBuildFiles = [
   'apps/dashboard-web/src/cameraPreviewConfig.ts',
   'apps/dashboard-web/Dockerfile',
   'apps/dashboard-web/Dockerfile.aws',
   'apps/dashboard-web/.env.example',
   'infrastructure/local/docker-compose.video-previews.yml',
-  'infrastructure/local/runtime.env.example',
 ];
-const browserBoundary = browserBoundaryFiles.map(read).join('\n');
+const frontendBuildBoundary = frontendBuildFiles.map(read).join('\n');
 assertBoundary(
-  !/VITE_CAMERA_0[1-4]_PREVIEW_URL/.test(browserBoundary),
+  !/VITE_CAMERA_0[1-4]_PREVIEW_URL/.test(frontendBuildBoundary),
   'Per-camera VITE URL variables are forbidden because VITE values are browser-visible.',
 );
 assertBoundary(
-  !/(?:rtsp|rtsps):\/\//i.test(browserBoundary),
-  'RTSP/RTSPS addresses must never appear in frontend build/runtime configuration.',
+  !/(?:rtsp|rtsps):\/\//i.test(frontendBuildBoundary),
+  'RTSP/RTSPS addresses must never appear in frontend build configuration.',
 );
 assertBoundary(
-  !/postgresql:\/\//i.test(browserBoundary),
-  'Database connection strings must never appear in frontend build/runtime configuration.',
+  !/postgresql:\/\//i.test(frontendBuildBoundary),
+  'Database connection strings must never appear in frontend build configuration.',
+);
+
+const runtimeExample = read('infrastructure/local/runtime.env.example');
+assertBoundary(
+  !/VITE_CAMERA_0[1-4]_PREVIEW_URL/.test(runtimeExample),
+  'Protected runtime configuration must not feed per-camera URLs into Vite/browser variables.',
+);
+assertBoundary(
+  runtimeExample.includes('PTC_RUNTIME_MODE=hardware-ready'),
+  'Protected runtime example must default to hardware-ready.',
 );
 
 const routeFiles = [
