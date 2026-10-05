@@ -8,6 +8,7 @@ import { errorHandler } from './errors';
 import { createIngestionReplayGuard } from './ingestion-replay-guard';
 import { createPendingEvidenceFinalizer } from './pending-evidence-finalizer';
 import { createProductionReadyApp } from './production-app';
+import { createSecurityEventObservability } from './security-events';
 
 function createRuntimeLimiter(limit: number, windowMs: number) {
   const entries = new Map<string, { count: number; resetAt: number }>();
@@ -55,6 +56,8 @@ export function createRuntimeApp(config: AppConfig): Express {
     response.setHeader('Cache-Control', 'no-store');
     next();
   });
+
+  app.use(createSecurityEventObservability(config));
 
   app.use((request, response, next) => {
     if (request.path.startsWith('/api/auth/')) {
