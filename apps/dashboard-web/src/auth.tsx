@@ -92,18 +92,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .getCurrentSession(stored?.token ?? '', controller.signal)
       .then((validated) => {
         if (!active) return;
-        // Commit the validated session and initialization completion in the same
-        // promise phase. Splitting these across `.then()` and `.finally()` can let
-        // the protected-route guard briefly observe "initialized + unauthenticated"
-        // and redirect a valid live session back to /login.
         setSession(validated);
         persistSession(validated);
-        setInitializing(false);
       })
       .catch((error: unknown) => {
         if (!active || (error instanceof ApiError && error.code === 'REQUEST_ABORTED')) return;
         clearSession();
-        setInitializing(false);
+      })
+      .finally(() => {
+        if (active) setInitializing(false);
       });
     return () => {
       active = false;
