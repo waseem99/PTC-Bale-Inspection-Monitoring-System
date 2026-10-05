@@ -16,13 +16,17 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const returnTo = searchParams.get('returnTo');
 
-  useEffect(() => { if (isAuthenticated) navigate(returnTo?.startsWith('/') ? returnTo : '/overview', { replace: true }); }, [isAuthenticated, returnTo]);
+  // Redirect only after AuthProvider has committed the authenticated state. Navigating
+  // directly from submit() can race the protected-route guard with stale auth state.
+  useEffect(() => {
+    if (isAuthenticated) navigate(returnTo?.startsWith('/') ? returnTo : '/overview', { replace: true });
+  }, [isAuthenticated, returnTo]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (isSubmitting) return; setError('');
     if (!username.trim() || !password) { setError('Enter both username and password.'); return; }
     setSubmitting(true);
-    try { await login(username.trim(), password); navigate(returnTo?.startsWith('/') ? returnTo : '/overview', { replace: true }); }
+    try { await login(username.trim(), password); }
     catch (loginError) { setError(loginError instanceof ApiError ? loginError.message : 'Sign-in could not be completed.'); }
     finally { setSubmitting(false); }
   }
