@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { ApiError, runtime } from '../api';
 import { getDemoCredentials, useAuth } from '../auth';
 import { Icon, StatusPill } from '../components';
 import { ptcLogoDataUri } from '../logo';
-import { navigate, useRouter } from '../router';
+import { useRouter } from '../router';
 
 export default function LoginPage() {
-  const { isAuthenticated, login } = useAuth();
+  const { login } = useAuth();
   const { searchParams } = useRouter();
   const credentials = useMemo(() => getDemoCredentials(), []);
   const [username, setUsername] = useState(credentials?.username ?? '');
@@ -16,19 +16,19 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const returnTo = searchParams.get('returnTo');
 
-  // Redirect only after AuthProvider has committed the authenticated state. Navigating
-  // directly from submit() can race the protected-route guard with stale auth state.
-  useEffect(() => {
-    if (isAuthenticated) navigate(returnTo?.startsWith('/') ? returnTo : '/overview', { replace: true });
-  }, [isAuthenticated, returnTo]);
-
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (isSubmitting) return; setError('');
     if (!username.trim() || !password) { setError('Enter both username and password.'); return; }
     setSubmitting(true);
-    try { await login(username.trim(), password); }
-    catch (loginError) { setError(loginError instanceof ApiError ? loginError.message : 'Sign-in could not be completed.'); }
-    finally { setSubmitting(false); }
+    try {
+      await login(username.trim(), password);
+      const destination = returnTo?.startsWith('/') ? returnTo : '/overview';
+      // Login establishes an HttpOnly server session in live mode. Use a same-origin
+      // reload so the next app bootstrap validates that cookie before protected routing.
+      // Mock mode also survives this path because its session is stored in sessionStorage.
+      window.location.replace(destination);
+    }
+    catch (loginError) { setError(loginError instanceof ApiError ? loginError.message : 'Sign-in could not be completed.'); setSubmitting(false); }
   }
 
   return <main className="login-page">
