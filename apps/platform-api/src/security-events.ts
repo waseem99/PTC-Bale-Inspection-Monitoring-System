@@ -34,12 +34,12 @@ type SafeActor = {
 type SecurityEventInput = {
   eventType: SecurityEventType;
   severity: SecuritySeverity;
-  correlationId?: string;
-  actor?: SafeActor;
-  targetId?: string;
+  correlationId?: string | undefined;
+  actor?: SafeActor | undefined;
+  targetId?: string | undefined;
   result: SecurityResult;
-  reasonCode?: string;
-  source?: string;
+  reasonCode?: string | undefined;
+  source?: string | undefined;
 };
 
 type CapturedResponse = {
