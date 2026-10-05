@@ -10,6 +10,7 @@ x-api-environment: &api-environment
   COOKIE_SECURE: "false"
   TRUST_PROXY: "true"
   ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+  AUTH_MODE: ${AUTH_MODE:-local}
   SEED_VIEWER_PASSWORD: ${SEED_VIEWER_PASSWORD}
   SEED_SUPERVISOR_PASSWORD: ${SEED_SUPERVISOR_PASSWORD}
   SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
@@ -128,6 +129,7 @@ services:
         VITE_REQUEST_TIMEOUT_MS: "12000"
         VITE_MOCK_LATENCY_MS: "0"
         VITE_MOCK_FAILURE_RATE: "0"
+        VITE_CAMERA_PREVIEW_MODE: ${VITE_CAMERA_PREVIEW_MODE:-drive}
     restart: unless-stopped
     expose: ["8080"]
     healthcheck:
@@ -151,7 +153,7 @@ services:
     restart: unless-stopped
     user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     environment:
-      PTC_RUNTIME_MODE: ${PTC_RUNTIME_MODE:-simulator}
+      PTC_RUNTIME_MODE: ${PTC_RUNTIME_MODE:-hardware-ready}
       EDGE_SPOOL_DATABASE: /var/lib/ptc-bale/spool/spool.sqlite3
       API_ORIGIN: http://api:4000
       INGESTION_SERVICE_TOKEN: ${INGESTION_SERVICE_TOKEN}
