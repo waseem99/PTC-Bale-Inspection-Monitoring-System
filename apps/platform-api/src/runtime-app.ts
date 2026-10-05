@@ -60,6 +60,13 @@ export function createRuntimeApp(config: AppConfig): Express {
   app.use(createSecurityEventObservability(config));
 
   app.use((request, response, next) => {
+    if (request.path === '/api/auth/login' && (config.authMode ?? 'local') === 'oidc') {
+      response.status(403).json({
+        code: 'LOCAL_AUTH_DISABLED',
+        message: 'Local sign-in is disabled while enterprise identity mode is active.',
+      });
+      return;
+    }
     if (request.path.startsWith('/api/auth/')) {
       coreApp(request, response, next);
       return;
