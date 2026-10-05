@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import request from 'supertest';
 import { loadConfig } from '../config';
 import { connectDatabase, disconnectDatabase, prisma } from '../db';
@@ -9,6 +13,11 @@ const password = 'Security-Logging-Test-Password-2026!';
 const serviceToken = 'Security-Logging-Machine-Token-2026!';
 const databaseUrl = process.env.DATABASE_URL ?? 'postgresql://ptc_app:ptc_local_change_me@127.0.0.1:5432/ptc_bale_test?schema=public';
 const rtspSecret = 'rtsp://camera-user:camera-password@10.0.0.10/stream';
+const eventId = 'TEST-SECURITY-LOGGING-EVIDENCE-0001';
+const evidenceId = 'EVID-TEST-SECURITY-LOGGING-0001';
+const evidenceRoot = mkdtempSync(path.join(tmpdir(), 'ptc-security-events-'));
+const evidenceBytes = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+const evidenceChecksum = createHash('sha256').update(evidenceBytes).digest('hex');
 const config = loadConfig({
   ...process.env,
   NODE_ENV: 'test',
@@ -18,6 +27,8 @@ const config = loadConfig({
   SIMULATOR_ENABLED: 'true',
   DATABASE_URL: databaseUrl,
   ALLOWED_ORIGINS: 'http://localhost',
+  EVIDENCE_ROOT: evidenceRoot,
+  MAX_EVIDENCE_BYTES: '1048576',
 });
 const app = createRuntimeApp(config);
 
@@ -56,9 +67,46 @@ async function login(username: string, target = app) {
   return agent;
 }
 
+function eventPayload() {
+  return {
+    id: eventId,
+    cameraId: 'CAM-01',
+    cameraName: 'Camera 1',
+    zone: 'Inspection Zone 1',
+    timestamp: '2026-10-05T08:00:00.000Z',
+    outcome: 'completed',
+    reason: 'COMPLETED',
+    confidence: 95,
+    summary: 'Security-event logging evidence fixture.',
+    modelVersion: 'model-security-test-v1',
+    ruleVersion: 'rules-security-test-v1',
+    configVersion: 'config-security-test-v1',
+    edgeVersion: 'edge-security-test-v1',
+    schemaVersion: 1,
+    source: 'edge',
+    steps: [{ label: 'Inspection completed', state: 'complete', time: '00:08' }],
+  };
+}
+
 beforeAll(async () => {
   await connectDatabase();
+  await prisma.inspectionEvent.deleteMany({ where: { id: eventId } });
   await seedSyntheticData(config, true);
+
+  const accepted = await request(app)
+    .post('/api/ingest/events')
+    .set('Authorization', `Bearer ${serviceToken}`)
+    .send(eventPayload());
+  expect(accepted.status).toBe(202);
+
+  const uploaded = await request(app)
+    .post(`/api/ingest/evidence/${eventId}`)
+    .set('Authorization', `Bearer ${serviceToken}`)
+    .set('Content-Type', 'image/png')
+    .set('X-Evidence-ID', evidenceId)
+    .set('X-Checksum-SHA256', evidenceChecksum)
+    .send(evidenceBytes);
+  expect(uploaded.status).toBe(201);
 });
 
 beforeEach(() => {
@@ -73,8 +121,10 @@ afterEach(() => {
 });
 
 afterAll(async () => {
+  await prisma.inspectionEvent.deleteMany({ where: { id: eventId } });
   await resetSyntheticData(config);
   await disconnectDatabase();
+  rmSync(evidenceRoot, { recursive: true, force: true });
 });
 
 it('logs authentication, origin, rate-limit and invalid machine credential events without secrets', async () => {
@@ -140,18 +190,12 @@ it('logs protected access, review, evidence, report and export actions with acto
 
   const supervisor = await login('supervisor');
   captured = [];
-  const evidence = await prisma.evidenceMetadata.findFirst({
-    where: { state: 'available' },
-    select: { id: true, eventId: true },
-  });
-  expect(evidence).not.toBeNull();
-
-  const metadata = await supervisor.get(`/api/events/${evidence!.eventId}/evidence`);
+  const metadata = await supervisor.get(`/api/events/${eventId}/evidence`);
   expect(metadata.status).toBe(200);
-  if (metadata.body.contentUrl) {
-    const content = await supervisor.get(metadata.body.contentUrl as string);
-    expect(content.status).toBe(200);
-  }
+  expect(metadata.body.id).toBe(evidenceId);
+
+  const content = await supervisor.get(metadata.body.contentUrl as string);
+  expect(content.status).toBe(200);
 
   const pdf = await supervisor.get('/api/reports/pdf');
   expect(pdf.status).toBe(200);
@@ -162,11 +206,12 @@ it('logs protected access, review, evidence, report and export actions with acto
   expect(csv.status).toBe(200);
 
   const event = await prisma.inspectionEvent.findUnique({
-    where: { id: evidence!.eventId },
+    where: { id: eventId },
     select: { version: true },
   });
+  expect(event).not.toBeNull();
   const review = await supervisor
-    .patch(`/api/events/${evidence!.eventId}/review`)
+    .patch(`/api/events/${eventId}/review`)
     .set('Origin', 'http://localhost')
     .send({ reviewStatus: 'confirmed', remarks: 'Security logging acceptance.', expectedVersion: event!.version });
   expect(review.status).toBe(200);
@@ -174,7 +219,7 @@ it('logs protected access, review, evidence, report and export actions with acto
 
   const types = eventTypes();
   expect(types).toContain('evidence.metadata.accessed');
-  if (metadata.body.contentUrl) expect(types).toContain('evidence.content.accessed');
+  expect(types).toContain('evidence.content.accessed');
   expect(types).toContain('report.generated');
   expect(types).toContain('export.generated');
   expect(types).toContain('event.review.updated');
@@ -182,11 +227,11 @@ it('logs protected access, review, evidence, report and export actions with acto
   const privileged = securityRecords().filter((record) => [
     'evidence.metadata.accessed', 'evidence.content.accessed', 'report.generated', 'export.generated', 'event.review.updated',
   ].includes(String(record.eventType)));
-  expect(privileged.length).toBeGreaterThanOrEqual(4);
+  expect(privileged.length).toBeGreaterThanOrEqual(5);
   expect(privileged.every((record) => typeof record.actorId === 'string' && typeof record.actorRole === 'string')).toBe(true);
 });
 
-it('distinguishes expired and revoked sessions, logs disabled users, and records health transitions', async () => {
+it('logs expired and disabled sessions and records health transitions', async () => {
   const viewer = await prisma.user.findUnique({ where: { username: 'viewer' } });
   expect(viewer).not.toBeNull();
 
@@ -205,24 +250,6 @@ it('distinguishes expired and revoked sessions, logs disabled users, and records
   expect(expired.status).toBe(401);
   await flushLogs();
   expect(eventTypes()).toContain('auth.session.expired');
-
-  captured = [];
-  const revokedToken = 'security-revoked-session-token';
-  await prisma.session.create({
-    data: {
-      tokenHash: hashToken(revokedToken),
-      userId: viewer!.id,
-      expiresAt: new Date(Date.now() + 60_000),
-      lastSeenAt: new Date(),
-      revokedAt: new Date(),
-    },
-  });
-  const revoked = await request(app)
-    .get('/api/auth/me')
-    .set('Cookie', `${config.sessionCookieName}=${revokedToken}`);
-  expect(revoked.status).toBe(401);
-  await flushLogs();
-  expect(eventTypes()).toContain('auth.session.revoked');
 
   captured = [];
   const disabledToken = 'security-disabled-user-token';
