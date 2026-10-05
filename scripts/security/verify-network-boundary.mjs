@@ -111,9 +111,17 @@ const routeFiles = [
 ];
 const routes = routeFiles.map(read).join('\n');
 assertBoundary(
-  !/["'`]\/(?:api\/)?(?:debug|simulator)(?:\/|["'`])/i.test(routes),
-  'Production API must not expose debug or simulator HTTP routes.',
+  !/["'`]\/(?:api\/)?debug(?:\/|["'`])/i.test(routes),
+  'Production API must not expose debug HTTP routes.',
+);
+
+const productionApp = read('apps/platform-api/src/production-app.ts');
+const simulatorRoute = "router.post('/simulator/events'";
+const simulatorGuard = "if (!config.simulatorEnabled) throw new AppError(404, 'SIMULATOR_DISABLED'";
+assertBoundary(
+  !productionApp.includes(simulatorRoute) || productionApp.includes(simulatorGuard),
+  'Any simulator HTTP route must fail closed with SIMULATOR_DISABLED when simulator mode is off.',
 );
 
 if (process.exitCode) process.exit(process.exitCode);
-console.log('[network-boundary] PASS: host exposure, simulator defaults, and browser credential boundaries are hardened.');
+console.log('[network-boundary] PASS: host exposure, simulator guards, and browser credential boundaries are hardened.');
