@@ -41,6 +41,7 @@
 - [Local machine installation and operations](32-local-machine-deployment.md)
 - [Local release manifest](33-local-release-manifest.md)
 - [Database resilience Option A execution and acceptance](44-database-resilience-option-a.md)
+- [Security event catalogue and SIEM collection contract](45-security-event-catalogue.md)
 
 ## Delivery and operation
 
