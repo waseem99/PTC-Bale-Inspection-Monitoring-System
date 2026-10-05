@@ -114,7 +114,7 @@ export function createSecurityEventObservability(_config: AppConfig): RequestHan
 
     response.on('finish', () => {
       const status = response.statusCode;
-      const path = request.path;
+      const path = (request.originalUrl.split('?')[0] || request.path);
       const correlationId = response.locals.correlationId as string | undefined;
       const actor = actorFromLocals(response, captured);
       const code = captured?.code;
