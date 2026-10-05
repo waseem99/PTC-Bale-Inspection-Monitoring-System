@@ -1,29 +1,30 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ApiError, runtime } from '../api';
 import { getDemoCredentials, useAuth } from '../auth';
 import { Icon, StatusPill } from '../components';
 import { ptcLogoDataUri } from '../logo';
+import { navigate, useRouter } from '../router';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { isAuthenticated, login } = useAuth();
+  const { searchParams } = useRouter();
   const credentials = useMemo(() => getDemoCredentials(), []);
   const [username, setUsername] = useState(credentials?.username ?? '');
   const [password, setPassword] = useState(credentials?.password ?? '');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const returnTo = searchParams.get('returnTo');
+
+  useEffect(() => { if (isAuthenticated) navigate(returnTo?.startsWith('/') ? returnTo : '/overview', { replace: true }); }, [isAuthenticated, returnTo]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (isSubmitting) return; setError('');
     if (!username.trim() || !password) { setError('Enter both username and password.'); return; }
     setSubmitting(true);
-    try {
-      // The auth provider commits the authenticated session. App.tsx observes that
-      // committed state and performs the protected-route navigation, avoiding a
-      // reload/bootstrap race while retaining the HttpOnly server cookie in live mode.
-      await login(username.trim(), password);
-    }
-    catch (loginError) { setError(loginError instanceof ApiError ? loginError.message : 'Sign-in could not be completed.'); setSubmitting(false); }
+    try { await login(username.trim(), password); navigate(returnTo?.startsWith('/') ? returnTo : '/overview', { replace: true }); }
+    catch (loginError) { setError(loginError instanceof ApiError ? loginError.message : 'Sign-in could not be completed.'); }
+    finally { setSubmitting(false); }
   }
 
   return <main className="login-page">
