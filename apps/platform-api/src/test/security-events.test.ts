@@ -59,17 +59,20 @@ async function login(username: string, target = app) {
 beforeAll(async () => {
   await connectDatabase();
   await seedSyntheticData(config, true);
+});
+
+beforeEach(() => {
+  captured = [];
   logSpy = jest.spyOn(console, 'log').mockImplementation((value?: unknown) => {
     captured.push(String(value ?? ''));
   });
 });
 
-beforeEach(() => {
-  captured = [];
+afterEach(() => {
+  logSpy.mockRestore();
 });
 
 afterAll(async () => {
-  logSpy.mockRestore();
   await resetSyntheticData(config);
   await disconnectDatabase();
 });
