@@ -22,6 +22,15 @@ it('requires explicit database and cookie policy in production', () => {
   }).cookieSecure).toBe(true);
 });
 
+it('fails closed when the application simulator is enabled in production', () => {
+  expect(() => loadConfig({
+    NODE_ENV: 'production',
+    DATABASE_URL: productionDatabaseUrl,
+    COOKIE_SECURE: 'true',
+    SIMULATOR_ENABLED: 'true',
+  })).toThrow('SIMULATOR_ENABLED must remain false in production');
+});
+
 it('blocks destructive synthetic reset in production mode', async () => {
   const config = loadConfig({
     NODE_ENV: 'production',
@@ -31,7 +40,6 @@ it('blocks destructive synthetic reset in production mode', async () => {
   });
   await expect(resetSyntheticData(config)).rejects.toThrow('Synthetic reset is disabled');
 });
-
 
 it('uses a 30-day session lifetime by default', () => {
   const config = loadConfig({ DATABASE_URL: productionDatabaseUrl });
