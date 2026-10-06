@@ -61,6 +61,9 @@ class ReleaseVersions:
     model: str
     rules: str
     config: str
+    roi: str
+    ocr: str
+    dataset: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,10 +77,14 @@ class AiConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AiConfig":
         versions_data = data.get("versions") or {}
+        config_version = str(versions_data.get("config") or "config-v1")
         versions = ReleaseVersions(
             model=str(versions_data.get("model") or "untrained"),
             rules=str(versions_data.get("rules") or "rules-v1"),
-            config=str(versions_data.get("config") or "config-v1"),
+            config=config_version,
+            roi=str(versions_data.get("roi") or config_version),
+            ocr=str(versions_data.get("ocr") or "ocr-unversioned"),
+            dataset=str(versions_data.get("dataset") or "dataset-unfrozen"),
         )
         camera_data = data.get("cameras")
         if not isinstance(camera_data, dict) or not camera_data:

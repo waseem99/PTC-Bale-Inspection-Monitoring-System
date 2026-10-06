@@ -31,6 +31,34 @@ class ConfigTests(unittest.TestCase):
         self.assertNotEqual(rois.inspection, rois.entry_zone)
         self.assertNotEqual(rois.inspection, rois.grading_zone)
 
+    def test_release_provenance_is_explicit_and_legacy_safe(self):
+        config = AiConfig.from_dict(
+            {
+                "versions": {
+                    "model": "model-v2",
+                    "rules": "rules-v2",
+                    "config": "config-v2",
+                    "roi": "roi-v3",
+                    "ocr": "ocr-v4",
+                    "dataset": "dataset-v5",
+                },
+                "cameras": {"CAM-01": self.legacy_camera()},
+            }
+        )
+        self.assertEqual("roi-v3", config.versions.roi)
+        self.assertEqual("ocr-v4", config.versions.ocr)
+        self.assertEqual("dataset-v5", config.versions.dataset)
+
+        legacy = AiConfig.from_dict(
+            {
+                "versions": {"model": "model-v1", "rules": "rules-v1", "config": "config-v1"},
+                "cameras": {"CAM-01": self.legacy_camera()},
+            }
+        )
+        self.assertEqual("config-v1", legacy.versions.roi)
+        self.assertEqual("ocr-unversioned", legacy.versions.ocr)
+        self.assertEqual("dataset-unfrozen", legacy.versions.dataset)
+
     def test_rejects_invalid_roi(self):
         with self.assertRaises(ValueError):
             AiConfig.from_dict({"cameras": {"CAM-01": {"inspection": [[2, 0]]}}})

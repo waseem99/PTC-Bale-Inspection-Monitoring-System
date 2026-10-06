@@ -28,13 +28,25 @@ class EventMapperTests(unittest.TestCase):
         self.assertEqual(6, len(payload["steps"]))
         self.assertIn("Bale B-1", payload["summary"])
         self.assertTrue(payload["timestamp"].endswith("Z"))
+        self.assertEqual(f"EVID-{payload['id']}", payload["evidence"]["id"])
 
-    def test_audit_payload_preserves_ai_metadata(self):
-        payload = to_audit_payload(self.event())
+    def test_audit_payload_preserves_ai_metadata_and_release_provenance(self):
+        payload = to_audit_payload(
+            self.event(),
+            roi_version="roi-v2",
+            ocr_version="ocr-v3",
+            dataset_version="dataset-v4",
+        )
         self.assertEqual("B-1", payload["baleId"])
         self.assertEqual("NONE", payload["reasonCode"])
         self.assertEqual("accepted", payload["metadata"]["route"])
         self.assertEqual(52.1, payload["metadata"]["weight"])
+        self.assertEqual("m1", payload["modelVersion"])
+        self.assertEqual("r1", payload["ruleVersion"])
+        self.assertEqual("c1", payload["configVersion"])
+        self.assertEqual("roi-v2", payload["roiVersion"])
+        self.assertEqual("ocr-v3", payload["ocrVersion"])
+        self.assertEqual("dataset-v4", payload["datasetVersion"])
 
 
 if __name__ == "__main__":

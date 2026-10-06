@@ -26,6 +26,17 @@ class AcceptancePackageTests(unittest.TestCase):
         codes = {row["code"] for row in manifest["scenarios"]}
         self.assertTrue(REQUIRED_SCENARIO_CODES.issubset(codes))
 
+    def test_manifest_covers_all_operational_failure_boundaries(self):
+        manifest = load_manifest(MANIFEST)
+        codes = {row["code"] for row in manifest["scenarios"]}
+        self.assertTrue(
+            {
+                "CAMERA_FAILURE_OPERATIONAL",
+                "MODEL_FAILURE_OPERATIONAL",
+                "SERVICE_FAILURE_OPERATIONAL",
+            }.issubset(codes)
+        )
+
     def test_generated_events_match_strict_contract(self):
         events = generate_events(load_manifest(MANIFEST))
         self.assertGreaterEqual(len(events), len(REQUIRED_SCENARIO_CODES))
