@@ -7,8 +7,11 @@ on:
       - 'tools/edge-simulator/**'
       - 'scripts/testing/**'
       - 'services/ai-inference/config/**'
+      - 'services/ai-inference/src/ptc_ai/config.py'
+      - 'services/ai-inference/tests/test_config.py'
       - 'docs/42-testing-readiness-execution-package.md'
       - 'docs/43-annotation-and-dataset-workflow.md'
+      - 'docs/50-site-camera-roi-execution-package.md'
       - '.github/workflows/testing-readiness-ci.yml'
   push:
     branches: [main]
@@ -17,8 +20,11 @@ on:
       - 'tools/edge-simulator/**'
       - 'scripts/testing/**'
       - 'services/ai-inference/config/**'
+      - 'services/ai-inference/src/ptc_ai/config.py'
+      - 'services/ai-inference/tests/test_config.py'
       - 'docs/42-testing-readiness-execution-package.md'
       - 'docs/43-annotation-and-dataset-workflow.md'
+      - 'docs/50-site-camera-roi-execution-package.md'
       - '.github/workflows/testing-readiness-ci.yml'
 
 permissions:
@@ -45,6 +51,13 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Testing-readiness scenario tests
         run: python -m unittest discover -s tools/testing/tests -v
+      - name: Validate #84 site preflight templates
+        run: >-
+          python tools/testing/ptc_site_preflight.py
+          --manifest tools/testing/site-camera-manifest.template.json
+          --roi-config services/ai-inference/config/ptc.camera-roi.template.json
+          --output /tmp/ptc-site-preflight.json
+          --validate-only
       - name: Existing edge retry and recovery tests
         working-directory: tools/edge-simulator
         run: python -m unittest -v test_ptc_edge_spool.py
