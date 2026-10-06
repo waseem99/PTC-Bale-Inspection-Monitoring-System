@@ -1,203 +1,135 @@
-# Security and Privacy
+# Security and Privacy Boundary
+
+**Current repository/release authority:** [`51-current-release-and-control-state.md`](51-current-release-and-control-state.md)
+
+This document defines the active security/privacy boundary for the PTC PoC/MVP. It is not a mandate to expand project closure into an enterprise-security programme.
 
 ## Security objectives
 
-- protect camera streams, PTC footage, Bangladesh reference media, evidence, database records and client operational data;
-- prevent unauthorized access to cameras, edge services, PostgreSQL, local dashboard, and approved Azure resources;
-- maintain traceable review, migration and configuration changes;
-- preserve local operation without exposing inbound services;
-- align approved cloud deployment with client Microsoft and Azure security controls.
+- protect camera streams, PTC footage, reference media, evidence, database records and operational data;
+- prevent unauthorized access to cameras, runtime services, PostgreSQL and the local dashboard;
+- keep secrets/restricted assets outside GitHub;
+- maintain traceable application, review, migration and configuration changes;
+- preserve approved local operation during internet/cloud interruption.
 
-## Data classification
+## Restricted project data
 
-Treat the following as restricted client/project data:
+Treat the following as restricted and keep them outside GitHub:
 
-- camera credentials and stream URLs;
-- PostgreSQL credentials and database URLs;
-- database backups and restoration media;
-- live and recorded PTC footage;
-- Bangladesh reference images and videos;
-- snapshots and evidence clips;
-- site layouts, camera positions, IP plans, and power/network diagrams;
-- annotated datasets;
-- user identities and remarks;
-- model outputs tied to operational events;
-- production configuration and logs containing identifiers.
+- camera credentials, RTSP/full stream URLs and private IP/network details;
+- PostgreSQL credentials, database URLs, dumps and backups;
+- live/recorded PTC footage, reference media and extracted frames;
+- snapshots/evidence clips and protected runtime state;
+- site layouts/camera positions/private diagrams;
+- annotations, datasets, locked-test material and model binaries/weights;
+- production configuration/secrets;
+- confidential client notes and logs containing sensitive identifiers.
 
-## Repository controls
+GitHub may contain sanitized IDs, versions, manifests, checksums, test results and non-secret configuration examples only.
+
+## Repository controls — verified current position
 
 - repository is private;
-- enable branch protection for `main`;
-- require pull requests and review for production-impacting changes;
-- enable secret scanning and dependency alerts where available;
-- do not commit `.env`, database URLs, database dumps, certificates, camera URLs, production IP addresses, footage, datasets, evidence, reference media, client source documents, or model binaries;
-- use Git LFS only if explicitly approved; restricted object storage is preferred for models and datasets;
-- private visibility does not change restricted-data handling rules;
-- Prisma migrations are code-reviewed and committed, but generated local database state and backups are excluded.
+- issue #14 is closed/completed;
+- CODEOWNERS and CI workflows exist;
+- `.gitignore` and CI/output scanning protect the known restricted-file/secret classes;
+- private visibility does not weaken restricted-data handling rules;
+- current private-repository GitHub plan does **not** provide the desired enforced `main` ruleset/branch-protection controls;
+- that plan limitation is accepted and must not be converted into additional application/security scope;
+- repository-owner change control, review discipline and CI are the compensating controls.
+
+If the GitHub plan later supports private-repository rulesets, branch protection may be enabled as administrative hardening without reopening this project.
 
 ## Authentication and authorization
 
-- local dashboard users use the client-approved offline-capable access model;
-- approved central/remote users authenticate with Microsoft Entra ID where enabled;
-- edge-to-local and optional edge/local-to-cloud calls use dedicated machine identities;
-- camera credentials use a dedicated restricted service account where camera support allows;
-- PostgreSQL uses a dedicated application role rather than a shared administrator role;
-- no shared administrator credentials in code or documentation;
-- access is granted according to least privilege;
-- production administration is separated from normal dashboard use;
-- loss of Azure or Entra connectivity must not disable already approved local PoC operation.
+- dashboard access uses the implemented application authentication/session model;
+- authorization applies to events, evidence, review, reporting and administration actions;
+- service/machine ingestion uses dedicated identities/tokens rather than interactive user credentials;
+- database access uses a dedicated application role, not shared administrator credentials;
+- secrets remain in approved runtime storage, not code/documentation;
+- optional future Entra integration remains bounded by the already documented adapter/readiness path and is not a closure blocker unless PTC explicitly requires activation.
 
-## Network controls
+## Network/runtime controls
 
-- place cameras and the edge workstation in the client-approved network segment;
-- restrict camera access to the required workstation and administration points;
-- do not expose PostgreSQL publicly or directly to normal dashboard users;
-- bind PostgreSQL only to the approved local/container network unless the client approves another design;
-- no direct public exposure of RTSP streams;
-- use outbound-only synchronization from the site to Azure where approved;
-- require TLS for application API communication where traffic leaves the workstation/site;
-- validate client proxy, firewall, DNS, and certificate requirements;
-- use private endpoints or network restrictions for Azure Database for PostgreSQL where mandated;
-- do not introduce scanner, RFID, PLC, or custom IoT connectivity without approved change control.
+- no direct public RTSP exposure;
+- no browser access to camera credentials or PostgreSQL;
+- PostgreSQL is bound only to the approved local/container or protected remote network boundary;
+- actual camera/site access is configured outside GitHub;
+- TLS is required where application traffic leaves the trusted local boundary and the approved environment requires it;
+- host/firewall/proxy/DNS controls are deployment/site responsibilities, not a reason to redesign the application;
+- do not add scanner, RFID, PLC or unrelated IoT connectivity without approved change control.
 
-## Edge and local application hardening
+## Application and database controls
 
-- current supported operating system, container runtime, PostgreSQL image/version and security updates;
-- approved endpoint protection;
-- restricted local administrator access;
-- automatic Python, Node.js, PostgreSQL, migration and dashboard-service start under approved identities;
-- host firewall rules limited to required traffic;
-- encrypted disk where required by client policy;
-- protected configuration, PostgreSQL volume, backup, spool, and evidence directories;
-- software inventory and signed/approved release packages;
-- remove unnecessary services and development tools from production;
-- document local backup, restore, migration and safe-shutdown behavior.
+- validate API inputs against versioned contracts;
+- enforce authorization on evidence/review/report/admin paths;
+- use Prisma/parameterized database access;
+- keep review mutation and audit creation transactional;
+- use pagination/bounds for exports and queries;
+- record security-relevant events without secrets/raw media;
+- apply shared/field migrations through reviewed Prisma migrations;
+- protect backups as restricted data;
+- use the finite Option A recovery path in `44-database-resilience-option-a.md` and certified software recovery boundary in `49-recovery-rebuild-security-closure.md`.
 
-## Application security
-
-- validate all API inputs against versioned contracts;
-- enforce authorization on every event, evidence, review, export, and administration endpoint;
-- use Prisma parameterized queries and typed data access;
-- do not construct SQL from untrusted input;
-- whitelist sortable/filterable fields rather than passing arbitrary column names;
-- execute review mutation and audit creation in one database transaction;
-- expose local evidence only through authorized API access;
-- use private Azure evidence containers where synchronization is enabled;
-- generate only short-lived authorized cloud evidence access;
-- protect export endpoints from unbounded queries;
-- apply pagination, rate limits where required, and file-size controls;
-- record security-relevant events without logging secrets or raw media.
-
-## PostgreSQL security controls
-
-- use a unique strong local application password stored outside Git;
-- avoid using the PostgreSQL superuser for the application;
-- restrict database port exposure to the approved host/container network;
-- use encrypted transport for any database connection leaving the workstation;
-- commit and review Prisma migration SQL;
-- apply shared/field migrations only through `prisma migrate deploy`;
-- create a protected backup before destructive or data-transforming migrations;
-- protect `pg_dump` files as restricted client data;
-- test `pg_restore` in a controlled environment;
-- monitor failed authentication, connection exhaustion, storage growth and migration failures;
-- remove expired sessions through an approved cleanup job after retention is confirmed.
+HA clusters, automatic failover, Patroni/repmgr, active-active databases and multi-site DR are not part of current closure unless separately approved.
 
 ## Evidence integrity
 
-- use stable event IDs;
-- record evidence checksums;
-- store original AI outcome separately from human review status;
-- retain model, SOP, zone, camera, database schema and configuration versions with each release/event where applicable;
-- audit changes to review status and remarks;
-- preserve unsynchronized records and evidence;
-- define the approved handling of deleted or expired evidence.
+- use stable event IDs and checksums where applicable;
+- preserve original AI outcome separately from human review status;
+- record model/rule/ROI/camera/schema/configuration versions in sanitized release records;
+- audit review-state/remark changes;
+- preserve unsynchronized records/evidence until approved handling/retention permits deletion.
 
-## Privacy boundaries
+## Privacy boundary
 
-- no face recognition;
-- no biometric identification;
-- no named worker tracking;
-- no employee scoring, dwell analytics, or profiling;
-- person detections are temporary anonymous tracks used only for process interaction;
-- dashboard access and evidence visibility are limited to approved users;
-- data collection is restricted to the agreed inspection area and purpose;
-- generic demonstration features do not authorize additional person analytics.
+The approved AI purpose is process compliance, not worker identification.
 
-## Reference and dataset governance
+Not permitted within current scope:
 
-- record whether Bangladesh media is reference-only or permitted for training;
-- do not use Bangladesh media as PTC acceptance evidence;
-- preserve source-site and permitted-use fields in dataset manifests;
-- separate Bangladesh reference, PTC training, PTC calibration, and locked PTC UAT data;
-- do not place any of these media sets in GitHub or PostgreSQL;
-- access and deletion follow approved ownership and retention decisions.
+- face recognition;
+- biometric identification;
+- named worker tracking;
+- employee scoring, profiling or unrelated dwell analytics;
+- use of person detections beyond temporary anonymous process-interaction tracks.
 
-## Retention and deletion
+Collection is limited to the agreed inspection area/purpose. Generic demonstration capability does not authorize additional person analytics.
 
-The client must approve retention for:
+## Dataset/reference governance
 
-- Bangladesh reference material where Codistan stores a copy;
-- raw PTC training footage;
-- annotated PTC data;
-- local event evidence;
-- approved cloud evidence;
-- local and cloud event metadata;
-- user sessions;
-- audit logs;
-- diagnostic logs;
-- local spool and unsynchronized records;
-- PostgreSQL backups.
+- Bangladesh/reference media is reference-only unless explicit use rights permit otherwise;
+- it cannot be used as PTC acceptance evidence;
+- PTC training/calibration/validation/locked-test material remains separated and protected;
+- dataset manifests record permitted use, version and lineage without exposing raw media in GitHub;
+- actual annotation/dataset freeze and acceptance remain under the controlled AI sequence.
 
-Deletion must be auditable and must not occur before required acceptance, synchronization, support, investigation or restoration periods.
+## Logging
 
-## Logging rules
+Do not log passwords, tokens, certificates/private keys, database URLs/full connection strings, camera credentials/full stream URLs, raw media or unrestricted evidence/backup paths.
 
-Do not log:
-
-- passwords, tokens, certificates, database URLs or full connection strings;
-- camera credentials or full stream URLs;
-- raw image/video contents;
-- personal data not required for support;
-- unrestricted local evidence or backup paths;
-- SQL statements containing sensitive values.
-
-Log:
-
-- service and database readiness status;
-- camera/zone ID rather than credentials;
-- event ID and reason code;
-- error category and correlation ID;
-- model/rule/zone/camera/database migration version;
-- local persistence and optional synchronization attempt/outcome.
+Log sanitized service readiness, camera/zone IDs, event IDs/reason codes, error categories/correlation IDs, release/configuration versions and persistence/synchronization outcomes.
 
 ## Incident handling
 
-1. contain access or stop affected synchronization where required;
-2. keep local safety and evidence-preservation requirements in mind;
-3. preserve relevant logs, event IDs, checksums, audit rows and backup state;
-4. notify the approved project/client contacts;
-5. rotate affected database, application, camera or cloud secrets;
-6. assess footage/evidence/reference/database exposure;
-7. document root cause and corrective action;
-8. validate PostgreSQL integrity, local operation and then optional cloud synchronization before restoring normal service.
+1. contain affected access/synchronization;
+2. preserve required logs, IDs, checksums, audit rows and backup state;
+3. notify approved project/client contacts;
+4. rotate affected runtime/database/camera/cloud credentials;
+5. assess data/evidence exposure;
+6. document root cause/corrective action;
+7. validate application/database integrity before restoring normal service.
 
-## Pre-production security checklist
+## Closure security checklist
 
-- private repository confirmed;
-- no secrets, database dumps or restricted media in commit history;
-- local dashboard access method approved and tested offline;
-- Entra ID application and groups approved where enabled;
-- local/edge service identities approved;
-- PostgreSQL application role/password approved and not using a superuser;
-- PostgreSQL network exposure restricted;
-- camera credentials rotated from defaults;
-- TLS and certificate validation enabled where required;
-- local evidence/database/backup directories protected;
-- approved Azure storage and managed PostgreSQL networking private/restricted;
-- production secrets stored in Key Vault or approved local store;
-- endpoint and network rules tested;
-- migration status clean;
-- audit logging tested;
-- backup and restoration tested;
-- data-use rights and dataset lineage recorded;
-- retention and incident contacts documented.
+For current closure, prove only the controls relevant to the selected environment and scope:
+
+- private repo/restricted-data boundary remains intact;
+- no secrets/restricted assets are committed;
+- authentication/authorization paths operate as accepted;
+- database/evidence storage and recovery are protected and testable;
+- actual site credentials/network details remain outside GitHub;
+- applicable audit/security events are available;
+- target deployment/site configuration has an identified owner;
+- data/model/ROI acceptance records use sanitized references.
+
+Do not add new enterprise-security gates unless they are contractual, explicitly client-required, or needed to correct a demonstrated defect/security exposure.

@@ -1,30 +1,27 @@
 # PTC Bale Inspection & Monitoring System
 
-Local-first AI-assisted Proof of Concept for monitoring the complete PTC tobacco-bale inspection process through four fixed cameras, a durable edge adapter, timestamped evidence, PostgreSQL, and an operational browser dashboard.
+Local-first AI-assisted Proof of Concept for monitoring the PTC tobacco-bale inspection process through four fixed cameras, durable edge delivery, timestamped evidence, PostgreSQL and an operational browser dashboard.
 
-## Delivery status
+## Current project state
 
-The application platform and the testable AI implementation baseline are now present in the repository.
+The repository-side platform and AI framework implementation are complete. Current work is limited to finite target-environment/local certification and real PTC site/data/model acceptance; undefined platform, HA, enterprise-security or AI-framework expansion is not part of the closure path unless a reproducible defect or approved change request requires it.
 
-Completed repository-side components include:
+**Authoritative current repository/release status:** [`docs/51-current-release-and-control-state.md`](docs/51-current-release-and-control-state.md)
 
-- React dashboard, Node.js API, PostgreSQL, evidence, reporting, review, audit and realtime services;
-- local one-machine Docker Compose deployment and durable edge spool;
-- YOLO/ByteTrack runtime adapter interfaces and detector training/export scripts;
-- hand-interaction analysis, grading observation, accepted/rejected routing and scale-display OCR stabilization;
-- deterministic end-to-end SOP/anomaly engine;
-- platform event mapping, evaluation helpers, recorded-video runner and AI Pipeline CI.
+Do not use older audit documents or embedded historical SHAs as the current release status.
 
-The remaining AI work requires restricted external inputs and execution rather than additional undefined platform development:
+## Implemented platform
 
-1. audit and approve the available factory recordings;
-2. create and QA annotations/dataset manifests;
-3. train the PTC-specific detector and any required temporal model;
-4. configure actual camera and ROI values;
-5. run locked accuracy/performance evaluation;
-6. complete actual-camera and PM/client acceptance.
-
-The controlling implementation path is issue #86 and issues #27–#34, #114–#116, #84 and #85.
+- React/TypeScript dashboard with authenticated application flow;
+- Node.js/Express/TypeScript API;
+- PostgreSQL 17 with Prisma and committed migrations;
+- review, audit, reporting, evidence and realtime/polling services;
+- durable Python/SQLite edge delivery and idempotent replay;
+- local Docker Compose packaging, backup, restore and recovery tooling;
+- YOLO/ByteTrack-compatible AI runtime interfaces;
+- hand-inspection, grading, accepted/rejected routing and scale-display OCR processing;
+- deterministic SOP/anomaly engine with backend-compatible reason codes;
+- recorded-video runner, evaluation helpers, protected AI audit data and CI/testing framework.
 
 ## Finalized monitored process
 
@@ -38,11 +35,11 @@ Bale enters
 → inspection completes
 ```
 
-Missing, incomplete, inconsistent or technically unresolved steps produce an event with a specific reason code and evidence reference. Camera/model/service failures remain operational events and are not process violations.
+Missing, incomplete, inconsistent or technically unresolved steps produce a specific reason code and evidence reference. Camera/model/service failures are operational events, not process violations.
 
 ## One-command local platform bootstrap
 
-### Windows 11, WSL2, and Docker Desktop
+### Windows 11, WSL2 and Docker Desktop
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
@@ -107,7 +104,7 @@ Recorded video / actual camera stream
 - **API:** Node.js, Express, TypeScript
 - **Database:** PostgreSQL 17, Prisma and committed migrations
 - **Edge delivery:** Python, SQLite WAL durable spool
-- **AI:** Python, Ultralytics YOLO, ByteTrack, optional MediaPipe/pose/action adapters, EasyOCR-compatible display reader
+- **AI:** Python, Ultralytics YOLO, ByteTrack, optional pose/action adapters, EasyOCR-compatible display reader
 - **Evidence:** protected local filesystem with relational metadata
 - **Realtime:** authenticated Server-Sent Events with polling fallback
 - **Packaging:** Docker Compose and Caddy
@@ -117,20 +114,14 @@ Recorded video / actual camera stream
 
 The repository is private. Private visibility does not authorize committing restricted client material.
 
-Never commit or attach:
+Never commit or attach factory footage/frames, annotations/datasets, trained model binaries, OCR crops, camera URLs/credentials, private IP/network details, runtime secrets/configuration, database dumps/backups, evidence binaries or unnecessary personal data.
 
-- factory footage or extracted frames;
-- annotations or datasets;
-- trained model binaries or OCR crops;
-- camera URLs, credentials, private IP details or site diagrams;
-- runtime configuration, secrets, database dumps, evidence or backups;
-- personal data.
-
-Restricted materials remain in approved protected storage and are referenced through safe IDs, manifests and checksums.
+Restricted materials remain in approved protected storage and are referenced through sanitized IDs, manifests, versions and checksums.
 
 ## Documentation
 
+- [Current release and control state](docs/51-current-release-and-control-state.md)
 - [Documentation index](docs/README.md)
-- [AI implementation and testing baseline](docs/39-ai-implementation-and-testing.md)
 - [Local deployment](docs/32-local-machine-deployment.md)
 - [PM/AI closure runbook](docs/35-pm-ai-project-closure-runbook.md)
+- [Site camera/ROI execution package](docs/50-site-camera-roi-execution-package.md)
