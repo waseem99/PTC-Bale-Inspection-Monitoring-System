@@ -179,12 +179,18 @@ jq -e '.status == "available" and .evidenceId == "'"$EVIDENCE_ID"'"' "$ARTIFACT_
 
 STORAGE_KEY="$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select \"storageKey\" from evidence_metadata where id='${EVIDENCE_ID}';")"
 printf '%s\n' "$STORAGE_KEY" > "$ARTIFACT_DIR/storage-key.txt"
-find "$EVIDENCE_HOST_DIR" -type f -printf '%P\n' | sort > "$ARTIFACT_DIR/evidence-files.txt"
+MOUNT_SOURCE="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/mnt/ptc-evidence"}}{{.Source}}{{end}}{{end}}' "$API_CONTAINER")"
+printf '%s\n' "$MOUNT_SOURCE" > "$ARTIFACT_DIR/evidence-mount-source.txt"
+docker exec "$API_CONTAINER" find /mnt/ptc-evidence -type f -printf '%P\n' | sort > "$ARTIFACT_DIR/evidence-files.txt"
 if [[ -z "$STORAGE_KEY" ]]; then
   echo "Evidence metadata did not persist a storageKey." >&2
   exit 1
 fi
-if [[ ! -f "$EVIDENCE_HOST_DIR/$STORAGE_KEY" ]]; then
+if [[ "$MOUNT_SOURCE" != "$EVIDENCE_HOST_DIR" ]]; then
+  echo "Evidence root is not backed by the expected external bind mount." >&2
+  exit 1
+fi
+if ! docker exec "$API_CONTAINER" test -f "/mnt/ptc-evidence/$STORAGE_KEY"; then
   echo "Evidence binary is not present on the external evidence mount at $STORAGE_KEY." >&2
   cat "$ARTIFACT_DIR/evidence-files.txt" >&2 || true
   exit 1
