@@ -2,7 +2,10 @@
   "versions": {
     "model": "ptc-ai-untrained-v1",
     "rules": "ptc-sop-v1",
-    "config": "ptc-camera-roi-v1"
+    "config": "ptc-camera-roi-v1",
+    "roi": "ptc-camera-roi-v1",
+    "ocr": "ptc-ocr-baseline-v1",
+    "dataset": "ptc-dataset-unfrozen"
   },
   "weightUnit": "kg",
   "weightPattern": "\\d+(?:\\.\\d+)?",
