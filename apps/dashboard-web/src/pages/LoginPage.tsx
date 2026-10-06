@@ -5,6 +5,10 @@ import { Icon, StatusPill } from '../components';
 import { ptcLogoDataUri } from '../logo';
 import { navigate, useRouter } from '../router';
 
+function safeAuthenticatedTarget(returnTo: string | null): string {
+  return returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/overview';
+}
+
 export default function LoginPage() {
   const { isAuthenticated, login } = useAuth();
   const { searchParams } = useRouter();
@@ -15,7 +19,7 @@ export default function LoginPage() {
   const [isSubmitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const returnTo = searchParams.get('returnTo');
-  const authenticatedTarget = returnTo?.startsWith('/') ? returnTo : '/overview';
+  const authenticatedTarget = safeAuthenticatedTarget(returnTo);
 
   useEffect(() => { if (isAuthenticated) navigate(authenticatedTarget, { replace: true }); }, [authenticatedTarget, isAuthenticated]);
 
