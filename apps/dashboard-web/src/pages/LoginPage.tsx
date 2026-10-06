@@ -27,13 +27,7 @@ export default function LoginPage() {
     event.preventDefault(); if (isSubmitting) return; setError('');
     if (!username.trim() || !password) { setError('Enter both username and password.'); return; }
     setSubmitting(true);
-    try {
-      await login(username.trim(), password);
-      // Authentication is backed by an HttpOnly same-origin cookie in live mode.
-      // Reload the protected route after login so the fresh app instance validates
-      // that server session before any protected-route guard can evaluate it.
-      window.location.replace(authenticatedTarget);
-    }
+    try { await login(username.trim(), password); }
     catch (loginError) { setError(loginError instanceof ApiError ? loginError.message : 'Sign-in could not be completed.'); }
     finally { setSubmitting(false); }
   }
