@@ -74,6 +74,7 @@ start_postgres() {
     fi
     sleep 1
   done
+  docker logs "$name" >&2 || true
   echo "PostgreSQL container $name did not become ready." >&2
   exit 1
 }
@@ -109,8 +110,6 @@ printf '\x89PNG\r\n\x1a\nPTC-AUTOMATED-RECOVERY-CERT' > "$PRIMARY_EVIDENCE_DIR/$
 EVIDENCE_BINARY_SHA="$(sha256sum "$PRIMARY_EVIDENCE_DIR/$STORAGE_KEY" | awk '{print $1}')"
 EVIDENCE_SIZE="$(wc -c < "$PRIMARY_EVIDENCE_DIR/$STORAGE_KEY" | tr -d ' ')"
 
-# Create one deterministic fixture that lets the restore proof reconcile event,
-# audit and evidence metadata after a non-destructive restore.
 docker exec "$PRIMARY_DB" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" >/dev/null <<SQL
 INSERT INTO inspection_events (
   id, "cameraId", "cameraName", zone, timestamp, outcome, reason, confidence,
@@ -148,7 +147,6 @@ INSERT INTO audit_logs (
 ) ON CONFLICT (id) DO NOTHING;
 SQL
 
-# Primary database backup: custom format + structural check + SHA-256.
 docker exec "$PRIMARY_DB" pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc > "$BACKUP_FILE"
 [[ -s "$BACKUP_FILE" ]]
 sha256sum "$BACKUP_FILE" > "$BACKUP_SHA_FILE"
@@ -158,28 +156,30 @@ grep -q 'TABLE DATA public inspection_events' "$ARTIFACT_DIR/postgres-backup-lis
 grep -q 'TABLE DATA public audit_logs' "$ARTIFACT_DIR/postgres-backup-list.txt"
 grep -q 'TABLE DATA public evidence_metadata' "$ARTIFACT_DIR/postgres-backup-list.txt"
 
-# Evidence is independently archived/checksummed to model separation from DB metadata.
 tar -czf "$EVIDENCE_ARCHIVE" -C "$PRIMARY_EVIDENCE_DIR" .
 sha256sum "$EVIDENCE_ARCHIVE" > "$EVIDENCE_SHA_FILE"
 sha256sum -c "$EVIDENCE_SHA_FILE" >/dev/null
 
-# Disposable target: a completely separate PostgreSQL service with no published port.
+echo "Starting disposable restore PostgreSQL target..."
 start_postgres "$RESTORE_DB"
 
-# Restore only to the disposable target. The primary container remains online and untouched.
-cat "$BACKUP_FILE" | docker exec -i "$RESTORE_DB" pg_restore \
-  -U "$DB_USER" -d "$DB_NAME" --clean --if-exists --no-owner --no-privileges >/dev/null
+echo "Restoring PostgreSQL backup into disposable target..."
+if ! docker exec -i "$RESTORE_DB" pg_restore \
+  -U "$DB_USER" -d "$DB_NAME" --no-owner --no-privileges --exit-on-error \
+  < "$BACKUP_FILE" > "$ARTIFACT_DIR/postgres-restore.log" 2>&1; then
+  docker logs "$RESTORE_DB" > "$ARTIFACT_DIR/restore-postgres-container.log" 2>&1 || true
+  cat "$ARTIFACT_DIR/postgres-restore.log" >&2 || true
+  exit 1
+fi
 
 MIGRATION_COUNT="$(docker exec "$RESTORE_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc 'select count(*) from _prisma_migrations where finished_at is not null;')"
 [[ "$MIGRATION_COUNT" -ge 1 ]]
 
-# Restore evidence to an independent target and verify its binary checksum.
 tar -xzf "$EVIDENCE_ARCHIVE" -C "$RESTORE_EVIDENCE_DIR"
 [[ -f "$RESTORE_EVIDENCE_DIR/$STORAGE_KEY" ]]
 RESTORED_BINARY_SHA="$(sha256sum "$RESTORE_EVIDENCE_DIR/$STORAGE_KEY" | awk '{print $1}')"
 [[ "$RESTORED_BINARY_SHA" == "$EVIDENCE_BINARY_SHA" ]]
 
-# Direct reconciliation before application startup.
 RESTORED_EVENT_COUNT="$(docker exec "$RESTORE_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select count(*) from inspection_events where id='${EVENT_ID}';")"
 RESTORED_AUDIT_COUNT="$(docker exec "$RESTORE_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select count(*) from audit_logs where \"targetId\"='${EVENT_ID}' and action='event.review.updated';")"
 RESTORED_EVIDENCE_ROW="$(docker exec "$RESTORE_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select \"storageKey\" || '|' || checksum from evidence_metadata where id='${EVIDENCE_ID}';")"
@@ -241,7 +241,6 @@ cmp "$PRIMARY_EVIDENCE_DIR/$STORAGE_KEY" "$ARTIFACT_DIR/restored-evidence.bin"
 
 docker logs "$RESTORE_API" > "$ARTIFACT_DIR/restored-api.log" 2>&1 || true
 
-# Retained evidence must be sanitized; credentials/URLs must not leak into logs or responses.
 LEAK_PATTERN="${DB_PASSWORD}|postgresql://${DB_USER}:|${INGESTION_SERVICE_TOKEN}|${SEED_SUPERVISOR_PASSWORD}"
 if grep -R -n -E "$LEAK_PATTERN" "$ARTIFACT_DIR" 2>/dev/null | grep -v '/cookies.txt:'; then
   echo "Credential or database connection-string leakage detected in certification evidence." >&2
