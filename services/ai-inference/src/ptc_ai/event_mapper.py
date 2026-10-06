@@ -38,11 +38,19 @@ def _relative(start: float, current: float | None) -> str | None:
     return f"{seconds // 60:02d}:{seconds % 60:02d}"
 
 
-def to_audit_payload(event: InspectionEvent) -> dict:
+def to_audit_payload(
+    event: InspectionEvent,
+    *,
+    roi_version: str | None = None,
+    ocr_version: str | None = None,
+    dataset_version: str | None = None,
+) -> dict:
     """Return the complete local AI record.
 
     This sidecar record is intentionally not sent to the current strict platform
     ingestion endpoint. It may be retained only in approved protected storage.
+    Release provenance that is not part of the strict platform contract is kept
+    here so the AI event remains traceable to its ROI, OCR and dataset versions.
     """
 
     return {
@@ -58,6 +66,9 @@ def to_audit_payload(event: InspectionEvent) -> dict:
         "modelVersion": event.model_version,
         "ruleVersion": event.rule_version,
         "configVersion": event.config_version,
+        "roiVersion": roi_version or event.config_version,
+        "ocrVersion": ocr_version or "ocr-unversioned",
+        "datasetVersion": dataset_version or "dataset-unfrozen",
         "schemaVersion": event.schema_version,
         "metadata": dict(event.metadata),
         "steps": [
