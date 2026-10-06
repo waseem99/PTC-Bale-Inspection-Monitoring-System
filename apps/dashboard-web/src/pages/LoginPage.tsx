@@ -5,6 +5,10 @@ import { Icon, StatusPill } from '../components';
 import { ptcLogoDataUri } from '../logo';
 import { navigate, useRouter } from '../router';
 
+function safeAuthenticatedTarget(returnTo: string | null): string {
+  return returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/overview';
+}
+
 export default function LoginPage() {
   const { isAuthenticated, login } = useAuth();
   const { searchParams } = useRouter();
@@ -15,14 +19,15 @@ export default function LoginPage() {
   const [isSubmitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const returnTo = searchParams.get('returnTo');
+  const authenticatedTarget = safeAuthenticatedTarget(returnTo);
 
-  useEffect(() => { if (isAuthenticated) navigate(returnTo?.startsWith('/') ? returnTo : '/overview', { replace: true }); }, [isAuthenticated, returnTo]);
+  useEffect(() => { if (isAuthenticated) navigate(authenticatedTarget, { replace: true }); }, [authenticatedTarget, isAuthenticated]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (isSubmitting) return; setError('');
     if (!username.trim() || !password) { setError('Enter both username and password.'); return; }
     setSubmitting(true);
-    try { await login(username.trim(), password); navigate(returnTo?.startsWith('/') ? returnTo : '/overview', { replace: true }); }
+    try { await login(username.trim(), password); }
     catch (loginError) { setError(loginError instanceof ApiError ? loginError.message : 'Sign-in could not be completed.'); }
     finally { setSubmitting(false); }
   }
