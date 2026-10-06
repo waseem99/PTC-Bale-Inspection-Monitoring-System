@@ -29,6 +29,7 @@ BACKUP_SHA_FILE="$BACKUP_FILE.sha256"
 EVIDENCE_ARCHIVE="$ARTIFACT_DIR/evidence-primary.tar.gz"
 EVIDENCE_SHA_FILE="$EVIDENCE_ARCHIVE.sha256"
 COOKIE_JAR="$ARTIFACT_DIR/cookies.txt"
+POST_RESTORE_CHECKS="$ARTIFACT_DIR/post-restore-checks.txt"
 
 mkdir -p "$ARTIFACT_DIR" "$PRIMARY_EVIDENCE_DIR" "$RESTORE_EVIDENCE_DIR"
 chmod 0777 "$PRIMARY_EVIDENCE_DIR" "$RESTORE_EVIDENCE_DIR"
@@ -40,6 +41,11 @@ cleanup() {
   docker network rm "$NETWORK_NAME" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
+
+fail_check() {
+  echo "FAIL: $1" | tee -a "$POST_RESTORE_CHECKS" >&2
+  exit 1
+}
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || { echo "Missing required command: $1" >&2; exit 1; }
@@ -107,10 +113,7 @@ docker run --rm --network "$NETWORK_NAME" "${COMMON_SEED_ENV[@]}" \
   ptc-recovery-api-build pnpm --filter @ptc-bale/platform-api seed:reset > "$ARTIFACT_DIR/primary-seed.log"
 
 SUPERVISOR_ID="$(docker exec "$PRIMARY_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select id from users where username='supervisor' limit 1;")"
-if [[ -z "$SUPERVISOR_ID" ]]; then
-  echo "Seeded supervisor account was not found." >&2
-  exit 1
-fi
+[[ -n "$SUPERVISOR_ID" ]] || fail_check "seeded supervisor account was not found"
 
 mkdir -p "$PRIMARY_EVIDENCE_DIR/cert"
 printf '\x89PNG\r\n\x1a\nPTC-AUTOMATED-RECOVERY-CERT' > "$PRIMARY_EVIDENCE_DIR/$STORAGE_KEY"
@@ -155,17 +158,18 @@ INSERT INTO audit_logs (
 SQL
 
 docker exec "$PRIMARY_DB" pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc > "$BACKUP_FILE"
-[[ -s "$BACKUP_FILE" ]]
+[[ -s "$BACKUP_FILE" ]] || fail_check "primary PostgreSQL dump is empty"
 sha256sum "$BACKUP_FILE" > "$BACKUP_SHA_FILE"
-sha256sum -c "$BACKUP_SHA_FILE" >/dev/null
+sha256sum -c "$BACKUP_SHA_FILE" >/dev/null || fail_check "primary PostgreSQL backup checksum did not verify"
 docker run --rm -i postgres:16-alpine pg_restore --list < "$BACKUP_FILE" > "$ARTIFACT_DIR/postgres-backup-list.txt"
-grep -q 'TABLE DATA public inspection_events' "$ARTIFACT_DIR/postgres-backup-list.txt"
-grep -q 'TABLE DATA public audit_logs' "$ARTIFACT_DIR/postgres-backup-list.txt"
-grep -q 'TABLE DATA public evidence_metadata' "$ARTIFACT_DIR/postgres-backup-list.txt"
+grep -q 'TABLE DATA public inspection_events' "$ARTIFACT_DIR/postgres-backup-list.txt" || fail_check "inspection_events table data is absent from backup"
+grep -q 'TABLE DATA public audit_logs' "$ARTIFACT_DIR/postgres-backup-list.txt" || fail_check "audit_logs table data is absent from backup"
+grep -q 'TABLE DATA public evidence_metadata' "$ARTIFACT_DIR/postgres-backup-list.txt" || fail_check "evidence_metadata table data is absent from backup"
+grep -q 'TABLE DATA public _prisma_migrations' "$ARTIFACT_DIR/postgres-backup-list.txt" || fail_check "Prisma migration history is absent from backup"
 
 tar -czf "$EVIDENCE_ARCHIVE" -C "$PRIMARY_EVIDENCE_DIR" .
 sha256sum "$EVIDENCE_ARCHIVE" > "$EVIDENCE_SHA_FILE"
-sha256sum -c "$EVIDENCE_SHA_FILE" >/dev/null
+sha256sum -c "$EVIDENCE_SHA_FILE" >/dev/null || fail_check "evidence archive checksum did not verify"
 
 echo "Starting disposable restore PostgreSQL target..."
 start_postgres "$RESTORE_DB"
@@ -176,23 +180,30 @@ if ! docker exec -i "$RESTORE_DB" pg_restore \
   < "$BACKUP_FILE" > "$ARTIFACT_DIR/postgres-restore.log" 2>&1; then
   docker logs "$RESTORE_DB" > "$ARTIFACT_DIR/restore-postgres-container.log" 2>&1 || true
   cat "$ARTIFACT_DIR/postgres-restore.log" >&2 || true
-  exit 1
+  fail_check "PostgreSQL restore failed"
 fi
 
-MIGRATION_COUNT="$(docker exec "$RESTORE_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc 'select count(*) from _prisma_migrations where finished_at is not null;')"
-[[ "$MIGRATION_COUNT" -ge 1 ]]
+echo "restore_command=PASS" > "$POST_RESTORE_CHECKS"
+
+MIGRATION_COUNT="$(docker exec "$RESTORE_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc 'select count(*) from public._prisma_migrations where finished_at is not null;')"
+echo "migration_count=$MIGRATION_COUNT" >> "$POST_RESTORE_CHECKS"
+[[ "$MIGRATION_COUNT" =~ ^[0-9]+$ ]] && [[ "$MIGRATION_COUNT" -ge 1 ]] || fail_check "restored Prisma migration history is missing"
 
 tar -xzf "$EVIDENCE_ARCHIVE" -C "$RESTORE_EVIDENCE_DIR"
-[[ -f "$RESTORE_EVIDENCE_DIR/$STORAGE_KEY" ]]
+[[ -f "$RESTORE_EVIDENCE_DIR/$STORAGE_KEY" ]] || fail_check "restored evidence binary is missing"
 RESTORED_BINARY_SHA="$(sha256sum "$RESTORE_EVIDENCE_DIR/$STORAGE_KEY" | awk '{print $1}')"
-[[ "$RESTORED_BINARY_SHA" == "$EVIDENCE_BINARY_SHA" ]]
+echo "restored_evidence_sha=$RESTORED_BINARY_SHA" >> "$POST_RESTORE_CHECKS"
+[[ "$RESTORED_BINARY_SHA" == "$EVIDENCE_BINARY_SHA" ]] || fail_check "restored evidence binary checksum mismatch"
 
-RESTORED_EVENT_COUNT="$(docker exec "$RESTORE_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select count(*) from inspection_events where id='${EVENT_ID}';")"
-RESTORED_AUDIT_COUNT="$(docker exec "$RESTORE_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select count(*) from audit_logs where \"targetId\"='${EVENT_ID}' and action='event.review.updated';")"
-RESTORED_EVIDENCE_ROW="$(docker exec "$RESTORE_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select \"storageKey\" || '|' || checksum from evidence_metadata where id='${EVIDENCE_ID}';")"
-[[ "$RESTORED_EVENT_COUNT" == "1" ]]
-[[ "$RESTORED_AUDIT_COUNT" == "1" ]]
-[[ "$RESTORED_EVIDENCE_ROW" == "$STORAGE_KEY|$EVIDENCE_BINARY_SHA" ]]
+RESTORED_EVENT_COUNT="$(docker exec "$RESTORE_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select count(*) from public.inspection_events where id='${EVENT_ID}';")"
+RESTORED_AUDIT_COUNT="$(docker exec "$RESTORE_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select count(*) from public.audit_logs where \"targetId\"='${EVENT_ID}' and action='event.review.updated';")"
+RESTORED_EVIDENCE_ROW="$(docker exec "$RESTORE_DB" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select \"storageKey\" || '|' || checksum from public.evidence_metadata where id='${EVIDENCE_ID}';")"
+printf 'event_count=%s\naudit_count=%s\nevidence_row=%s\n' "$RESTORED_EVENT_COUNT" "$RESTORED_AUDIT_COUNT" "$RESTORED_EVIDENCE_ROW" >> "$POST_RESTORE_CHECKS"
+[[ "$RESTORED_EVENT_COUNT" == "1" ]] || fail_check "known event did not reconcile after restore"
+[[ "$RESTORED_AUDIT_COUNT" == "1" ]] || fail_check "known audit entry did not reconcile after restore"
+[[ "$RESTORED_EVIDENCE_ROW" == "$STORAGE_KEY|$EVIDENCE_BINARY_SHA" ]] || fail_check "evidence metadata did not reconcile after restore"
+
+echo "direct_reconciliation=PASS" >> "$POST_RESTORE_CHECKS"
 
 start_restored_api() {
   docker rm -f "$RESTORE_API" >/dev/null 2>&1 || true
@@ -226,34 +237,39 @@ start_restored_api() {
     fi
     sleep 1
   done
-  jq -e '.status == "ready" and .database == "connected"' "$ARTIFACT_DIR/restored-readyz.json" >/dev/null
+  if ! jq -e '.status == "ready" and .database == "connected"' "$ARTIFACT_DIR/restored-readyz.json" >/dev/null 2>&1; then
+    docker logs "$RESTORE_API" > "$ARTIFACT_DIR/restored-api-startup.log" 2>&1 || true
+    fail_check "API did not become ready against restored PostgreSQL"
+  fi
 }
 
 start_restored_api
+echo "restored_api_ready=PASS" >> "$POST_RESTORE_CHECKS"
 
 curl -fsS -c "$COOKIE_JAR" \
   -H 'Content-Type: application/json' \
   -d "{\"username\":\"supervisor\",\"password\":\"$SEED_SUPERVISOR_PASSWORD\"}" \
   http://127.0.0.1:4010/api/auth/login > "$ARTIFACT_DIR/restored-login.json"
-jq -e '.user.role == "supervisor"' "$ARTIFACT_DIR/restored-login.json" >/dev/null
+jq -e '.user.role == "supervisor"' "$ARTIFACT_DIR/restored-login.json" >/dev/null || fail_check "restored API login/session check failed"
 
 curl -fsS -b "$COOKIE_JAR" "http://127.0.0.1:4010/api/events/$EVENT_ID" > "$ARTIFACT_DIR/restored-event.json"
-jq -e '.id == "'"$EVENT_ID"'" and .reviewStatus == "confirmed" and .evidenceAvailable == true' "$ARTIFACT_DIR/restored-event.json" >/dev/null
+jq -e '.id == "'"$EVENT_ID"'" and .reviewStatus == "confirmed" and .evidenceAvailable == true' "$ARTIFACT_DIR/restored-event.json" >/dev/null || fail_check "known event API check failed after restore"
 
 curl -fsS -b "$COOKIE_JAR" http://127.0.0.1:4010/api/reports/summary > "$ARTIFACT_DIR/restored-report-summary.json"
-jq -e '.total >= 1' "$ARTIFACT_DIR/restored-report-summary.json" >/dev/null
+jq -e '.total >= 1' "$ARTIFACT_DIR/restored-report-summary.json" >/dev/null || fail_check "report generation check failed against restored DB"
 
 curl -fsS -b "$COOKIE_JAR" "http://127.0.0.1:4010/api/evidence/$EVIDENCE_ID/content" > "$ARTIFACT_DIR/restored-evidence.bin"
-cmp "$PRIMARY_EVIDENCE_DIR/$STORAGE_KEY" "$ARTIFACT_DIR/restored-evidence.bin"
+cmp "$PRIMARY_EVIDENCE_DIR/$STORAGE_KEY" "$ARTIFACT_DIR/restored-evidence.bin" || fail_check "restored evidence API content differs from source binary"
 
+echo "restored_api_smoke=PASS" >> "$POST_RESTORE_CHECKS"
 docker logs "$RESTORE_API" > "$ARTIFACT_DIR/restored-api.log" 2>&1 || true
 
 LEAK_PATTERN="${DB_PASSWORD}|postgresql://${DB_USER}:|${INGESTION_SERVICE_TOKEN}|${SEED_SUPERVISOR_PASSWORD}"
 if grep -R -n -E "$LEAK_PATTERN" "$ARTIFACT_DIR" 2>/dev/null | grep -v '/cookies.txt:'; then
-  echo "Credential or database connection-string leakage detected in certification evidence." >&2
-  exit 1
+  fail_check "credential or database connection-string leakage detected in certification evidence"
 fi
 rm -f "$COOKIE_JAR"
+echo "credential_leak_scan=PASS" >> "$POST_RESTORE_CHECKS"
 
 BACKUP_SHA="$(awk '{print $1}' "$BACKUP_SHA_FILE")"
 EVIDENCE_ARCHIVE_SHA="$(awk '{print $1}' "$EVIDENCE_SHA_FILE")"
