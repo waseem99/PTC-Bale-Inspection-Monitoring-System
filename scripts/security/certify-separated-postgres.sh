@@ -178,8 +178,17 @@ curl -fsS \
 jq -e '.status == "available" and .evidenceId == "'"$EVIDENCE_ID"'"' "$ARTIFACT_DIR/evidence-finalize.json" >/dev/null
 
 STORAGE_KEY="$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select \"storageKey\" from evidence_metadata where id='${EVIDENCE_ID}';")"
-[[ -n "$STORAGE_KEY" ]]
-[[ -f "$EVIDENCE_HOST_DIR/$STORAGE_KEY" ]]
+printf '%s\n' "$STORAGE_KEY" > "$ARTIFACT_DIR/storage-key.txt"
+find "$EVIDENCE_HOST_DIR" -type f -printf '%P\n' | sort > "$ARTIFACT_DIR/evidence-files.txt"
+if [[ -z "$STORAGE_KEY" ]]; then
+  echo "Evidence metadata did not persist a storageKey." >&2
+  exit 1
+fi
+if [[ ! -f "$EVIDENCE_HOST_DIR/$STORAGE_KEY" ]]; then
+  echo "Evidence binary is not present on the external evidence mount at $STORAGE_KEY." >&2
+  cat "$ARTIFACT_DIR/evidence-files.txt" >&2 || true
+  exit 1
+fi
 
 curl -fsS -b "$COOKIE_JAR" "http://127.0.0.1:4000/api/events/$EVENT_ID" > "$ARTIFACT_DIR/event-before-review.json"
 EVENT_VERSION="$(jq -r '.version' "$ARTIFACT_DIR/event-before-review.json")"
