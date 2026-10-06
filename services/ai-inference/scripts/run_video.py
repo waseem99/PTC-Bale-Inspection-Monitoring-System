@@ -108,7 +108,19 @@ def main() -> int:
     if args.audit_output:
         args.audit_output.parent.mkdir(parents=True, exist_ok=True)
         args.audit_output.write_text(
-            "".join(json.dumps(to_audit_payload(item), sort_keys=True) + "\n" for item in events),
+            "".join(
+                json.dumps(
+                    to_audit_payload(
+                        item,
+                        roi_version=config.versions.roi,
+                        ocr_version=config.versions.ocr,
+                        dataset_version=config.versions.dataset,
+                    ),
+                    sort_keys=True,
+                )
+                + "\n"
+                for item in events
+            ),
             encoding="utf-8",
         )
     print(
@@ -119,6 +131,12 @@ def main() -> int:
                 "captureStart": datetime.fromtimestamp(start_epoch, timezone.utc).isoformat().replace("+00:00", "Z"),
                 "trackWeights": str(track_weights),
                 "inspectionWeights": str(inspection_weights),
+                "modelVersion": config.versions.model,
+                "ruleVersion": config.versions.rules,
+                "configVersion": config.versions.config,
+                "roiVersion": config.versions.roi,
+                "ocrVersion": config.versions.ocr,
+                "datasetVersion": config.versions.dataset,
                 "output": str(args.output),
                 "auditOutput": str(args.audit_output) if args.audit_output else None,
             },
