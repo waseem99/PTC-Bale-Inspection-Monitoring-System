@@ -1,0 +1,75 @@
+name: Separated PostgreSQL Certification
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/platform-api/**'
+      - 'apps/dashboard-web/**'
+      - 'infrastructure/**'
+      - 'scripts/security/certify-separated-postgres.sh'
+      - '.github/workflows/separated-postgres-certification.yml'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/platform-api/**'
+      - 'apps/dashboard-web/**'
+      - 'infrastructure/**'
+      - 'scripts/security/certify-separated-postgres.sh'
+      - '.github/workflows/separated-postgres-certification.yml'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: separated-postgres-cert-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate certification harness syntax
+        run: bash -n scripts/security/certify-separated-postgres.sh
+
+      - name: Build frontend with hostile database canary present
+        env:
+          DATABASE_URL: postgresql://ptc_cert:PTC_DB_CERT_CANARY_SECRET_2026@ptc-cert-db:5432/ptc_cert?schema=public
+          VITE_DATA_MODE: live
+          VITE_API_BASE_URL: /api
+          VITE_ALLOW_DEMO_CREDENTIALS: 'false'
+          VITE_CAMERA_PREVIEW_MODE: drive
+        run: pnpm --filter @ptc-bale/dashboard-web build
+
+      - name: Certify separated PostgreSQL and evidence boundary
+        run: scripts/security/certify-separated-postgres.sh
+
+      - name: Upload sanitized certification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: separated-postgres-cert-${{ github.sha }}
+          path: .certification/separated-postgres/
+          if-no-files-found: error
+          retention-days: 14
