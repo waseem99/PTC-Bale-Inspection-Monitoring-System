@@ -14,6 +14,7 @@ import type { Role, Session, User } from './types';
 
 const SESSION_KEY = 'ptc-bale:session:v1';
 const LIVE_SESSION_REFRESH_MS = 5 * 60 * 1000;
+const MAX_BROWSER_TIMEOUT_MS = 2_147_000_000;
 
 interface AuthContextValue {
   session: Session | null;
@@ -154,13 +155,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session) return;
-    const remaining = new Date(session.expiresAt).getTime() - Date.now();
-    if (remaining <= 0) {
-      clearSession();
-      return;
-    }
-    const timeout = window.setTimeout(clearSession, remaining);
-    return () => window.clearTimeout(timeout);
+
+    let timeout: number | undefined;
+    const scheduleExpiryCheck = () => {
+      const expiresAt = new Date(session.expiresAt).getTime();
+      const remaining = expiresAt - Date.now();
+      if (!Number.isFinite(expiresAt) || remaining <= 0) {
+        clearSession();
+        return;
+      }
+      timeout = window.setTimeout(scheduleExpiryCheck, Math.min(remaining, MAX_BROWSER_TIMEOUT_MS));
+    };
+
+    scheduleExpiryCheck();
+    return () => {
+      if (timeout !== undefined) window.clearTimeout(timeout);
+    };
   }, [clearSession, session]);
 
   useEffect(() => {
