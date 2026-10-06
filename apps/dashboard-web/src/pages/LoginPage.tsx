@@ -22,7 +22,12 @@ export default function LoginPage() {
     event.preventDefault(); if (isSubmitting) return; setError('');
     if (!username.trim() || !password) { setError('Enter both username and password.'); return; }
     setSubmitting(true);
-    try { await login(username.trim(), password); navigate(returnTo?.startsWith('/') ? returnTo : '/overview', { replace: true }); }
+    try {
+      await login(username.trim(), password);
+      // Navigation is intentionally driven by the authenticated-state effect above.
+      // This guarantees React has committed the new session before the protected
+      // route guard evaluates /overview, avoiding a login -> overview -> login race.
+    }
     catch (loginError) { setError(loginError instanceof ApiError ? loginError.message : 'Sign-in could not be completed.'); }
     finally { setSubmitting(false); }
   }
