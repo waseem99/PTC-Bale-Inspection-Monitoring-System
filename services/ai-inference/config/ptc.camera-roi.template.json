@@ -8,7 +8,10 @@
   "versions": {
     "model": "REPLACE_WITH_TRAINED_PTC_MODEL_VERSION",
     "rules": "ptc-sop-v1",
-    "config": "ptc-camera-roi-template-v2"
+    "config": "ptc-camera-roi-template-v2",
+    "roi": "ptc-camera-roi-template-v2",
+    "ocr": "REPLACE_WITH_APPROVED_OCR_VERSION",
+    "dataset": "REPLACE_WITH_FROZEN_DATASET_VERSION"
   },
   "weightUnit": "kg",
   "weightPattern": "\\d+(?:\\.\\d+)?",
