@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "ptc-site-camera-manifest-v1",
+  "siteReference": "REPLACE_WITH_SANITIZED_SITE_REFERENCE",
+  "captureSessionReference": "REPLACE_WITH_SANITIZED_CAPTURE_REFERENCE",
+  "cameras": [
+    {
+      "cameraId": "CAM-01",
+      "streamEnvVar": "PTC_CAM_01_STREAM_URL",
+      "physicalView": "REPLACE_WITH_SANITIZED_VIEW_DESCRIPTION",
+      "expected": {"minWidth": 1280, "minHeight": 720, "minFps": 10}
+    },
+    {
+      "cameraId": "CAM-02",
+      "streamEnvVar": "PTC_CAM_02_STREAM_URL",
+      "physicalView": "REPLACE_WITH_SANITIZED_VIEW_DESCRIPTION",
+      "expected": {"minWidth": 1280, "minHeight": 720, "minFps": 10}
+    },
+    {
+      "cameraId": "CAM-03",
+      "streamEnvVar": "PTC_CAM_03_STREAM_URL",
+      "physicalView": "REPLACE_WITH_SANITIZED_VIEW_DESCRIPTION",
+      "expected": {"minWidth": 1280, "minHeight": 720, "minFps": 10}
+    },
+    {
+      "cameraId": "CAM-04",
+      "streamEnvVar": "PTC_CAM_04_STREAM_URL",
+      "physicalView": "REPLACE_WITH_SANITIZED_VIEW_DESCRIPTION",
+      "expected": {"minWidth": 1280, "minHeight": 720, "minFps": 10}
+    }
+  ],
+  "manualChecks": {
+    "timeSynchronizationVerified": null,
+    "cameraVlanFirewallVerified": null,
+    "cameraFirmwareAndTransportRecorded": null,
+    "evidenceCaptureVerified": null,
+    "singleCameraFailureIsolationVerified": null,
+    "fourStreamStabilityVerified": null,
+    "scaleDisplayReadabilityRecorded": null,
+    "controlledCaptureManifestRecorded": null,
+    "lockedTestSessionRecorded": null,
+    "pmSiteApproval": null
+  },
+  "notes": "Never store stream URLs, credentials, private IPs, raw frames, footage, or unrestricted network details in this file."
+}
