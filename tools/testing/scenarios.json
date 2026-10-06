@@ -102,9 +102,23 @@
       "stepStates": ["complete", "unknown", "unknown", "unknown", "unknown", "unknown"]
     },
     {
+      "code": "CAMERA_FAILURE_OPERATIONAL",
+      "outcome": "unresolved",
+      "reason": "CAMERA_FAILURE",
+      "confidence": 0,
+      "stepStates": ["complete", "unknown", "unknown", "unknown", "unknown", "unknown"]
+    },
+    {
       "code": "MODEL_FAILURE_OPERATIONAL",
       "outcome": "unresolved",
       "reason": "MODEL_FAILURE",
+      "confidence": 0,
+      "stepStates": ["complete", "unknown", "unknown", "unknown", "unknown", "unknown"]
+    },
+    {
+      "code": "SERVICE_FAILURE_OPERATIONAL",
+      "outcome": "unresolved",
+      "reason": "SERVICE_FAILURE",
       "confidence": 0,
       "stepStates": ["complete", "unknown", "unknown", "unknown", "unknown", "unknown"]
     }
