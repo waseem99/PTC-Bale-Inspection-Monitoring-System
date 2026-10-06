@@ -55,6 +55,7 @@ docker network create "$NETWORK_NAME" >/dev/null
 
 start_postgres() {
   local name="$1"
+  local stable=0
   docker run -d \
     --name "$name" \
     --network "$NETWORK_NAME" \
@@ -68,14 +69,20 @@ start_postgres() {
     exit 1
   fi
 
-  for _ in $(seq 1 60); do
-    if docker exec "$name" pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; then
-      return 0
+  for _ in $(seq 1 90); do
+    if [[ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null || true)" == "true" ]] \
+      && docker exec "$name" psql -U "$DB_USER" -d "$DB_NAME" -Atc 'select 1;' 2>/dev/null | grep -qx '1'; then
+      stable=$((stable + 1))
+      if [[ "$stable" -ge 3 ]]; then
+        return 0
+      fi
+    else
+      stable=0
     fi
     sleep 1
   done
   docker logs "$name" >&2 || true
-  echo "PostgreSQL container $name did not become ready." >&2
+  echo "PostgreSQL container $name did not reach stable readiness." >&2
   exit 1
 }
 
