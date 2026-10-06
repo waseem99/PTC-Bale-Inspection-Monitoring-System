@@ -181,7 +181,7 @@ STORAGE_KEY="$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -Atc
 printf '%s\n' "$STORAGE_KEY" > "$ARTIFACT_DIR/storage-key.txt"
 MOUNT_SOURCE="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/mnt/ptc-evidence"}}{{.Source}}{{end}}{{end}}' "$API_CONTAINER")"
 printf '%s\n' "$MOUNT_SOURCE" > "$ARTIFACT_DIR/evidence-mount-source.txt"
-docker exec "$API_CONTAINER" find /mnt/ptc-evidence -type f -printf '%P\n' | sort > "$ARTIFACT_DIR/evidence-files.txt"
+docker exec "$API_CONTAINER" find /mnt/ptc-evidence -type f -print | sed 's#^/mnt/ptc-evidence/##' | sort > "$ARTIFACT_DIR/evidence-files.txt"
 if [[ -z "$STORAGE_KEY" ]]; then
   echo "Evidence metadata did not persist a storageKey." >&2
   exit 1
