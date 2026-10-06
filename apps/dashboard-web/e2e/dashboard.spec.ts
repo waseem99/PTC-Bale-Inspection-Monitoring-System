@@ -22,6 +22,20 @@ test('supervisor can navigate the operational dashboard', async ({ page }) => {
   await expect(page.getByRole('table')).toBeVisible();
 });
 
+test('live session survives protected navigation and reload', async ({ page }) => {
+  await signIn(page);
+
+  await page.reload();
+  await expect(page).toHaveURL(/\/overview$/);
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+
+  await page.getByRole('link', { name: 'Live Monitoring', exact: true }).click();
+  await expect(page).toHaveURL(/\/live$/);
+  await page.reload();
+  await expect(page).toHaveURL(/\/live$/);
+  await expect(page.getByRole('heading', { name: 'Live Monitoring', exact: true })).toBeVisible();
+});
+
 test('filters and pagination are encoded in URL', async ({ page }) => {
   await signIn(page);
   await page.goto('/events');
