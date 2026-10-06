@@ -120,7 +120,7 @@ printf '\x89PNG\r\n\x1a\nPTC-AUTOMATED-RECOVERY-CERT' > "$PRIMARY_EVIDENCE_DIR/$
 EVIDENCE_BINARY_SHA="$(sha256sum "$PRIMARY_EVIDENCE_DIR/$STORAGE_KEY" | awk '{print $1}')"
 EVIDENCE_SIZE="$(wc -c < "$PRIMARY_EVIDENCE_DIR/$STORAGE_KEY" | tr -d ' ')"
 
-docker exec "$PRIMARY_DB" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" >/dev/null <<SQL
+docker exec -i "$PRIMARY_DB" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" >/dev/null <<SQL
 INSERT INTO inspection_events (
   id, "cameraId", "cameraName", zone, timestamp, outcome, reason, confidence,
   "reviewStatus", summary, "evidenceAvailable", remarks, "reviewedBy", "reviewedAt",
