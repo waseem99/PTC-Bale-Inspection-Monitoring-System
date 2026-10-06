@@ -128,7 +128,7 @@ login_supervisor() {
 start_api
 login_supervisor
 
-SESSION_COUNT="$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -Atc 'select count(*) from "Session";')"
+SESSION_COUNT="$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -Atc 'select count(*) from sessions;')"
 [[ "$SESSION_COUNT" -ge 1 ]]
 
 cat > "$ARTIFACT_DIR/event-payload.json" <<JSON
@@ -177,7 +177,7 @@ curl -fsS \
   "http://127.0.0.1:4000/api/ingest/evidence/$EVENT_ID" > "$ARTIFACT_DIR/evidence-finalize.json"
 jq -e '.status == "available" and .evidenceId == "'"$EVIDENCE_ID"'"' "$ARTIFACT_DIR/evidence-finalize.json" >/dev/null
 
-STORAGE_KEY="$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select \"storageKey\" from \"EvidenceMetadata\" where id='${EVIDENCE_ID}';")"
+STORAGE_KEY="$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select \"storageKey\" from evidence_metadata where id='${EVIDENCE_ID}';")"
 [[ -n "$STORAGE_KEY" ]]
 [[ -f "$EVIDENCE_HOST_DIR/$STORAGE_KEY" ]]
 
@@ -192,7 +192,7 @@ curl -fsS -b "$COOKIE_JAR" \
   "http://127.0.0.1:4000/api/events/$EVENT_ID/review" > "$ARTIFACT_DIR/review.json"
 jq -e '.reviewStatus == "confirmed"' "$ARTIFACT_DIR/review.json" >/dev/null
 
-AUDIT_COUNT="$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select count(*) from \"AuditLog\" where \"targetId\"='${EVENT_ID}';")"
+AUDIT_COUNT="$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select count(*) from audit_logs where \"targetId\"='${EVENT_ID}';")"
 [[ "$AUDIT_COUNT" -ge 1 ]]
 
 curl -fsS -b "$COOKIE_JAR" http://127.0.0.1:4000/api/reports/summary > "$ARTIFACT_DIR/report-summary.json"
