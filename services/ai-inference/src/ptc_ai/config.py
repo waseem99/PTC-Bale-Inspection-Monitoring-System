@@ -29,6 +29,18 @@ class CameraRois:
     accepted: Polygon
     rejected: Polygon
     scale_display: Polygon
+    entry: Polygon | None = None
+    grading: Polygon | None = None
+
+    @property
+    def entry_zone(self) -> Polygon:
+        """Physical entry ROI, falling back to the legacy inspection ROI."""
+        return self.entry or self.inspection
+
+    @property
+    def grading_zone(self) -> Polygon:
+        """Physical grading ROI, falling back to the legacy inspection ROI."""
+        return self.grading or self.inspection
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,11 +86,16 @@ class AiConfig:
         for camera_id, raw in camera_data.items():
             if not isinstance(raw, dict):
                 raise ValueError(f"Camera {camera_id} configuration must be an object")
+            inspection = _polygon(raw.get("inspection"), f"{camera_id}.inspection")
+            entry_raw = raw.get("entry")
+            grading_raw = raw.get("grading")
             cameras[str(camera_id)] = CameraRois(
-                inspection=_polygon(raw.get("inspection"), f"{camera_id}.inspection"),
+                inspection=inspection,
                 accepted=_polygon(raw.get("accepted"), f"{camera_id}.accepted"),
                 rejected=_polygon(raw.get("rejected"), f"{camera_id}.rejected"),
                 scale_display=_polygon(raw.get("scaleDisplay"), f"{camera_id}.scaleDisplay"),
+                entry=_polygon(entry_raw, f"{camera_id}.entry") if entry_raw is not None else None,
+                grading=_polygon(grading_raw, f"{camera_id}.grading") if grading_raw is not None else None,
             )
         threshold_data = data.get("thresholds") or {}
         thresholds = Thresholds(
