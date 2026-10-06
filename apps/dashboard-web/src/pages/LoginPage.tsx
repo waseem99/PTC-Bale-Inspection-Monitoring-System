@@ -15,8 +15,9 @@ export default function LoginPage() {
   const [isSubmitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const returnTo = searchParams.get('returnTo');
+  const authenticatedTarget = returnTo?.startsWith('/') ? returnTo : '/overview';
 
-  useEffect(() => { if (isAuthenticated) navigate(returnTo?.startsWith('/') ? returnTo : '/overview', { replace: true }); }, [isAuthenticated, returnTo]);
+  useEffect(() => { if (isAuthenticated) navigate(authenticatedTarget, { replace: true }); }, [authenticatedTarget, isAuthenticated]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (isSubmitting) return; setError('');
@@ -24,9 +25,10 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(username.trim(), password);
-      // Navigation is intentionally driven by the authenticated-state effect above.
-      // This guarantees React has committed the new session before the protected
-      // route guard evaluates /overview, avoiding a login -> overview -> login race.
+      // Authentication is backed by an HttpOnly same-origin cookie in live mode.
+      // Reload the protected route after login so the fresh app instance validates
+      // that server session before any protected-route guard can evaluate it.
+      window.location.replace(authenticatedTarget);
     }
     catch (loginError) { setError(loginError instanceof ApiError ? loginError.message : 'Sign-in could not be completed.'); }
     finally { setSubmitting(false); }
