@@ -144,7 +144,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     needs: quality
     steps:
       - uses: actions/checkout@v4
@@ -159,9 +159,14 @@ jobs:
         run: |
           test -s pnpm-lock.yaml
           pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium firefox
         working-directory: apps/dashboard-web
-      - run: pnpm test:e2e
+      - name: Run browser regression suite
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test:e2e 2>&1 | tee playwright-e2e.log
         working-directory: apps/dashboard-web
         env:
           VITE_DATA_MODE: mock
@@ -170,6 +175,10 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dashboard-playwright-report
-          path: apps/dashboard-web/playwright-report
+          name: dashboard-playwright-${{ github.sha }}
+          path: |
+            apps/dashboard-web/playwright-report
+            apps/dashboard-web/test-results
+            apps/dashboard-web/playwright-e2e.log
+          if-no-files-found: ignore
           retention-days: 14
