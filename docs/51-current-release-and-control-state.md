@@ -10,9 +10,9 @@ This is the single current source of truth for repository state, release-control
 
 ## 1. Current software baseline
 
-Current `main` after the Codistan browser-acceptance tooling merge is:
+Current `main` after the one-command Codistan browser-certification tooling merge is:
 
-`797f4c6d8b0b56c6837f52d77bdcdfec8bcc3c8d`
+`b3424d2352fee6e8b4940d812cefc7d444d2d0dd`
 
 The latest runtime/application-behavior change is:
 
@@ -20,10 +20,13 @@ The latest runtime/application-behavior change is:
 
 That runtime change merged PR #169 and replaced the misleading login-side “Connected API” indication with a real API/PostgreSQL readiness check, exposed real `/healthz` and `/readyz` through the local proxy, and made login timeout failures actionable without changing authentication behavior.
 
-PR #170 then added browser/CI acceptance tooling without changing the PTC inspection domain logic. It introduced the Codistan deployed Playwright acceptance gate, Chromium/Firefox coverage, failure artifacts and `docs/52-codistan-browser-acceptance.md`.
+PR #170 added deployed browser/CI acceptance tooling without changing the PTC inspection domain logic. It introduced the Codistan Playwright acceptance gate, Chromium/Firefox coverage, failure artifacts and `docs/52-codistan-browser-acceptance.md`.
+
+PR #172 then added a GitHub-runner-independent one-command certification wrapper. Qamar can now execute the same deployed-browser acceptance locally with `pnpm certify:codistan-browser`, producing readiness evidence, Playwright artifacts, exact suite SHA, PASS/FAIL metadata, SHA-256 manifest and a checksum-protected certification archive under ignored runtime storage.
 
 Recent code/release controls already merged include:
 
+- PR #172 — one-command local Codistan browser certification and evidence packaging;
 - PR #170 — Codistan deployed end-to-end browser acceptance tooling;
 - PR #169 — real login/API/PostgreSQL readiness diagnostics;
 - PR #162 — #33 deterministic SOP/anomaly-engine acceptance closure;
@@ -32,7 +35,7 @@ Recent code/release controls already merged include:
 - PR #159 — automated backup/recovery certification;
 - PR #150 and related closure work — finite Option A database-resilience tooling.
 
-The current GitHub-hosted Actions service for this repository is failing before job execution (`runner_id: 0`, empty job steps). This is an execution-platform limitation, not passing or failing application evidence. No CI run should be described as having tested code while jobs are failing before their first step.
+The current GitHub-hosted Actions service for this repository is failing before job execution (`runner_id: 0`, empty job steps). This is an execution-platform limitation, not passing or failing application evidence. No CI run should be described as having tested code while jobs are failing before their first step. PR #172 removes that platform issue as a blocker to browser certification by providing a local runner-independent execution path.
 
 ## 2. Repository governance state
 
@@ -78,6 +81,7 @@ Do not reopen the following into undefined framework/platform development withou
 - AI runtime interfaces, deterministic SOP/reason-code engine and protected AI audit records;
 - recorded-video runner, evaluation helpers and CI/testing framework;
 - deployed-browser acceptance tooling for Codistan UAT;
+- runner-independent one-command browser certification/evidence packaging;
 - repository confidentiality/governance gate under #14;
 - automated software recovery certification.
 
@@ -91,9 +95,15 @@ These are finite execution/acceptance tasks, not permission to redesign the plat
 
 **Open.** Repository-side deployment and browser-acceptance tooling are complete. Remaining closure is limited to the real Codistan/selected target deployment gate and explicit PM/client acceptance.
 
-For the Codistan UAT target, the selected `main` commit must be deployed and the deployed-browser acceptance workflow in `docs/52-codistan-browser-acceptance.md` must be run against the actual hosted URL. Acceptance requires the real browser flow to pass for readiness, Viewer/Supervisor/Admin authentication, protected navigation, event review persistence, evidence/audit rendering, reports/downloads, logout and browser/runtime error checks. A lower-level API health check alone is not sufficient deployment acceptance.
+For the Codistan UAT target, the selected `main` commit must be deployed and the deployed-browser acceptance in `docs/52-codistan-browser-acceptance.md` must be run against the actual hosted URL. Either the GitHub Actions workflow or the local one-command certification wrapper is an acceptable execution route; the acceptance criteria are identical.
 
-The controlled service restart/persistence check remains a DevOps action followed by rerunning the same Playwright browser suite. Do not claim this gate complete until the actual target run and artifacts exist.
+The local command is:
+
+`pnpm certify:codistan-browser -- --env-file /secure/ptc-browser-cert.env`
+
+Acceptance requires the real browser flow to pass for readiness, Viewer/Supervisor/Admin authentication, protected navigation, event review persistence, evidence/audit rendering, reports/downloads, logout and browser/runtime error checks. A lower-level API health check alone is not sufficient deployment acceptance.
+
+The controlled service restart/persistence check remains a DevOps action followed by rerunning the same browser certification. Do not claim this gate complete until the actual target run and retained certification artifacts exist.
 
 ### #102 — local UAT and local release certification
 
@@ -134,9 +144,9 @@ Parallel internal closure may continue on #83, applicable #102 and #148 without 
 
 Use the following project wording until the remaining gates are recorded:
 
-> Repository-side platform, AI framework and browser-acceptance tooling are complete. The current closure work is limited to finite target-environment execution/browser acceptance, applicable local certification, and real PTC site/data/model/client acceptance. No additional undefined platform, HA, enterprise-security or AI-framework development is required unless a reproducible defect or approved change request is identified.
+> Repository-side platform, AI framework and browser-acceptance/certification tooling are complete. The current closure work is limited to finite target-environment execution/browser acceptance, applicable local certification, and real PTC site/data/model/client acceptance. No additional undefined platform, HA, enterprise-security or AI-framework development is required unless a reproducible defect or approved change request is identified.
 
-Do not describe Codistan deployment/browser acceptance as complete until the actual deployed Playwright run passes and its artifacts are retained.
+Do not describe Codistan deployment/browser acceptance as complete until the actual deployed Playwright certification passes and its artifacts are retained.
 
 ## 9. Document authority
 
@@ -148,6 +158,6 @@ Current/control documents:
 - `docs/44-database-resilience-option-a.md` — finite DB-resilience execution boundary;
 - `docs/49-recovery-rebuild-security-closure.md` — software recovery/rebuild certification boundary;
 - `docs/50-site-camera-roi-execution-package.md` — executable #84 site package;
-- `docs/52-codistan-browser-acceptance.md` — deployed Codistan browser-acceptance gate and execution runbook.
+- `docs/52-codistan-browser-acceptance.md` — deployed Codistan browser-acceptance gate, local one-command certification and execution runbook.
 
 Historical snapshots such as `docs/19-issue-map.md`, `docs/38-final-repository-audit.md` and `docs/40-final-testing-readiness-audit.md` remain evidence of earlier project states but are not current release-control authorities.
