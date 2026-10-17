@@ -39,8 +39,14 @@
     reverse_proxy api:4000
   }
 
+  # Expose the API's actual liveness/readiness endpoints instead of
+  # returning a proxy-only OK response. /readyz includes PostgreSQL state.
   handle /healthz {
-    respond "ok" 200
+    reverse_proxy api:4000
+  }
+
+  handle /readyz {
+    reverse_proxy api:4000
   }
 
   handle {
