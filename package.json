@@ -21,6 +21,7 @@
     "db:migrate:deploy": "pnpm --filter @ptc-bale/platform-api db:migrate:deploy",
     "seed:api": "pnpm --filter @ptc-bale/platform-api seed",
     "seed:reset": "pnpm --filter @ptc-bale/platform-api seed:reset",
+    "certify:codistan-browser": "bash scripts/certify-codistan-browser.sh",
     "stack:up": "docker compose --env-file infrastructure/local/.env -f infrastructure/local/docker-compose.api.yml up --build",
     "stack:down": "docker compose --env-file infrastructure/local/.env -f infrastructure/local/docker-compose.api.yml down",
     "stack:reset": "docker compose --env-file infrastructure/local/.env -f infrastructure/local/docker-compose.api.yml down --volumes && docker compose --env-file infrastructure/local/.env -f infrastructure/local/docker-compose.api.yml up --build"
