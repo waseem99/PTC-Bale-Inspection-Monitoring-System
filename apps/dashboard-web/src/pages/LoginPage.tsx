@@ -9,6 +9,15 @@ function safeAuthenticatedTarget(returnTo: string | null): string {
   return returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/overview';
 }
 
+type ApiReadiness = 'mock' | 'checking' | 'ready' | 'unavailable';
+
+function readinessLabel(state: ApiReadiness): { label: string; tone: 'good' | 'bad' | 'info' } {
+  if (state === 'mock') return { label: 'Mock data provider', tone: 'info' };
+  if (state === 'checking') return { label: 'Checking API', tone: 'info' };
+  if (state === 'ready') return { label: 'API & DB ready', tone: 'good' };
+  return { label: 'API unavailable', tone: 'bad' };
+}
+
 export default function LoginPage() {
   const { isAuthenticated, login } = useAuth();
   const { searchParams } = useRouter();
@@ -18,31 +27,70 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [apiReadiness, setApiReadiness] = useState<ApiReadiness>(() => runtime.dataMode === 'mock' ? 'mock' : 'checking');
   const returnTo = searchParams.get('returnTo');
   const authenticatedTarget = safeAuthenticatedTarget(returnTo);
+  const readiness = readinessLabel(apiReadiness);
 
   useEffect(() => { if (isAuthenticated) navigate(authenticatedTarget, { replace: true }); }, [authenticatedTarget, isAuthenticated]);
+
+  useEffect(() => {
+    if (runtime.dataMode === 'mock') return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 4_000);
+    let active = true;
+
+    void fetch('/readyz', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null) as { status?: unknown; database?: unknown } | null;
+        const ready = response.ok && payload?.status === 'ready' && payload.database === 'connected';
+        if (active) setApiReadiness(ready ? 'ready' : 'unavailable');
+      })
+      .catch(() => {
+        if (active) setApiReadiness('unavailable');
+      })
+      .finally(() => window.clearTimeout(timeout));
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (isSubmitting) return; setError('');
     if (!username.trim() || !password) { setError('Enter both username and password.'); return; }
     setSubmitting(true);
     try { await login(username.trim(), password); }
-    catch (loginError) { setError(loginError instanceof ApiError ? loginError.message : 'Sign-in could not be completed.'); }
+    catch (loginError) {
+      if (loginError instanceof ApiError && loginError.code === 'REQUEST_TIMEOUT') {
+        setError(apiReadiness === 'unavailable'
+          ? 'The API or database is not ready. Please check the server and retry.'
+          : 'The login API did not respond in time. Please retry or check server connectivity.');
+      } else {
+        setError(loginError instanceof ApiError ? loginError.message : 'Sign-in could not be completed.');
+      }
+    }
     finally { setSubmitting(false); }
   }
 
   return <main className="login-page">
     <section className="login-panel" aria-labelledby="login-title">
       <div className="login-brand"><img src={ptcLogoDataUri} alt="PTC" /></div>
-      <div className="login-copy"><span className="eyebrow">Bale Inspection & Monitoring</span><h1 id="login-title">Operational visibility for every inspection.</h1><p>Secure supervisor access to live monitoring, inspection evidence, review workflows and system health.</p><div className="login-state-row"><StatusPill label={runtime.dataMode === 'mock' ? 'Mock data provider' : 'Connected API'} tone={runtime.dataMode === 'mock' ? 'info' : 'good'} /><StatusPill label={runtime.environmentName} tone="neutral" /></div></div>
+      <div className="login-copy"><span className="eyebrow">Bale Inspection & Monitoring</span><h1 id="login-title">Operational visibility for every inspection.</h1><p>Secure supervisor access to live monitoring, inspection evidence, review workflows and system health.</p><div className="login-state-row"><StatusPill label={readiness.label} tone={readiness.tone} /><StatusPill label={runtime.environmentName} tone="neutral" /></div></div>
       <form className="login-form" onSubmit={(event) => void submit(event)} noValidate>
         <div><label htmlFor="username">Username</label><input id="username" name="username" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" inputMode="text" disabled={isSubmitting} required autoFocus /></div>
         <div><label htmlFor="password">Password</label><div className="password-field"><input id="password" name="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" disabled={isSubmitting} required /><button type="button" className="password-toggle" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? 'Hide password' : 'Show password'}><Icon name={showPassword ? 'eyeOff' : 'eye'} size={20} /></button></div></div>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="button button--primary button--wide" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Signing in…' : 'Sign in'} <Icon name="arrow" size={18} /></button>
         {credentials && <div className="demo-credentials" role="note"><strong>Demo access</strong><span>Username: {credentials.username}</span><span>Password: {credentials.password}</span></div>}
-        <p className="form-note">The mock provider uses production screen flows and contracts. Real API credentials replace this provider without changing the interface.</p>
+        <p className="form-note">{runtime.dataMode === 'mock' ? 'The mock provider uses production screen flows and contracts. Real API credentials replace this provider without changing the interface.' : 'Live API login. API and PostgreSQL readiness is checked before sign-in.'}</p>
       </form>
     </section>
     <aside className="login-visual" aria-hidden="true"><div className="visual-grid"/><div className="visual-ring visual-ring--one"/><div className="visual-ring visual-ring--two"/><div className="visual-bale visual-bale--one"/><div className="visual-bale visual-bale--two"/><div className="visual-scan-line"/><div className="visual-label">AI MONITORING ACTIVE</div></aside>
