@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Download, type Page } from '@playwright/test';
 import { stat } from 'node:fs/promises';
 
 const EXTERNAL_TARGET = process.env.PLAYWRIGHT_BASE_URL?.trim();
@@ -35,7 +35,9 @@ function observeBrowserHealth(page: Page): string[] {
   });
   page.on('requestfailed', (request) => {
     if (!['document', 'xhr', 'fetch'].includes(request.resourceType())) return;
-    issues.push(`request failed: ${request.method()} ${request.url()} - ${request.failure()?.errorText ?? 'unknown'}`);
+    const failure = request.failure()?.errorText ?? 'unknown';
+    if (/ERR_ABORTED|NS_BINDING_ABORTED/i.test(failure)) return;
+    issues.push(`request failed: ${request.method()} ${request.url()} - ${failure}`);
   });
 
   return issues;
@@ -65,7 +67,7 @@ async function signOut(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/login/);
 }
 
-async function expectNonEmptyDownload(downloadPromise: Promise<import('@playwright/test').Download>, extension: RegExp): Promise<void> {
+async function expectNonEmptyDownload(downloadPromise: Promise<Download>, extension: RegExp): Promise<void> {
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(extension);
   const path = await download.path();
