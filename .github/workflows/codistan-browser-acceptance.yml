@@ -1,0 +1,145 @@
+name: Codistan Browser Acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Codistan UAT base URL, e.g. https://ptc.example.com'
+        required: true
+        type: string
+      event_id:
+        description: 'Synthetic/staging event ID used for review-persistence testing'
+        required: false
+        default: 'EVT-2407-0253'
+        type: string
+  workflow_call:
+    inputs:
+      base_url:
+        description: 'Codistan UAT base URL'
+        required: true
+        type: string
+      event_id:
+        description: 'Synthetic/staging event ID used for review-persistence testing'
+        required: false
+        default: 'EVT-2407-0253'
+        type: string
+    secrets:
+      CODISTAN_E2E_PASSWORD:
+        required: false
+      CODISTAN_E2E_VIEWER_PASSWORD:
+        required: false
+      CODISTAN_E2E_SUPERVISOR_PASSWORD:
+        required: false
+      CODISTAN_E2E_ADMIN_PASSWORD:
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codistan-browser-acceptance
+  cancel-in-progress: false
+
+jobs:
+  browser-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: codistan-uat
+    env:
+      PLAYWRIGHT_BASE_URL: ${{ inputs.base_url }}
+      E2E_EVENT_ID: ${{ inputs.event_id }}
+      E2E_PASSWORD: ${{ secrets.CODISTAN_E2E_PASSWORD }}
+      E2E_VIEWER_PASSWORD: ${{ secrets.CODISTAN_E2E_VIEWER_PASSWORD }}
+      E2E_SUPERVISOR_PASSWORD: ${{ secrets.CODISTAN_E2E_SUPERVISOR_PASSWORD }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.CODISTAN_E2E_ADMIN_PASSWORD }}
+      CI: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate acceptance inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PLAYWRIGHT_BASE_URL"
+          case "$PLAYWRIGHT_BASE_URL" in
+            http://*|https://*) ;;
+            *) echo 'base_url must start with http:// or https://' >&2; exit 1 ;;
+          esac
+
+          if [ -z "${E2E_PASSWORD:-}" ]; then
+            test -n "${E2E_VIEWER_PASSWORD:-}" || { echo 'Missing viewer E2E password secret.' >&2; exit 1; }
+            test -n "${E2E_SUPERVISOR_PASSWORD:-}" || { echo 'Missing supervisor E2E password secret.' >&2; exit 1; }
+            test -n "${E2E_ADMIN_PASSWORD:-}" || { echo 'Missing admin E2E password secret.' >&2; exit 1; }
+          fi
+
+      - name: Install dependencies from committed lockfile
+        shell: bash
+        run: |
+          test -s pnpm-lock.yaml
+          pnpm install --frozen-lockfile
+
+      - name: Verify deployed readiness before browser run
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 15 "$PLAYWRIGHT_BASE_URL/readyz" | tee readiness.json
+          jq -e '.status == "ready" and .database == "connected"' readiness.json >/dev/null
+
+      - name: Install Playwright browsers
+        working-directory: apps/dashboard-web
+        run: pnpm exec playwright install --with-deps chromium firefox
+
+      - name: Run deployed end-to-end browser acceptance
+        working-directory: apps/dashboard-web
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test:e2e:acceptance 2>&1 | tee codistan-browser-acceptance.log
+
+      - name: Record acceptance metadata
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "tested_commit=${GITHUB_SHA}"
+            echo "base_url=${PLAYWRIGHT_BASE_URL}"
+            echo "event_id=${E2E_EVENT_ID}"
+            echo "workflow_run=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > acceptance-metadata.txt
+
+      - name: Publish run summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Codistan browser acceptance'
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Target: \`${PLAYWRIGHT_BASE_URL}\`"
+            echo "- Browser matrix: Chromium 1366x768 + Firefox 1920x1080"
+            echo "- Event used for controlled review mutation: \`${E2E_EVENT_ID}\`"
+            echo "- Result: **${{ job.status }}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload browser acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codistan-browser-acceptance-${{ github.sha }}
+          path: |
+            readiness.json
+            acceptance-metadata.txt
+            apps/dashboard-web/playwright-report
+            apps/dashboard-web/test-results
+            apps/dashboard-web/codistan-browser-acceptance.log
+          if-no-files-found: ignore
+          retention-days: 30
