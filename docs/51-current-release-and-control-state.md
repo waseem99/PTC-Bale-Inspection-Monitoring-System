@@ -1,7 +1,7 @@
 # Current Release and Control State
 
 **Status:** Authoritative current repository-state record  
-**Last reviewed:** 2026-10-07  
+**Last reviewed:** 2026-10-17  
 **Repository:** `waseem99/PTC-Bale-Inspection-Monitoring-System`  
 **Default branch:** `main`  
 **Repository visibility:** private
@@ -10,21 +10,29 @@ This is the single current source of truth for repository state, release-control
 
 ## 1. Current software baseline
 
-The last code-bearing `main` commit verified immediately before this documentation-only audit is:
+Current `main` after the Codistan browser-acceptance tooling merge is:
 
-`1b68d62aa3b88a25fc133ced72d1263056812e90`
+`797f4c6d8b0b56c6837f52d77bdcdfec8bcc3c8d`
 
-That commit closed the code-level SOP/anomaly-engine acceptance gaps under #33 through PR #162. Documentation-only commits made by this audit may advance `main` without changing the runtime/software baseline.
+The latest runtime/application-behavior change is:
+
+`f2fab2bdcc42403b980ccf4aa725ae8e01473811`
+
+That runtime change merged PR #169 and replaced the misleading login-side “Connected API” indication with a real API/PostgreSQL readiness check, exposed real `/healthz` and `/readyz` through the local proxy, and made login timeout failures actionable without changing authentication behavior.
+
+PR #170 then added browser/CI acceptance tooling without changing the PTC inspection domain logic. It introduced the Codistan deployed Playwright acceptance gate, Chromium/Firefox coverage, failure artifacts and `docs/52-codistan-browser-acceptance.md`.
 
 Recent code/release controls already merged include:
 
+- PR #170 — Codistan deployed end-to-end browser acceptance tooling;
+- PR #169 — real login/API/PostgreSQL readiness diagnostics;
 - PR #162 — #33 deterministic SOP/anomaly-engine acceptance closure;
 - PR #161 — executable #84 site camera/ROI preflight package;
 - PR #160 — #155 30-day browser-session timer defect fix;
 - PR #159 — automated backup/recovery certification;
 - PR #150 and related closure work — finite Option A database-resilience tooling.
 
-At the start of this audit, GitHub reported **zero open pull requests**. The Dependabot cleanup also left **zero open dependency PRs**; risky or nonessential major/toolchain upgrades were deferred instead of being merged into the closure baseline.
+The current GitHub-hosted Actions service for this repository is failing before job execution (`runner_id: 0`, empty job steps). This is an execution-platform limitation, not passing or failing application evidence. No CI run should be described as having tested code while jobs are failing before their first step.
 
 ## 2. Repository governance state
 
@@ -69,6 +77,7 @@ Do not reopen the following into undefined framework/platform development withou
 - local Docker/Compose packaging, backup, restore and recovery tooling;
 - AI runtime interfaces, deterministic SOP/reason-code engine and protected AI audit records;
 - recorded-video runner, evaluation helpers and CI/testing framework;
+- deployed-browser acceptance tooling for Codistan UAT;
 - repository confidentiality/governance gate under #14;
 - automated software recovery certification.
 
@@ -80,11 +89,15 @@ These are finite execution/acceptance tasks, not permission to redesign the plat
 
 ### #83 — deployment acceptance
 
-**Open.** Software/platform acceptance evidence is complete. Remaining closure is limited to the real target deployment gate after repository privatization and explicit PM/client acceptance. The last verified SSH staging release remains accepted evidence unless a reproducible new deployment defect is found.
+**Open.** Repository-side deployment and browser-acceptance tooling are complete. Remaining closure is limited to the real Codistan/selected target deployment gate and explicit PM/client acceptance.
+
+For the Codistan UAT target, the selected `main` commit must be deployed and the deployed-browser acceptance workflow in `docs/52-codistan-browser-acceptance.md` must be run against the actual hosted URL. Acceptance requires the real browser flow to pass for readiness, Viewer/Supervisor/Admin authentication, protected navigation, event review persistence, evidence/audit rendering, reports/downloads, logout and browser/runtime error checks. A lower-level API health check alone is not sufficient deployment acceptance.
+
+The controlled service restart/persistence check remains a DevOps action followed by rerunning the same Playwright browser suite. Do not claim this gate complete until the actual target run and artifacts exist.
 
 ### #102 — local UAT and local release certification
 
-**Open.** Execute the existing simulator/local package on the target workstation, record install/UAT/restart/backup/restore/offline evidence, publish the local release manifest/tag where applicable, and obtain PM acceptance. This does not require actual PTC cameras or final model weights.
+**Open.** PM must first confirm whether this separate local/offline workstation certification remains required in the final scope. If applicable, execute the existing simulator/local package on the target workstation, record install/UAT/restart/backup/restore/offline evidence, publish the local release manifest/tag where applicable, and obtain PM acceptance. If not applicable, record N/A/deferred disposition instead of inventing work.
 
 ### #148 — database resilience Option A real-environment execution
 
@@ -102,7 +115,7 @@ These genuinely depend on PTC/site/client inputs or execution:
 - #86 — final AI testing/acceptance parent;
 - #52/#53 — PM/client UAT, training, handover and final sign-off.
 
-Hypercare or later maintenance must not be converted into a pre-acceptance blocker unless the contract explicitly requires it.
+Hypercare issues #8 and #54–#57 are post-acceptance/conditional and must not be converted into current handover or technical-acceptance blockers unless the contract/PM/client explicitly activates them.
 
 ## 7. Controlling AI sequence
 
@@ -115,13 +128,15 @@ Hypercare or later maintenance must not be converted into a pre-acceptance block
 → #86 final AI acceptance
 ```
 
-Parallel internal closure may continue on #83, #102 and #148 without waiting for final PTC model/site acceptance.
+Parallel internal closure may continue on #83, applicable #102 and #148 without waiting for final PTC model/site acceptance.
 
 ## 8. Correct status wording
 
 Use the following project wording until the remaining gates are recorded:
 
-> Repository-side platform and AI framework implementation are complete. The current closure work is limited to finite target-environment/local certification and real PTC site/data/model acceptance. No additional undefined platform, HA, enterprise-security or AI-framework development is required unless a reproducible defect or approved change request is identified.
+> Repository-side platform, AI framework and browser-acceptance tooling are complete. The current closure work is limited to finite target-environment execution/browser acceptance, applicable local certification, and real PTC site/data/model/client acceptance. No additional undefined platform, HA, enterprise-security or AI-framework development is required unless a reproducible defect or approved change request is identified.
+
+Do not describe Codistan deployment/browser acceptance as complete until the actual deployed Playwright run passes and its artifacts are retained.
 
 ## 9. Document authority
 
@@ -132,6 +147,7 @@ Current/control documents:
 - `docs/37-ai-acceptance-release-template.md` — sanitized AI acceptance record;
 - `docs/44-database-resilience-option-a.md` — finite DB-resilience execution boundary;
 - `docs/49-recovery-rebuild-security-closure.md` — software recovery/rebuild certification boundary;
-- `docs/50-site-camera-roi-execution-package.md` — executable #84 site package.
+- `docs/50-site-camera-roi-execution-package.md` — executable #84 site package;
+- `docs/52-codistan-browser-acceptance.md` — deployed Codistan browser-acceptance gate and execution runbook.
 
 Historical snapshots such as `docs/19-issue-map.md`, `docs/38-final-repository-audit.md` and `docs/40-final-testing-readiness-audit.md` remain evidence of earlier project states but are not current release-control authorities.
