@@ -8,7 +8,7 @@ export default defineConfig({
   fullyParallel: !externalBaseUrl,
   forbidOnly: isCi,
   retries: isCi ? 2 : 0,
-  workers: externalBaseUrl || isCi ? 1 : undefined,
+  ...(externalBaseUrl || isCi ? { workers: 1 } : {}),
   timeout: externalBaseUrl ? 45_000 : 30_000,
   expect: { timeout: externalBaseUrl ? 15_000 : 10_000 },
   reporter: isCi ? [['html', { open: 'never' }], ['list']] : 'list',
