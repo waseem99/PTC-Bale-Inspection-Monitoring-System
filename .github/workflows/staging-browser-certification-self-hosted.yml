@@ -1,0 +1,230 @@
+name: Staging Browser Certification — Self-hosted
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/staging-browser-certification-self-hosted.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ptc-staging-browser-self-hosted
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    runs-on: [self-hosted, linux, x64, ptc-dashboard]
+    timeout-minutes: 60
+    env:
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:9081
+      PTC_BASE_URL: http://127.0.0.1:9081
+      CI: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.16.0
+
+      - name: Verify running staging and load protected acceptance values
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl --fail --silent --show-error --max-time 10 "$PLAYWRIGHT_BASE_URL/readyz" > readiness.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const ready = JSON.parse(fs.readFileSync('readiness.json', 'utf8'));
+          if (ready.status !== 'ready' || ready.database !== 'connected') process.exit(1);
+          NODE
+
+          API_CONTAINER="$(docker ps --filter label=com.docker.compose.project=ptc-bale-local --filter label=com.docker.compose.service=api --format '{{.Names}}' | head -1)"
+          POSTGRES_CONTAINER="$(docker ps --filter label=com.docker.compose.project=ptc-bale-local --filter label=com.docker.compose.service=postgres --format '{{.Names}}' | head -1)"
+          test -n "$API_CONTAINER"
+          test -n "$POSTGRES_CONTAINER"
+
+          VIEWER_PASSWORD="$(docker exec "$API_CONTAINER" printenv SEED_VIEWER_PASSWORD | tr -d '\r')"
+          SUPERVISOR_PASSWORD="$(docker exec "$API_CONTAINER" printenv SEED_SUPERVISOR_PASSWORD | tr -d '\r')"
+          ADMIN_PASSWORD="$(docker exec "$API_CONTAINER" printenv SEED_ADMIN_PASSWORD | tr -d '\r')"
+          INGESTION_TOKEN="$(docker exec "$API_CONTAINER" printenv INGESTION_SERVICE_TOKEN | tr -d '\r')"
+          ORIGIN="$(docker exec "$API_CONTAINER" printenv ALLOWED_ORIGINS | tr -d '\r' | cut -d',' -f1)"
+
+          for value in "$VIEWER_PASSWORD" "$SUPERVISOR_PASSWORD" "$ADMIN_PASSWORD" "$INGESTION_TOKEN"; do
+            test -n "$value"
+            echo "::add-mask::$value"
+          done
+          test -n "$ORIGIN"
+
+          {
+            echo "API_CONTAINER=$API_CONTAINER"
+            echo "POSTGRES_CONTAINER=$POSTGRES_CONTAINER"
+            echo "E2E_VIEWER_PASSWORD=$VIEWER_PASSWORD"
+            echo "E2E_SUPERVISOR_PASSWORD=$SUPERVISOR_PASSWORD"
+            echo "E2E_ADMIN_PASSWORD=$ADMIN_PASSWORD"
+            echo "SEED_VIEWER_PASSWORD=$VIEWER_PASSWORD"
+            echo "SEED_SUPERVISOR_PASSWORD=$SUPERVISOR_PASSWORD"
+            echo "SEED_ADMIN_PASSWORD=$ADMIN_PASSWORD"
+            echo "INGESTION_SERVICE_TOKEN=$INGESTION_TOKEN"
+            echo "PTC_ORIGIN=$ORIGIN"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify deployed release identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 tools/testing/ptc_acceptance.py deployment --output deployment-record.json >/dev/null
+          DEPLOYED_SHA="$(node -e "const x=require('./deployment-record.json'); process.stdout.write(String(x.releaseIdentity?.commit||''))")"
+          test -n "$DEPLOYED_SHA"
+          git cat-file -e "${DEPLOYED_SHA}^{commit}"
+
+          # Browser/application test sources must match the deployed release. Workflow-only
+          # changes after deployment are allowed; runtime/test-source drift is not.
+          git diff --exit-code "$DEPLOYED_SHA" HEAD -- \
+            apps/dashboard-web \
+            apps/platform-api \
+            tools/testing \
+            infrastructure/local \
+            package.json pnpm-lock.yaml pnpm-workspace.yaml
+
+          echo "DEPLOYED_SHA=$DEPLOYED_SHA" >> "$GITHUB_ENV"
+          echo "Verified deployed release: $DEPLOYED_SHA"
+
+      - name: Create controlled synthetic UAT event
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export PTC_ACCEPTANCE_RUN_ID="browser-self-hosted-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          python3 tools/testing/ptc_acceptance.py integrated --output integrated-record.json >/dev/null
+          EVENT_ID="$(node -e "const x=require('./integrated-record.json'); process.stdout.write(String(x.ingestion?.[0]?.id||''))")"
+          test -n "$EVENT_ID"
+          echo "E2E_EVENT_ID=$EVENT_ID" >> "$GITHUB_ENV"
+          echo "Controlled event: $EVENT_ID"
+
+      - name: Install dependencies and Playwright browsers
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          pnpm install --frozen-lockfile
+          cd apps/dashboard-web
+          pnpm exec playwright install --with-deps chromium firefox
+
+      - name: Browser acceptance before restart
+        shell: bash
+        working-directory: apps/dashboard-web
+        run: |
+          set -Eeuo pipefail
+          rm -rf playwright-report test-results ../../browser-certification/pre-restart
+          mkdir -p ../../browser-certification/pre-restart
+          set +e
+          pnpm test:e2e:acceptance 2>&1 | tee ../../browser-certification/pre-restart/playwright.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          test ! -d playwright-report || cp -a playwright-report ../../browser-certification/pre-restart/
+          test ! -d test-results || cp -a test-results ../../browser-certification/pre-restart/
+          echo "result=$([ "$STATUS" -eq 0 ] && echo PASS || echo FAIL)" > ../../browser-certification/pre-restart/result.txt
+          exit "$STATUS"
+
+      - name: Controlled PostgreSQL and API restart
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker restart "$POSTGRES_CONTAINER" >/dev/null
+          docker restart "$API_CONTAINER" >/dev/null
+          READY=0
+          for _ in $(seq 1 60); do
+            if curl --fail --silent --max-time 5 "$PLAYWRIGHT_BASE_URL/readyz" >/dev/null 2>&1; then
+              READY=1
+              break
+            fi
+            sleep 2
+          done
+          test "$READY" = "1"
+
+      - name: Browser acceptance after restart
+        shell: bash
+        working-directory: apps/dashboard-web
+        run: |
+          set -Eeuo pipefail
+          rm -rf playwright-report test-results ../../browser-certification/post-restart
+          mkdir -p ../../browser-certification/post-restart
+          set +e
+          pnpm test:e2e:acceptance 2>&1 | tee ../../browser-certification/post-restart/playwright.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          test ! -d playwright-report || cp -a playwright-report ../../browser-certification/post-restart/
+          test ! -d test-results || cp -a test-results ../../browser-certification/post-restart/
+          echo "result=$([ "$STATUS" -eq 0 ] && echo PASS || echo FAIL)" > ../../browser-certification/post-restart/result.txt
+          exit "$STATUS"
+
+      - name: Create final certification record
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p browser-certification
+          cat > browser-certification/final-certification.txt <<EOF
+          result=PASS
+          deployed_commit=$DEPLOYED_SHA
+          suite_commit=$GITHUB_SHA
+          controlled_event=$E2E_EVENT_ID
+          readiness=PASS
+          integrated_synthetic_uat=PASS
+          chromium_firefox_pre_restart=PASS
+          restart_recovery=PASS
+          chromium_firefox_post_restart=PASS
+          generated_at_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          EOF
+          cp readiness.json deployment-record.json integrated-record.json browser-certification/
+          (
+            cd browser-certification
+            find . -type f ! -name manifest.sha256 -print0 | sort -z | xargs -0 -r sha256sum > manifest.sha256
+          )
+
+      - name: Upload browser certification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-browser-certification-${{ github.run_id }}
+          path: |
+            readiness.json
+            deployment-record.json
+            integrated-record.json
+            browser-certification
+            apps/dashboard-web/playwright-report
+            apps/dashboard-web/test-results
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Record sanitized result on deployment acceptance issue
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          RESULT: ${{ job.status }}
+          DEPLOYED_SHA_VALUE: ${{ env.DEPLOYED_SHA }}
+        with:
+          script: |
+            const passed = process.env.RESULT === 'success';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `## Self-hosted deployed browser certification — ${passed ? 'PASSED' : 'FAILED'}`,
+              '',
+              `- Run: [${context.runId}](${runUrl})`,
+              `- Deployed commit: \`${process.env.DEPLOYED_SHA_VALUE || 'not resolved'}\``,
+              '- Target: active staging host (private endpoint omitted)',
+              `- Real readiness + PostgreSQL: **${passed ? 'passed' : 'not accepted'}**`,
+              `- Chromium + Firefox before restart: **${passed ? 'passed' : 'not accepted'}**`,
+              `- Controlled PostgreSQL/API restart + browser rerun: **${passed ? 'passed' : 'not accepted'}**`,
+              '- Evidence: retained as protected GitHub Actions artifact for 30 days; no credentials are recorded.',
+              '',
+              'Synthetic UAT validates platform/workflow behavior only; it is not actual PTC camera/model accuracy evidence.'
+            ].join('\n');
+            await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: 83, body });
