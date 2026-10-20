@@ -1,0 +1,223 @@
+name: Staging Browser Certification
+
+on:
+  workflow_run:
+    workflows: ["Deploy PTC Bale (staging)"]
+    types: [completed]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ptc-bale-staging-browser-certification
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+      DEPLOY_RUN_ID: ${{ github.event.workflow_run.id }}
+
+    steps:
+      - name: Certify deployed staging in Chromium and Firefox
+        id: browser
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          username: ${{ secrets.STAGING_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          port: ${{ secrets.STAGING_SSH_PORT || 22 }}
+          script_stop: true
+          command_timeout: 40m
+          envs: TARGET_SHA,DEPLOY_RUN_ID
+          script: |
+            set -Eeuo pipefail
+            umask 077
+
+            REPO_ROOT="$HOME/PTC-Bale-Inspection-Monitoring-System"
+            TARGET_URL="http://127.0.0.1:9081"
+            cd "$REPO_ROOT"
+
+            DEPLOYED_SHA="$(git rev-parse HEAD)"
+            if [ "$DEPLOYED_SHA" != "$TARGET_SHA" ]; then
+              echo "Expected deployed SHA $TARGET_SHA but found $DEPLOYED_SHA" >&2
+              exit 1
+            fi
+
+            cd infrastructure/local
+            export SESSION_TTL_HOURS=720
+            export SESSION_ABSOLUTE_TTL_HOURS=720
+            export BUILD_COMMIT="$TARGET_SHA"
+            export BUILD_VERSION="staging-${TARGET_SHA:0:12}"
+            export IMAGE_TAG="$BUILD_VERSION"
+
+            COMPOSE=(docker compose --env-file .env -f docker-compose.local.yml -f docker-compose.video-previews.yml)
+            MEDIA_ROOT="$(awk -F= '/^PTC_DATA_ROOT=/{sub(/^PTC_DATA_ROOT=/, ""); print; exit}' .env)"
+            [ -n "$MEDIA_ROOT" ] || { echo "PTC_DATA_ROOT is missing" >&2; exit 1; }
+
+            export E2E_VIEWER_PASSWORD="$("${COMPOSE[@]}" exec -T api printenv SEED_VIEWER_PASSWORD | tr -d '\r')"
+            export E2E_SUPERVISOR_PASSWORD="$("${COMPOSE[@]}" exec -T api printenv SEED_SUPERVISOR_PASSWORD | tr -d '\r')"
+            export E2E_ADMIN_PASSWORD="$("${COMPOSE[@]}" exec -T api printenv SEED_ADMIN_PASSWORD | tr -d '\r')"
+            export INGESTION_SERVICE_TOKEN="$("${COMPOSE[@]}" exec -T api printenv INGESTION_SERVICE_TOKEN | tr -d '\r')"
+            export PTC_ORIGIN="$("${COMPOSE[@]}" exec -T api printenv ALLOWED_ORIGINS | tr -d '\r' | cut -d',' -f1)"
+            export PTC_BASE_URL="$TARGET_URL"
+
+            for required in E2E_VIEWER_PASSWORD E2E_SUPERVISOR_PASSWORD E2E_ADMIN_PASSWORD INGESTION_SERVICE_TOKEN PTC_ORIGIN; do
+              [ -n "${!required}" ] || { echo "Missing protected runtime value: $required" >&2; exit 1; }
+            done
+
+            cd "$REPO_ROOT"
+            ACCEPTANCE_TMP="$(mktemp -d)"
+            trap 'rm -rf "$ACCEPTANCE_TMP"' EXIT
+            export PTC_ACCEPTANCE_RUN_ID="browser-${DEPLOY_RUN_ID}"
+            python3 tools/testing/ptc_acceptance.py integrated --output "$ACCEPTANCE_TMP/integrated-record.json" >/dev/null
+            export E2E_EVENT_ID="$(python3 - "$ACCEPTANCE_TMP/integrated-record.json" <<'PY'
+            import json
+            import sys
+            with open(sys.argv[1], encoding='utf-8') as handle:
+                print(json.load(handle)['ingestion'][0]['id'])
+            PY
+            )"
+            [ -n "$E2E_EVENT_ID" ] || { echo "Controlled acceptance event ID was not created" >&2; exit 1; }
+
+            CERT_ROOT="$MEDIA_ROOT/browser-certification/$TARGET_SHA"
+            mkdir -p "$CERT_ROOT"
+
+            run_browser_acceptance() {
+              label="$1"
+              workdir="$(mktemp -d)"
+              evidence_dir="$CERT_ROOT/$label"
+              mkdir -p "$evidence_dir"
+
+              git -C "$REPO_ROOT" archive "$TARGET_SHA" | tar -x -C "$workdir"
+
+              set +e
+              docker run --rm --network host \
+                -e CI=true \
+                -e PLAYWRIGHT_BASE_URL="$TARGET_URL" \
+                -e E2E_EVENT_ID="$E2E_EVENT_ID" \
+                -e E2E_VIEWER_PASSWORD="$E2E_VIEWER_PASSWORD" \
+                -e E2E_SUPERVISOR_PASSWORD="$E2E_SUPERVISOR_PASSWORD" \
+                -e E2E_ADMIN_PASSWORD="$E2E_ADMIN_PASSWORD" \
+                -v "$workdir:/work" \
+                -w /work \
+                mcr.microsoft.com/playwright:v1.49.1-noble \
+                bash -lc 'corepack enable && corepack prepare pnpm@9.15.4 --activate && pnpm install --frozen-lockfile && cd apps/dashboard-web && pnpm test:e2e:acceptance' \
+                2>&1 | tee "$evidence_dir/playwright.log"
+              status=${PIPESTATUS[0]}
+              set -e
+
+              if [ -d "$workdir/apps/dashboard-web/playwright-report" ]; then
+                cp -a "$workdir/apps/dashboard-web/playwright-report" "$evidence_dir/playwright-report"
+              fi
+              if [ -d "$workdir/apps/dashboard-web/test-results" ]; then
+                cp -a "$workdir/apps/dashboard-web/test-results" "$evidence_dir/test-results"
+              fi
+
+              cat > "$evidence_dir/certification.txt" <<META
+            result=$([ "$status" -eq 0 ] && echo PASS || echo FAIL)
+            deployed_commit=$TARGET_SHA
+            deploy_run_id=$DEPLOY_RUN_ID
+            target=$TARGET_URL
+            controlled_event=$E2E_EVENT_ID
+            phase=$label
+            browser_matrix=chromium-1366x768,firefox-1920x1080
+            generated_at_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            META
+
+              (
+                cd "$evidence_dir"
+                find . -type f ! -name manifest.sha256 -print0 | sort -z | xargs -0 -r sha256sum > manifest.sha256
+              )
+              tar -czf "$CERT_ROOT/${label}.tar.gz" -C "$CERT_ROOT" "$label"
+              (cd "$CERT_ROOT" && sha256sum "${label}.tar.gz" > "${label}.tar.gz.sha256")
+
+              rm -rf "$workdir"
+              [ "$status" -eq 0 ]
+            }
+
+            echo "Running browser certification before controlled restart..."
+            run_browser_acceptance pre-restart
+
+            echo "Performing controlled PostgreSQL + API restart..."
+            cd "$REPO_ROOT/infrastructure/local"
+            "${COMPOSE[@]}" restart postgres api
+            READY=0
+            for _ in $(seq 1 60); do
+              if curl -sf "$TARGET_URL/readyz" >/dev/null 2>&1; then
+                READY=1
+                break
+              fi
+              sleep 2
+            done
+            [ "$READY" = "1" ] || { echo "Deployment did not recover after restart" >&2; exit 1; }
+
+            echo "Running browser certification after controlled restart..."
+            cd "$REPO_ROOT"
+            run_browser_acceptance post-restart
+
+            cp "$ACCEPTANCE_TMP/integrated-record.json" "$CERT_ROOT/integrated-record.json"
+            cat > "$CERT_ROOT/final-certification.txt" <<META
+            result=PASS
+            deployed_commit=$TARGET_SHA
+            deploy_run_id=$DEPLOY_RUN_ID
+            target=SSH-staging-local-proxy
+            controlled_event=$E2E_EVENT_ID
+            pre_restart_browser=PASS
+            post_restart_browser=PASS
+            generated_at_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            META
+            (
+              cd "$CERT_ROOT"
+              sha256sum final-certification.txt integrated-record.json pre-restart.tar.gz post-restart.tar.gz > final-manifest.sha256
+            )
+
+            echo "Staging browser certification PASS for $TARGET_SHA"
+            echo "Controlled event: $E2E_EVENT_ID"
+            echo "Protected evidence directory: $CERT_ROOT"
+
+      - name: Record sanitized browser certification
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          BROWSER_OUTCOME: ${{ steps.browser.outcome }}
+        with:
+          script: |
+            const outcome = process.env.BROWSER_OUTCOME || 'skipped';
+            const passed = outcome === 'success';
+            const deployRun = process.env.DEPLOY_RUN_ID;
+            const targetSha = process.env.TARGET_SHA;
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const deployUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${deployRun}`;
+            const body = [
+              `## Deployed browser certification — ${passed ? 'PASSED' : 'FAILED'}`,
+              '',
+              `- Browser run: [${context.runId}](${runUrl})`,
+              `- Deployment run: [${deployRun}](${deployUrl})`,
+              `- Deployed commit: \`${targetSha}\``,
+              '- Target: active SSH staging (private endpoint omitted)',
+              `- Chromium + Firefox acceptance: **${passed ? 'passed' : 'not accepted'}**`,
+              `- Controlled restart browser recheck: **${passed ? 'passed' : 'not accepted'}**`,
+              '- Protected reports/traces/videos/checksums remain on the staging host; credentials are not recorded here.',
+              passed
+                ? '- Coverage: readiness, Viewer/Supervisor/Admin auth, protected navigation, role controls, search/filter/sort/history, review persistence, evidence/audit, CSV/PDF downloads, logout, accessibility, browser console/network/5xx checks.'
+                : '- Inspect the browser-certification workflow and protected host artifacts before accepting the deployment.',
+              '',
+              'Synthetic UAT events validate platform/workflow behavior only and are not PTC model-accuracy evidence.'
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 83,
+              body,
+            });
+
+      - name: Enforce browser certification result
+        if: steps.browser.outcome != 'success'
+        run: exit 1
