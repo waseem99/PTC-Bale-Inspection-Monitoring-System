@@ -1,0 +1,189 @@
+name: AWS Staging Browser Acceptance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/aws-staging-browser-acceptance.yml'
+      - 'apps/dashboard-web/**'
+      - 'apps/platform-api/**'
+      - 'infrastructure/aws/**'
+      - 'tools/testing/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ptc-bale-aws-staging-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: aws-staging
+    env:
+      PLAYWRIGHT_BASE_URL: https://ptc-aibale.codistan.org
+      PTC_BASE_URL: https://ptc-aibale.codistan.org
+      PTC_ORIGIN: https://ptc-aibale.codistan.org
+      CI: 'true'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure temporary AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@v6.1.1
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: ptc-browser-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Load protected staging acceptance credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME_FILE="$(mktemp)"
+          trap 'rm -f "$RUNTIME_FILE"' EXIT
+
+          aws ssm get-parameter \
+            --region '${{ vars.AWS_REGION }}' \
+            --name '${{ vars.AWS_RUNTIME_PARAMETER_NAME }}' \
+            --with-decryption \
+            --query 'Parameter.Value' \
+            --output text | base64 --decode > "$RUNTIME_FILE"
+
+          read_value() {
+            local key="$1"
+            grep -E "^${key}=" "$RUNTIME_FILE" | tail -1 | cut -d= -f2-
+          }
+
+          VIEWER_PASSWORD="$(read_value SEED_VIEWER_PASSWORD)"
+          SUPERVISOR_PASSWORD="$(read_value SEED_SUPERVISOR_PASSWORD)"
+          ADMIN_PASSWORD="$(read_value SEED_ADMIN_PASSWORD)"
+          INGESTION_TOKEN="$(read_value INGESTION_SERVICE_TOKEN)"
+
+          for value in "$VIEWER_PASSWORD" "$SUPERVISOR_PASSWORD" "$ADMIN_PASSWORD" "$INGESTION_TOKEN"; do
+            test -n "$value"
+            echo "::add-mask::$value"
+          done
+
+          {
+            echo "E2E_VIEWER_PASSWORD=$VIEWER_PASSWORD"
+            echo "E2E_SUPERVISOR_PASSWORD=$SUPERVISOR_PASSWORD"
+            echo "E2E_ADMIN_PASSWORD=$ADMIN_PASSWORD"
+            echo "SEED_VIEWER_PASSWORD=$VIEWER_PASSWORD"
+            echo "SEED_SUPERVISOR_PASSWORD=$SUPERVISOR_PASSWORD"
+            echo "SEED_ADMIN_PASSWORD=$ADMIN_PASSWORD"
+            echo "INGESTION_SERVICE_TOKEN=$INGESTION_TOKEN"
+          } >> "$GITHUB_ENV"
+
+      - name: Wait for exact staging release and real readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          MATCHED=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error --max-time 15 "$PLAYWRIGHT_BASE_URL/readyz" > readiness.json 2>/dev/null \
+              && jq -e '.status == "ready" and .database == "connected"' readiness.json >/dev/null 2>&1 \
+              && python3 tools/testing/ptc_acceptance.py deployment --output deployment-record.json >/tmp/deployment-acceptance.log 2>&1; then
+              DEPLOYED_COMMIT="$(jq -r '.releaseIdentity.commit // empty' deployment-record.json)"
+              if [[ "$DEPLOYED_COMMIT" == "$GITHUB_SHA" ]]; then
+                MATCHED=1
+                break
+              fi
+            fi
+            sleep 10
+          done
+
+          if [[ "$MATCHED" != "1" ]]; then
+            echo "Staging did not reach expected commit $GITHUB_SHA within the acceptance window." >&2
+            cat readiness.json 2>/dev/null || true
+            cat deployment-record.json 2>/dev/null || true
+            cat /tmp/deployment-acceptance.log 2>/dev/null || true
+            exit 1
+          fi
+
+          cat readiness.json
+          cat deployment-record.json
+
+      - name: Generate controlled public UAT event
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/testing/ptc_acceptance.py integrated --output public-integrated-record.json
+          E2E_EVENT_ID="$(jq -r '.ingestion[0].id // empty' public-integrated-record.json)"
+          test -n "$E2E_EVENT_ID"
+          echo "E2E_EVENT_ID=$E2E_EVENT_ID" >> "$GITHUB_ENV"
+          echo "Controlled event: $E2E_EVENT_ID"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: apps/dashboard-web
+        run: pnpm exec playwright install --with-deps chromium firefox
+
+      - name: Run public deployed browser acceptance
+        working-directory: apps/dashboard-web
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test:e2e:acceptance 2>&1 | tee aws-staging-browser-acceptance.log
+
+      - name: Record browser certification metadata
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "tested_commit=${GITHUB_SHA}"
+            echo "target=${PLAYWRIGHT_BASE_URL}"
+            echo "event_id=${E2E_EVENT_ID:-not-created}"
+            echo "workflow_run=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > browser-acceptance-metadata.txt
+
+      - name: Publish acceptance summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## AWS staging browser acceptance'
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Target: \`${PLAYWRIGHT_BASE_URL}\`"
+            echo "- Browser matrix: Chromium 1366x768 + Firefox 1920x1080"
+            echo "- Controlled event: \`${E2E_EVENT_ID:-not-created}\`"
+            echo "- Result: **${{ job.status }}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload browser acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aws-staging-browser-acceptance-${{ github.sha }}
+          path: |
+            readiness.json
+            deployment-record.json
+            public-integrated-record.json
+            browser-acceptance-metadata.txt
+            apps/dashboard-web/playwright-report
+            apps/dashboard-web/test-results
+            apps/dashboard-web/aws-staging-browser-acceptance.log
+          if-no-files-found: ignore
+          retention-days: 30
