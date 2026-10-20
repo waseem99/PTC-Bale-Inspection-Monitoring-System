@@ -29,6 +29,16 @@
     reverse_proxy api:4000
   }
 
+  # The dashboard login page checks these root paths directly. Route them
+  # to the API so the badge reflects real service and PostgreSQL readiness.
+  handle /healthz {
+    reverse_proxy api:4000
+  }
+
+  handle /readyz {
+    reverse_proxy api:4000
+  }
+
   handle {
     reverse_proxy dashboard:8080
   }
