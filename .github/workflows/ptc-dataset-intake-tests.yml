@@ -1,0 +1,26 @@
+name: PTC Dataset Intake Unit Tests
+
+on:
+  pull_request:
+    paths:
+      - "tools/testing/ptc_drive_dataset_intake.py"
+      - "tools/testing/test_ptc_drive_dataset_intake.py"
+      - ".github/workflows/ptc-dataset-intake-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile inventory utility
+        run: python -m py_compile tools/testing/ptc_drive_dataset_intake.py
+      - name: Test pagination, metadata checks and sanitization
+        run: python -m unittest discover -s tools/testing -p "test_ptc_drive_dataset_intake.py" -v
