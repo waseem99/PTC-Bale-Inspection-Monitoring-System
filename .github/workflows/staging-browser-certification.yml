@@ -79,8 +79,14 @@ jobs:
             export INGESTION_SERVICE_TOKEN="$(read_runtime_value INGESTION_SERVICE_TOKEN)"
             export PTC_ORIGIN="$(read_runtime_value ALLOWED_ORIGINS | cut -d',' -f1)"
             export PTC_BASE_URL="$TARGET_URL"
+            # The public-browser suite uses E2E_* names, while the existing
+            # integrated Python acceptance runner reads SEED_* names. Populate
+            # both from the same protected running-container values.
+            export SEED_VIEWER_PASSWORD="$E2E_VIEWER_PASSWORD"
+            export SEED_SUPERVISOR_PASSWORD="$E2E_SUPERVISOR_PASSWORD"
+            export SEED_ADMIN_PASSWORD="$E2E_ADMIN_PASSWORD"
 
-            for required in E2E_VIEWER_PASSWORD E2E_SUPERVISOR_PASSWORD E2E_ADMIN_PASSWORD INGESTION_SERVICE_TOKEN PTC_ORIGIN; do
+            for required in E2E_VIEWER_PASSWORD E2E_SUPERVISOR_PASSWORD E2E_ADMIN_PASSWORD SEED_VIEWER_PASSWORD SEED_SUPERVISOR_PASSWORD SEED_ADMIN_PASSWORD INGESTION_SERVICE_TOKEN PTC_ORIGIN; do
               [ -n "${!required}" ] || { echo "Missing protected runtime value: $required" >&2; exit 1; }
             done
 
