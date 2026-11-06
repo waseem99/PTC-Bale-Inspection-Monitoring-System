@@ -6,6 +6,8 @@ Start here for the repository, release, governance/privacy boundary and remainin
 
 - **[Current release and control state](51-current-release-and-control-state.md)** — authoritative current status.
 - [Final testing, acceptance and closure runbook](35-pm-ai-project-closure-runbook.md) — execution/acceptance process.
+- **[November 2026 real-data AI execution runbook](53-ptc-real-data-ai-execution-runbook.md)** — day-zero source handover, owners, training, model certification and final site UAT.
+- **[PTC real-data AI execution register](54-ptc-real-data-execution-register.md)** — PM-owned intake decisions, blocking questions and gate status.
 - [AI acceptance and release record template](37-ai-acceptance-release-template.md) — sanitized final AI record.
 - [Database resilience Option A](44-database-resilience-option-a.md) — finite DB-resilience execution boundary.
 - [Recovery/rebuild security closure](49-recovery-rebuild-security-closure.md) — certified software recovery boundary.
