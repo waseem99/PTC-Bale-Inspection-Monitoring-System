@@ -86,6 +86,10 @@ Execute the already implemented finite path in the approved real environment:
 
 Do not introduce standby clusters, Patroni/repmgr, automatic failover, active-active designs or new DB hardware as closure requirements.
 
+## Active November 2026 dataset handover execution
+
+The two newly shared, still-uploading inspection/bale detection folders are governed by [the real-data AI execution runbook](53-ptc-real-data-ai-execution-runbook.md) and [the PM live execution register](54-ptc-real-data-execution-register.md). These supplement this closure runbook without changing the issue sequence, model framework or existing acceptance gates. Treat the first 100 listed images per subfolder as a *partial provider listing*, not a complete inventory. Do not claim temporal action/model acceptance from JPG frames without source-video/timestamp lineage and locked ground truth.
+
 ## 5. AI/site execution sequence
 
 ```text
