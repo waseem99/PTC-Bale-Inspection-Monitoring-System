@@ -32,6 +32,10 @@ The final required order is:
 
 Site/stream failures are **operational failures**, never fabricated process violations. No face recognition or named-worker tracking.
 
+### Executed intake snapshot (2026-11-06)
+
+A real restricted Drive metadata/sample audit has started. See [the dated partial-audit report](55-ptc-data-intake-partial-audit-2026-11-06.md), including **at least 1,000 enumerated JPGs per folder**, 11 successfully decoded sample files, unresolved true totals and the paginated `tools/testing/ptc_drive_dataset_intake.py` command. The partial audit does not satisfy the full source-lineage, annotation or model/acceptance gates.
+
 ## 2. First working day: concrete handover actions
 
 | Task ID | Owner | Action | Evidence for PM | Exit |
