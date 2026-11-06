@@ -57,15 +57,27 @@ jobs:
             export BUILD_VERSION="staging-${TARGET_SHA:0:12}"
             export IMAGE_TAG="$BUILD_VERSION"
 
-            COMPOSE=(docker compose --env-file .env -f docker-compose.local.yml -f docker-compose.video-previews.yml)
+            # Docker Compose interpolates credential variables before executing even an
+            # "exec" command. The deployment exports them only in its own SSH session,
+            # so a separate certification SSH session must bootstrap directly from the
+            # already-running API container instead of using Compose prematurely.
+            API_CONTAINER="$(docker ps --filter label=com.docker.compose.project=ptc-bale-local --filter label=com.docker.compose.service=api --format '{{.Names}}' | head -n 1)"
+            POSTGRES_CONTAINER="$(docker ps --filter label=com.docker.compose.project=ptc-bale-local --filter label=com.docker.compose.service=postgres --format '{{.Names}}' | head -n 1)"
+            [ -n "$API_CONTAINER" ] && [ -n "$POSTGRES_CONTAINER" ] || {
+              echo "Expected staging API/PostgreSQL containers are not running" >&2
+              exit 1
+            }
             MEDIA_ROOT="$(awk -F= '/^PTC_DATA_ROOT=/{sub(/^PTC_DATA_ROOT=/, ""); print; exit}' .env)"
             [ -n "$MEDIA_ROOT" ] || { echo "PTC_DATA_ROOT is missing" >&2; exit 1; }
 
-            export E2E_VIEWER_PASSWORD="$("${COMPOSE[@]}" exec -T api printenv SEED_VIEWER_PASSWORD | tr -d '\r')"
-            export E2E_SUPERVISOR_PASSWORD="$("${COMPOSE[@]}" exec -T api printenv SEED_SUPERVISOR_PASSWORD | tr -d '\r')"
-            export E2E_ADMIN_PASSWORD="$("${COMPOSE[@]}" exec -T api printenv SEED_ADMIN_PASSWORD | tr -d '\r')"
-            export INGESTION_SERVICE_TOKEN="$("${COMPOSE[@]}" exec -T api printenv INGESTION_SERVICE_TOKEN | tr -d '\r')"
-            export PTC_ORIGIN="$("${COMPOSE[@]}" exec -T api printenv ALLOWED_ORIGINS | tr -d '\r' | cut -d',' -f1)"
+            read_runtime_value() {
+              docker exec "$API_CONTAINER" printenv "$1" | tr -d '\r'
+            }
+            export E2E_VIEWER_PASSWORD="$(read_runtime_value SEED_VIEWER_PASSWORD)"
+            export E2E_SUPERVISOR_PASSWORD="$(read_runtime_value SEED_SUPERVISOR_PASSWORD)"
+            export E2E_ADMIN_PASSWORD="$(read_runtime_value SEED_ADMIN_PASSWORD)"
+            export INGESTION_SERVICE_TOKEN="$(read_runtime_value INGESTION_SERVICE_TOKEN)"
+            export PTC_ORIGIN="$(read_runtime_value ALLOWED_ORIGINS | cut -d',' -f1)"
             export PTC_BASE_URL="$TARGET_URL"
 
             for required in E2E_VIEWER_PASSWORD E2E_SUPERVISOR_PASSWORD E2E_ADMIN_PASSWORD INGESTION_SERVICE_TOKEN PTC_ORIGIN; do
@@ -147,7 +159,9 @@ jobs:
 
             echo "Performing controlled PostgreSQL + API restart..."
             cd "$REPO_ROOT/infrastructure/local"
-            "${COMPOSE[@]}" restart postgres api
+            # Restart the exact running containers without re-interpolating a
+            # Compose configuration from the credential-free SSH shell.
+            docker restart "$POSTGRES_CONTAINER" "$API_CONTAINER" >/dev/null
             READY=0
             for _ in $(seq 1 60); do
               if curl -sf "$TARGET_URL/readyz" >/dev/null 2>&1; then
