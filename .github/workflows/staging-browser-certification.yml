@@ -33,7 +33,10 @@ jobs:
           username: ${{ secrets.STAGING_SSH_USER }}
           key: ${{ secrets.STAGING_SSH_KEY }}
           port: ${{ secrets.STAGING_SSH_PORT || 22 }}
-          script_stop: true
+          # Keep Bash strict mode (set -Eeuo pipefail) as the error gate.
+          # appleboy script_stop inserts shell guards between heredoc lines,
+          # corrupting the Python event-ID extractor and evidence manifests.
+          script_stop: false
           command_timeout: 40m
           envs: TARGET_SHA,DEPLOY_RUN_ID
           script: |
