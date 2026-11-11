@@ -3,7 +3,7 @@
 **Reference runbook:** [53-ptc-real-data-ai-execution-runbook.md](53-ptc-real-data-ai-execution-runbook.md)  
 **Created:** 2026-11-06  
 **Operational PM owner:** @arifkhannamal9288  
-**Status:** Partial metadata/sample QA executed on 2026-11-06: at least 1,000 JPGs per folder (both listing caps), 11/11 sample JPEGs decode, source totals/labels/videos unverified. **No dataset/model/AI-site acceptance claimed.**
+**Status (2026-11-11):** Data-use approval D08a recorded from project sponsor; detector annotation pilot **started** with 20 restricted sample-frame triage entries. Zubair's full Nov 6 intake is recorded in issue #27 (4,649 logically unique bale / 1,902 inspection JPGs). See [dated pilot checkpoint](57-ptc-d08-annotation-pilot-2026-11-11.md). **No completed November labels, trained model, locked test or AI/site acceptance is claimed.** Historical Nov 6 partial audit is preserved in doc 55.
 
 **Verified evidence:** [dated partial-intake audit](55-ptc-data-intake-partial-audit-2026-11-06.md). Full pagination is now scripted in `tools/testing/ptc_drive_dataset_intake.py`, requiring an authorized Drive read-only token on Zubair's execution machine.
 
@@ -23,7 +23,7 @@ Do not insert the actual shared folder URL, private per-file ID list, raw camera
 
 ## B. Owner decision register
 
-Set each status to **PENDING, CONFIRMED or ACCEPTED LIMITATION** and add the date and a sanitized decision reference (not secret-bearing links).
+Set each status to **PENDING, CONFIRMED or ACCEPTED LIMITATION** and add the date and a sanitized decision reference (not secret-bearing links). D08 is separated into data-use authorization (D08a) and runtime/site policy controls (D08b).
 
 | ID | Exact question | Accountable | Status | Decision date | Sanitized reference |
 |---|---|---|---|---|---|
@@ -34,9 +34,9 @@ Set each status to **PENDING, CONFIRMED or ACCEPTED LIMITATION** and add the dat
 | D05 | What observable signal proves grading and grade value? | Arif / PTC | PENDING | — | — |
 | D06 | Scale camera/display legibility, numeric format, unit and weight truth? | Arif / PTC | PENDING | — | — |
 | D07 | Approved minimum accuracy, OCR, false-alert, latency and 4-stream requirements? | Arif / PTC | PENDING | — | — |
-| D08 | Permitted training/retention, storage, GPU and site/camera access approved? | Arif / Qamar / PTC | PENDING | — | — |
+| D08a | Permitted use and retention of the supplied PTC imagery for project annotation and model training? | Waseem / Arif / PTC | CONFIRMED (project sponsor instruction) | 2026-11-11 | Waseem approved dataset use/training/retention in project conversation; no blanket publication/redistribution permission |\n| D08b | Approved protected storage, GPU environment, site/camera access and operational retention schedule evidenced? | Qamar / Arif / PTC | PENDING | — | — |
 
-**Decision rule:** If D03 is unanswered, a labeled-image detection pilot can continue after D08 permission, but a full temporal/process model cannot pass Gates B–F. If D07 is unanswered, do not declare a final model acceptance PASS.
+**Decision rule:** D08a permits restricted image annotation pilot activity. D08b still requires verified runtime/site controls before deploying source media or credentials. If D03 is unanswered, a labeled-image detection pilot can continue but a full temporal/process model cannot pass Gates B–F. If D07 is unanswered, do not declare a final model acceptance PASS.
 
 ## C. Deliverable-based sprint board
 
@@ -44,9 +44,9 @@ Set each status to **PENDING, CONFIRMED or ACCEPTED LIMITATION** and add the dat
 |---|---|---|---|---|
 | T00 Confirm all uploads and source manifest | #27 | Arif / uploader | Expected/actual totals and transfer failures reconciled | NOT STARTED |
 | T01 Full controlled inventory and source session grouping | #27 | Zubair | Partial Drive sample/metadata audit completed; full paginated count, complete transfer, exact lineage/duplicates and checksum still pending | IN PROGRESS (partial) |
-| T02 Permissions, process coverage and missing capture | #27 / #84 | Arif + Zubair | All process steps observable or explicitly limited; permission confirmed | NOT STARTED |
+| T02 Permissions, process coverage and missing capture | #27 / #84 | Arif + Zubair | D08a dataset-use approval recorded 2026-11-11; camera/ROI coverage, runtime/security D08b and missing captures still pending | IN PROGRESS (D08a only) |
 | T03 Camera 01–04 + real ROI site preflight | #84 | Qamar + Zubair | Site preflight, time sync, six ROIs, reconnect/scale checks, site review | NOT STARTED |
-| T04 Label schema + representative pilot + QA | #28 | Zubair | Reviewed label guide and adjudicated pilot; 20-clip/20% standard if full videos available | NOT STARTED |
+| T04 Label schema + representative pilot + QA | #28 | Zubair | 2026-11-11 private first-pass visual triage: 20 unique JPG/group hints (14 cam1; 6 cam4); 4 independent-review slots assigned, none reviewed; 0 validated boxes / 0 verified clips; complete 20-clip pilot/QA remains open | IN PROGRESS (triage only) |
 | T05 Freeze train, validation and locked dataset v1 | #29 | Zubair | Leakage-safe manifest, counts, checksums and protected test lock | NOT STARTED |
 | T06 Train / select PTC detector | #30 | Zubair | Class/camera metrics, versioned weights and inference/VRAM profile | NOT STARTED |
 | T07 Tracker and hand inspection PTC calibration | #31 / #32 | Zubair | Bale ID continuity, hand inspection confusion/errors and thresholds | NOT STARTED |
