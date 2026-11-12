@@ -3,9 +3,9 @@
 **Reference runbook:** [53-ptc-real-data-ai-execution-runbook.md](53-ptc-real-data-ai-execution-runbook.md)  
 **Created:** 2026-11-06  
 **Operational PM owner:** @arifkhannamal9288  
-**Status:** Unique annotation corpus ready 2026-11-06 (**4649 / 1902** JPGs after logical dedupe; 16 source MP4s located). #28 detector pilot clear pending D08 permission. **No model/AI-site acceptance claimed.**
+**Status (2026-11-11):** Data-use approval D08a recorded from project sponsor; detector annotation pilot **started** with 20 restricted sample-frame triage entries. Zubair's full Nov 6 intake is recorded in issue #27 (4,649 logically unique bale / 1,902 inspection JPGs). See [dated pilot checkpoint](57-ptc-d08-annotation-pilot-2026-11-11.md) and [full reconciliation](56-ptc-data-intake-full-reconciliation-2026-11-06.md). **No completed November labels, trained model, locked test or AI/site acceptance is claimed.** Historical Nov 6 partial audit is preserved in doc 55.
 
-**Verified evidence:** [full reconciliation](56-ptc-data-intake-full-reconciliation-2026-11-06.md), [partial-intake audit](55-ptc-data-intake-partial-audit-2026-11-06.md). Tools: `ptc_drive_dataset_intake.py`, `ptc_drive_dedupe_unique_inventory.py`.
+**Verified evidence:** [full reconciliation](56-ptc-data-intake-full-reconciliation-2026-11-06.md), [partial-intake audit](55-ptc-data-intake-partial-audit-2026-11-06.md), [D08 pilot checkpoint](57-ptc-d08-annotation-pilot-2026-11-11.md). Tools: `ptc_drive_dataset_intake.py`, `ptc_drive_dedupe_unique_inventory.py`.
 
 Use this document for **sanitized** status and decisions. Detailed inventories, PTC imagery, labels, per-file hashes, model weights and raw reports stay in the approved restricted work area. Update the table during PM's daily checkpoint. Do not mark a gate passed merely because a folder exists.
 
@@ -23,7 +23,7 @@ Do not insert the actual shared folder URL, private per-file ID list, raw camera
 
 ## B. Owner decision register
 
-Set each status to **PENDING, CONFIRMED or ACCEPTED LIMITATION** and add the date and a sanitized decision reference (not secret-bearing links).
+Set each status to **PENDING, CONFIRMED or ACCEPTED LIMITATION** and add the date and a sanitized decision reference (not secret-bearing links). D08 is separated into data-use authorization (D08a) and runtime/site policy controls (D08b).
 
 | ID | Exact question | Accountable | Status | Decision date | Sanitized reference |
 |---|---|---|---|---|---|
@@ -34,19 +34,20 @@ Set each status to **PENDING, CONFIRMED or ACCEPTED LIMITATION** and add the dat
 | D05 | What observable signal proves grading and grade value? | Arif / PTC | PENDING | — | — |
 | D06 | Scale camera/display legibility, numeric format, unit and weight truth? | Arif / PTC | PENDING | — | — |
 | D07 | Approved minimum accuracy, OCR, false-alert, latency and 4-stream requirements? | Arif / PTC | PENDING | — | — |
-| D08 | Permitted training/retention, storage, GPU and site/camera access approved? | Arif / Qamar / PTC | PENDING | — | — |
+| D08a | Permitted use and retention of the supplied PTC imagery for project annotation and model training? | Waseem / Arif / PTC | CONFIRMED (project sponsor instruction) | 2026-11-11 | Waseem approved dataset use/training/retention in project conversation; no blanket publication/redistribution permission |
+| D08b | Approved protected storage, GPU environment, site/camera access and operational retention schedule evidenced? | Qamar / Arif / PTC | PENDING | — | — |
 
-**Decision rule:** If D03 is unanswered, a labeled-image detection pilot can continue after D08 permission, but a full temporal/process model cannot pass Gates B–F. If D07 is unanswered, do not declare a final model acceptance PASS.
+**Decision rule:** D08a permits restricted image annotation pilot activity. D08b still requires verified runtime/site controls before deploying source media or credentials. If D03 is unanswered, a labeled-image detection pilot can continue but a full temporal/process model cannot pass Gates B–F. If D07 is unanswered, do not declare a final model acceptance PASS.
 
 ## C. Deliverable-based sprint board
 
 | Task | Related issue | Owner | Evidence / definition of done | Status |
 |---|---|---|---|---|
-| T00 Confirm all uploads and source manifest | #27 | Arif / uploader | Expected/actual totals and transfer failures reconciled | DONE (counts corrected to 4649/1902 pending dedupe) |
+| T00 Confirm all uploads and source manifest | #27 | Arif / uploader | Expected/actual totals and transfer failures reconciled | DONE (counts corrected to 4649/1902) |
 | T01 Full controlled inventory and source session grouping | #27 | Zubair | Unique corpus 4649/1902 + checksums recorded; optional Drive trash; video lineage partial | DONE (unique corpus) |
-| T02 Permissions, process coverage and missing capture | #27 / #84 | Arif + Zubair | All process steps observable or explicitly limited; permission confirmed | NOT STARTED |
+| T02 Permissions, process coverage and missing capture | #27 / #84 | Arif + Zubair | D08a dataset-use approval recorded 2026-11-11; camera/ROI coverage, runtime/security D08b and missing captures still pending | IN PROGRESS (D08a only) |
 | T03 Camera 01–04 + real ROI site preflight | #84 | Qamar + Zubair | Site preflight, time sync, six ROIs, reconnect/scale checks, site review | NOT STARTED |
-| T04 Label schema + representative pilot + QA | #28 | Zubair | Reviewed label guide and adjudicated pilot; 20-clip/20% standard if full videos available | NOT STARTED |
+| T04 Label schema + representative pilot + QA | #28 | Zubair | 2026-11-11 private first-pass visual triage: 20 unique JPG/group hints (14 cam1; 6 cam4); 4 independent-review slots assigned, none reviewed; 0 validated boxes / 0 verified clips; complete 20-clip pilot/QA remains open | IN PROGRESS (triage only) |
 | T05 Freeze train, validation and locked dataset v1 | #29 | Zubair | Leakage-safe manifest, counts, checksums and protected test lock | NOT STARTED |
 | T06 Train / select PTC detector | #30 | Zubair | Class/camera metrics, versioned weights and inference/VRAM profile | NOT STARTED |
 | T07 Tracker and hand inspection PTC calibration | #31 / #32 | Zubair | Bale ID continuity, hand inspection confusion/errors and thresholds | NOT STARTED |
