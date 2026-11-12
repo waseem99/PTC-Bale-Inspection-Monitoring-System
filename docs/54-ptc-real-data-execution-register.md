@@ -3,9 +3,9 @@
 **Reference runbook:** [53-ptc-real-data-ai-execution-runbook.md](53-ptc-real-data-ai-execution-runbook.md)  
 **Created:** 2026-11-06  
 **Operational PM owner:** @arifkhannamal9288  
-**Status (2026-11-11):** Data-use approval D08a recorded from project sponsor; detector annotation pilot **started** with 20 restricted sample-frame triage entries. Zubair's full Nov 6 intake is recorded in issue #27 (4,649 logically unique bale / 1,902 inspection JPGs). See [dated pilot checkpoint](57-ptc-d08-annotation-pilot-2026-11-11.md). **No completed November labels, trained model, locked test or AI/site acceptance is claimed.** Historical Nov 6 partial audit is preserved in doc 55.
+**Status (2026-11-11):** Data-use approval D08a recorded from project sponsor; detector annotation pilot **started** with 20 restricted sample-frame triage entries. Zubair's full Nov 6 intake is recorded in issue #27 (4,649 logically unique bale / 1,902 inspection JPGs). See [dated pilot checkpoint](57-ptc-d08-annotation-pilot-2026-11-11.md) and [full reconciliation](56-ptc-data-intake-full-reconciliation-2026-11-06.md). **No completed November labels, trained model, locked test or AI/site acceptance is claimed.** Historical Nov 6 partial audit is preserved in doc 55.
 
-**Verified evidence:** [dated partial-intake audit](55-ptc-data-intake-partial-audit-2026-11-06.md). Full pagination is now scripted in `tools/testing/ptc_drive_dataset_intake.py`, requiring an authorized Drive read-only token on Zubair's execution machine.
+**Verified evidence:** [full reconciliation](56-ptc-data-intake-full-reconciliation-2026-11-06.md), [partial-intake audit](55-ptc-data-intake-partial-audit-2026-11-06.md), [D08 pilot checkpoint](57-ptc-d08-annotation-pilot-2026-11-11.md). Tools: `ptc_drive_dataset_intake.py`, `ptc_drive_dedupe_unique_inventory.py`.
 
 Use this document for **sanitized** status and decisions. Detailed inventories, PTC imagery, labels, per-file hashes, model weights and raw reports stay in the approved restricted work area. Update the table during PM's daily checkpoint. Do not mark a gate passed merely because a folder exists.
 
@@ -13,10 +13,10 @@ Use this document for **sanitized** status and decisions. Detailed inventories, 
 
 | Intake ID | Source description | Observed so far | Final count / completeness | Owner | Status |
 |---|---|---|---|---|---|
-| PTC-2026-11-06-BALE | PM-controlled Drive > Bale Dataset > Bale Detection | At least 1,000 JPGs enumerated (listing cap), 16 name-based groups, 5/5 representative JPEGs decoded, cam1 | **UNKNOWN**; uploader has not confirmed completion | Uploader + Zubair | UPLOADING / VERIFY |
-| PTC-2026-11-06-INSPECT | PM-controlled Drive > Bale Dataset > Inspection Detection | At least 1,000 JPGs enumerated (listing cap), 8 name-based groups, 6/6 representative JPEGs decoded, cam4 | **UNKNOWN**; uploader has not confirmed completion | Uploader + Zubair | UPLOADING / VERIFY |
-| PTC-2026-11-06-VIDEO | Original timestamped video/session recordings + frame-sequence metadata | **NOT CONFIRMED** | Needed for temporal actions and full workflow evaluation | Uploader + Arif | PENDING |
-| PTC-2026-11-06-LABELS | Existing annotations and grading/routing/weight ground truth | **NOT CONFIRMED** | Must be checked by Zubair | Uploader + Zubair | PENDING |
+| PTC-2026-11-06-BALE | PM-controlled Drive > Bale Dataset > Bale Detection | Unique corpus **4649** JPGs (12 identical dups excluded); cam1+cam2; 0 zero-byte | **4649**; uploader approx 4800+ superseded | Uploader + Zubair | UNIQUE CORPUS READY |
+| PTC-2026-11-06-INSPECT | PM-controlled Drive > Bale Dataset > Inspection Detection | Full list **1902** JPGs; cam4+cam2; 0 dups; 0 zero-byte | **1902**; uploader approx 1987+ superseded | Uploader + Zubair | VERIFIED |
+| PTC-2026-11-06-VIDEO | PTC-Recordings dated folders (not inside JPG handoff) | **16 MP4s** found (cam1–4 clips 000–003 + one older cam1); partial segment coverage vs JPG names | Needed for full temporal lineage beyond clip indices 000–003 | Uploader + Arif | PARTIAL |
+| PTC-2026-11-06-LABELS | Labels for November JPG handoff | **None in JPG folders** (expected pre-#28). Older July packages are separate | Do not mix July labels into Nov freeze without PM decision | Uploader + Zubair | N/A FOR THIS DROP |
 | PTC-2026-11-06-SITE | Physical Camera 01–04 views and six ROI mappings | **NOT APPROVED** | Required for live acceptance | PTC + Arif + Qamar | PENDING |
 
 Do not insert the actual shared folder URL, private per-file ID list, raw camera frames, physical addresses or credential-bearing endpoints into GitHub.
@@ -27,14 +27,15 @@ Set each status to **PENDING, CONFIRMED or ACCEPTED LIMITATION** and add the dat
 
 | ID | Exact question | Accountable | Status | Decision date | Sanitized reference |
 |---|---|---|---|---|---|
-| D01 | Upload complete, expected file count/bytes per folder, any failed transfers? | Arif / uploader | PENDING | — | — |
-| D02 | Existing annotated labels? If yes, format, labels, QA and rights? | Zubair / uploader | PENDING | — | — |
-| D03 | Original videos / session and frame timestamps / FPS available? | Arif / uploader | PENDING | — | — |
+| D01 | Upload complete, expected file count/bytes per folder, any failed transfers? | Arif / uploader | CONFIRMED (with correction) | 2026-11-06 | Full list 4661/1902; unique targets 4649/1902 after dedupe; approx 4800+/1987+ superseded — see doc 56 |
+| D02 | Existing annotated labels? If yes, format, labels, QA and rights? | Zubair / uploader | ACCEPTED LIMITATION | 2026-11-06 | No labels in Nov JPG folders; create via #28. July packages separate |
+| D03 | Original videos / session and frame timestamps / FPS available? | Arif / uploader | CONFIRMED (partial) | 2026-11-06 | 16 MP4s under PTC-Recordings; incomplete vs all JPG segments |
 | D04 | Which physical cameras observe each mandated process step? | Arif / PTC | PENDING | — | — |
 | D05 | What observable signal proves grading and grade value? | Arif / PTC | PENDING | — | — |
 | D06 | Scale camera/display legibility, numeric format, unit and weight truth? | Arif / PTC | PENDING | — | — |
 | D07 | Approved minimum accuracy, OCR, false-alert, latency and 4-stream requirements? | Arif / PTC | PENDING | — | — |
-| D08a | Permitted use and retention of the supplied PTC imagery for project annotation and model training? | Waseem / Arif / PTC | CONFIRMED (project sponsor instruction) | 2026-11-11 | Waseem approved dataset use/training/retention in project conversation; no blanket publication/redistribution permission |\n| D08b | Approved protected storage, GPU environment, site/camera access and operational retention schedule evidenced? | Qamar / Arif / PTC | PENDING | — | — |
+| D08a | Permitted use and retention of the supplied PTC imagery for project annotation and model training? | Waseem / Arif / PTC | CONFIRMED (project sponsor instruction) | 2026-11-11 | Waseem approved dataset use/training/retention in project conversation; no blanket publication/redistribution permission |
+| D08b | Approved protected storage, GPU environment, site/camera access and operational retention schedule evidenced? | Qamar / Arif / PTC | PENDING | — | — |
 
 **Decision rule:** D08a permits restricted image annotation pilot activity. D08b still requires verified runtime/site controls before deploying source media or credentials. If D03 is unanswered, a labeled-image detection pilot can continue but a full temporal/process model cannot pass Gates B–F. If D07 is unanswered, do not declare a final model acceptance PASS.
 
@@ -42,8 +43,8 @@ Set each status to **PENDING, CONFIRMED or ACCEPTED LIMITATION** and add the dat
 
 | Task | Related issue | Owner | Evidence / definition of done | Status |
 |---|---|---|---|---|
-| T00 Confirm all uploads and source manifest | #27 | Arif / uploader | Expected/actual totals and transfer failures reconciled | NOT STARTED |
-| T01 Full controlled inventory and source session grouping | #27 | Zubair | Partial Drive sample/metadata audit completed; full paginated count, complete transfer, exact lineage/duplicates and checksum still pending | IN PROGRESS (partial) |
+| T00 Confirm all uploads and source manifest | #27 | Arif / uploader | Expected/actual totals and transfer failures reconciled | DONE (counts corrected to 4649/1902) |
+| T01 Full controlled inventory and source session grouping | #27 | Zubair | Unique corpus 4649/1902 + checksums recorded; optional Drive trash; video lineage partial | DONE (unique corpus) |
 | T02 Permissions, process coverage and missing capture | #27 / #84 | Arif + Zubair | D08a dataset-use approval recorded 2026-11-11; camera/ROI coverage, runtime/security D08b and missing captures still pending | IN PROGRESS (D08a only) |
 | T03 Camera 01–04 + real ROI site preflight | #84 | Qamar + Zubair | Site preflight, time sync, six ROIs, reconnect/scale checks, site review | NOT STARTED |
 | T04 Label schema + representative pilot + QA | #28 | Zubair | 2026-11-11 private first-pass visual triage: 20 unique JPG/group hints (14 cam1; 6 cam4); 4 independent-review slots assigned, none reviewed; 0 validated boxes / 0 verified clips; complete 20-clip pilot/QA remains open | IN PROGRESS (triage only) |

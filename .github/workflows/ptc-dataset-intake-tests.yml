@@ -5,6 +5,8 @@ on:
     paths:
       - "tools/testing/ptc_drive_dataset_intake.py"
       - "tools/testing/test_ptc_drive_dataset_intake.py"
+      - "tools/testing/ptc_drive_dedupe_unique_inventory.py"
+      - "tools/testing/test_ptc_drive_dedupe_unique_inventory.py"
       - ".github/workflows/ptc-dataset-intake-tests.yml"
   workflow_dispatch:
 
@@ -20,7 +22,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Compile inventory utility
-        run: python -m py_compile tools/testing/ptc_drive_dataset_intake.py
-      - name: Test pagination, metadata checks and sanitization
-        run: python -m unittest discover -s tools/testing -p "test_ptc_drive_dataset_intake.py" -v
+      - name: Compile inventory utilities
+        run: python -m py_compile tools/testing/ptc_drive_dataset_intake.py tools/testing/ptc_drive_dedupe_unique_inventory.py
+      - name: Test pagination, duplicate handling and sanitization
+        run: python -m unittest discover -s tools/testing -p "test_ptc_drive_*.py" -v
