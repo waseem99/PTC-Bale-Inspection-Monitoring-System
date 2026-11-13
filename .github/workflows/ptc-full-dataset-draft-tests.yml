@@ -1,0 +1,26 @@
+name: PTC Full Dataset Draft Annotation Checks
+
+on:
+  pull_request:
+    paths:
+      - "tools/testing/ptc_full_dataset_draft_labels.py"
+      - "tools/testing/test_ptc_full_dataset_draft_labels.py"
+      - ".github/workflows/ptc-full-dataset-draft-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-draft-guardrails:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile bulk draft runner
+        run: python -m py_compile tools/testing/ptc_full_dataset_draft_labels.py
+      - name: Check multi-bale handling and fail-closed privacy/QA rules
+        run: python -m unittest discover -s tools/testing -p "test_ptc_full_dataset_draft_labels.py" -v
