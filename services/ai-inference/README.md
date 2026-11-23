@@ -55,21 +55,36 @@ The runtime adapters require a PTC-trained weights file. A generic COCO model ma
 
 ## Recorded-video testing
 
-Use an ISO capture start time when it is known. Without it, the runner uses the current UTC time so generated events are never dated at the Unix epoch.
+Camera roles (see `config/poc.example.json`):
+
+- **CAM-01 / CAM-02 (`detect`)** use `bale_detect_*.pt` to track bales and keep stable IDs (`bale-1`, `bale-2`, …).
+- **CAM-03 / CAM-04 (`inspect`)** keep **tracking with the detect model** and also run `bale_inspect_*.pt` (`Bale Opening`, `Bale Inspection`) on the same global bale IDs. Tracking continues on these cameras so opening/inspection stay attached to the correct bale number.
+
+Place weights in repo `models/` (gitignored) or pass explicit paths.
 
 ```bash
 python scripts/run_video.py \
   --video /restricted/sample.mp4 \
-  --config /restricted/approved-camera-config.json \
+  --config config/poc.example.json \
   --camera CAM-01 \
-  --weights /restricted/models/ptc-bale-track.pt \
-  --inspection-weights /restricted/models/ptc-bale-inspect.pt \
+  --models-dir ../../models \
   --output /restricted/results/events.jsonl \
   --audit-output /restricted/results/events.audit.jsonl \
   --start-time 2026-08-05T10:00:00+05:00
 ```
 
-This command is ready for the team to use once the approved weights and camera ROI configuration exist.
+Four-camera shared identity:
+
+```bash
+python scripts/run_multi_camera.py \
+  --config config/poc.example.json \
+  --models-dir ../../models \
+  --camera CAM-01=/restricted/cam1.mp4 \
+  --camera CAM-02=/restricted/cam2.mp4 \
+  --camera CAM-03=/restricted/cam3.mp4 \
+  --camera CAM-04=/restricted/cam4.mp4 \
+  --output /restricted/results/events.jsonl
+```
 
 ## Detector training
 

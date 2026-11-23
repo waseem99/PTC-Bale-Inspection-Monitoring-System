@@ -178,7 +178,7 @@ class PipelineTests(unittest.TestCase):
         pipeline = RuntimePipeline(self.config(gradingMinSeconds=2.0), "CAM-01", detector, hands, ocr)
         for timestamp in range(1, 5):
             pipeline.process_frame(FakeFrame(), float(timestamp))
-        state = pipeline.active["1"]
+        state = pipeline.active["bale-1"]
         self.assertFalse(state.grading_emitted)
 
     def test_multiple_routed_bales_do_not_share_one_weight(self):

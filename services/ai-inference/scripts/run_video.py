@@ -44,11 +44,13 @@ def main() -> int:
     except ImportError as extra:
         raise SystemExit("Install runtime dependencies: pip install -e '.[runtime]'") from extra
 
+    from ptc_ai.camera_runtime import build_camera_detector
     from ptc_ai.config import AiConfig
     from ptc_ai.event_mapper import to_audit_payload, to_platform_payload
+    from ptc_ai.identity import BaleIdentityRegistry
     from ptc_ai.models import InspectionEvent, ObservationKind
     from ptc_ai.pipeline import RuntimePipeline
-    from ptc_ai.runtime_adapters import EasyOcrDisplayAdapter, MediaPipeHandAdapter, SequentialBaleInspectionAdapter
+    from ptc_ai.runtime_adapters import EasyOcrDisplayAdapter, MediaPipeHandAdapter
     from ptc_ai.weights import resolve_model_weights
 
     try:
@@ -61,16 +63,26 @@ def main() -> int:
         raise SystemExit(str(extra)) from extra
 
     config = AiConfig.load(args.config)
+    if args.camera not in config.cameras:
+        raise SystemExit(f"Camera {args.camera} is not configured")
+    role = config.cameras[args.camera].role
+    try:
+        detector = build_camera_detector(
+            role,
+            track_weights=track_weights,
+            inspection_weights=inspection_weights,
+            tracker=args.tracker,
+        )
+    except (FileNotFoundError, ValueError) as extra:
+        raise SystemExit(str(extra)) from extra
+
     pipeline = RuntimePipeline(
         config=config,
         camera_id=args.camera,
-        detector=SequentialBaleInspectionAdapter.from_weights(
-            track_weights,
-            inspection_weights,
-            tracker=args.tracker,
-        ),
+        detector=detector,
         hand_reader=MediaPipeHandAdapter(),
         display_reader=EasyOcrDisplayAdapter(gpu=not args.cpu_ocr),
+        identity=BaleIdentityRegistry(),
     )
 
     capture = cv2.VideoCapture(str(args.video))

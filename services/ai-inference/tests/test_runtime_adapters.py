@@ -45,6 +45,17 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(track, resolved_track)
             self.assertEqual(inspect, resolved_inspect)
 
+    def test_resolves_detect_and_inspect_filenames(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            detect = root / "bale_detect_yolo26m_best.pt"
+            inspect = root / "bale_inspect_yolo26m_best_FT.pt"
+            detect.write_bytes(b"detect")
+            inspect.write_bytes(b"inspect")
+            resolved_track, resolved_inspect = resolve_model_weights(models_dir=root)
+            self.assertEqual(detect, resolved_track)
+            self.assertEqual(inspect, resolved_inspect)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -25,13 +25,25 @@ def normalize_class_name(name: str) -> str:
 
 
 BALE_TRACK_CLASSES = frozenset({"bale", "bale_closed", "bale_opened", "opened_bale"})
-OPENED_CLASSES = frozenset({"bale_opened", "opened_bale"})
+OPENED_CLASSES = frozenset(
+    {
+        "bale_opened",
+        "opened_bale",
+        "bale_opening",
+        "opening",
+        "bale_open",
+        "open_bale",
+    }
+)
+# Opening labels that come only from the inspection model (not ByteTrack).
+INSPECT_OPENED_CLASSES = frozenset({"bale_opening", "opening", "bale_open", "open_bale"})
 INSPECTED_CLASSES = frozenset(
     {
         "inspected",
         "bale_inspected",
         "inspected_bale",
         "inspection",
+        "bale_inspection",
         "inspection_done",
         "hand_inspection",
         "checked",
@@ -49,7 +61,13 @@ NOT_INSPECTED_CLASSES = frozenset(
     }
 )
 GRADING_CLASSES = frozenset({"grade_indicator", "grading_action", "grade_accept", "grade_reject"})
-_ASSOCIATION_SKIP_CLASSES = INSPECTED_CLASSES | NOT_INSPECTED_CLASSES | GRADING_CLASSES | {"inspector", "person", "hand"}
+_ASSOCIATION_SKIP_CLASSES = (
+    INSPECTED_CLASSES
+    | NOT_INSPECTED_CLASSES
+    | GRADING_CLASSES
+    | INSPECT_OPENED_CLASSES
+    | {"inspector", "person", "hand"}
+)
 
 
 def is_inspected_class(name: str) -> bool:
