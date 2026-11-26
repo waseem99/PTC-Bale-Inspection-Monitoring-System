@@ -47,18 +47,14 @@ async function inBatches<T>(items: T[], batchSize: number, operation: (item: T) 
   }
 }
 
-export async function seedSyntheticData(
-  config: AppConfig,
-  reset = false,
-): Promise<{ users: number; cameras: number; health: number; events: number }> {
-  if (reset) await resetSyntheticData(config);
+async function seedUsersAndRegistry(config: AppConfig): Promise<void> {
   const passwords = requirePasswords(config);
   await prisma.session.deleteMany({ where: { userId: { in: SYNTHETIC_USER_IDS } } });
 
   const userDefinitions = [
-    { id: 'usr-viewer', username: 'viewer', displayName: 'Viewer Demo', role: 'viewer', password: passwords.viewer },
-    { id: 'usr-supervisor', username: 'supervisor', displayName: 'Supervisor Demo', role: 'supervisor', password: passwords.supervisor },
-    { id: 'usr-admin', username: 'admin', displayName: 'Administrator Demo', role: 'admin', password: passwords.admin },
+    { id: 'usr-viewer', username: 'viewer', displayName: 'Viewer', role: 'viewer', password: passwords.viewer },
+    { id: 'usr-supervisor', username: 'supervisor', displayName: 'Supervisor', role: 'supervisor', password: passwords.supervisor },
+    { id: 'usr-admin', username: 'admin', displayName: 'Administrator', role: 'admin', password: passwords.admin },
   ] as const;
 
   for (const user of userDefinitions) {
@@ -91,11 +87,51 @@ export async function seedSyntheticData(
     update: camera,
   })));
 
-  await Promise.all(seedHealth().map((metric) => prisma.healthMetric.upsert({
+  const health = seedHealth();
+  await prisma.healthMetric.deleteMany({
+    where: {
+      dataset: DATASET,
+      id: { notIn: health.map((metric) => metric.id) },
+    },
+  });
+  await Promise.all(health.map((metric) => prisma.healthMetric.upsert({
     where: { id: metric.id },
     create: metric,
     update: metric,
   })));
+}
+
+/** Operational bootstrap: users, cameras and health only. No synthetic inspection events. */
+export async function seedOperationalBootstrap(
+  config: AppConfig,
+  reset = false,
+): Promise<{ users: number; cameras: number; health: number; events: number }> {
+  if (reset) await resetSyntheticData(config);
+  else {
+    // Clear leftover synthetic events while keeping the operational registry fresh.
+    const eventIds = (await prisma.inspectionEvent.findMany({
+      where: { dataset: DATASET },
+      select: { id: true },
+    })).map((event) => event.id);
+    if (eventIds.length) {
+      await prisma.$transaction([
+        prisma.evidenceMetadata.deleteMany({ where: { dataset: DATASET } }),
+        prisma.eventStep.deleteMany({ where: { eventId: { in: eventIds } } }),
+        prisma.inspectionEvent.deleteMany({ where: { dataset: DATASET } }),
+      ]);
+    }
+  }
+  await seedUsersAndRegistry(config);
+  return seedStatus();
+}
+
+/** Full deterministic synthetic dataset used by automated API tests. */
+export async function seedSyntheticData(
+  config: AppConfig,
+  reset = false,
+): Promise<{ users: number; cameras: number; health: number; events: number }> {
+  if (reset) await resetSyntheticData(config);
+  await seedUsersAndRegistry(config);
 
   const events = seedEvents();
   await inBatches(events, 20, async (event) => {

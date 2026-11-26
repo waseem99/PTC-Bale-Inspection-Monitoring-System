@@ -314,7 +314,7 @@ async function persistEvent(input: z.infer<typeof ingestionEventSchema>) {
           lastFrameAt: new Date(input.timestamp),
           todayEvents: { increment: 1 },
           status: 'online',
-          aiStatus: input.source === 'simulator' ? 'simulated' : 'ready',
+          aiStatus: input.source === 'simulator' ? 'simulated' : 'processing',
           configVersion: input.configVersion,
         },
       });

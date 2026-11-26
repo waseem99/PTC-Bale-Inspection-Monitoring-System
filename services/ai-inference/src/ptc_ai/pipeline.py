@@ -11,6 +11,7 @@ from .interaction import HandInspectionClassifier, HandSample
 from .models import InspectionEvent, Observation, ObservationKind
 from .ocr import OcrReading, WeightStabilizer
 from .routing import RouteVerifier
+from .identity import BaleIdentityRegistry
 from .runtime_adapters import (
     Detection,
     GRADING_CLASSES,
@@ -81,15 +82,18 @@ class RuntimePipeline:
         detector: Detector,
         hand_reader: HandReader,
         display_reader: DisplayReader,
+        identity: BaleIdentityRegistry | None = None,
     ) -> None:
         if camera_id not in config.cameras:
             raise ValueError(f"Camera {camera_id} is not configured")
         self.config = config
         self.camera_id = camera_id
         self.rois: CameraRois = config.cameras[camera_id]
+        self.role = self.rois.role
         self.detector = detector
         self.hand_reader = hand_reader
         self.display_reader = display_reader
+        self.identity = identity or BaleIdentityRegistry()
         self.route_verifier = RouteVerifier(self.rois)
         thresholds = config.thresholds
         self.hand_classifier = HandInspectionClassifier(
@@ -99,6 +103,7 @@ class RuntimePipeline:
         )
         self.active: dict[str, ActiveBale] = {}
         self.weight_stabilizers: dict[str, WeightStabilizer] = {}
+        self._local_to_global: dict[str, str] = {}
 
     def _observation(
         self,
@@ -205,7 +210,7 @@ class RuntimePipeline:
             for item in detections
             if self._matches_state(state, item)
             and (is_inspected_class(item.class_name) or is_not_inspected_class(item.class_name))
-            and item.confidence >= self.config.thresholds.min_observation_confidence
+            and item.confidence >= self.config.thresholds.inspect_min_confidence
         ]
         if not matches:
             return
@@ -307,11 +312,26 @@ class RuntimePipeline:
         state.grading_emitted = True
 
     def _update_route(self, state: ActiveBale, timestamp: float, confidence: float) -> None:
-        if state.route_emitted or not state.grading_emitted:
+        # PTC inspect weights currently expose Opening/Inspection only. After a proper
+        # inspection signal, allow lane ROI routing even when no grade_* class exists.
+        if state.route_emitted or not state.hand_emitted:
             return
         decision = self.route_verifier.classify(state.box.center, timestamp, confidence)
         if decision is None:
             return
+        if not state.grading_emitted:
+            state.session.add(
+                self._observation(
+                    state.session.bale_id,
+                    ObservationKind.GRADING_COMPLETED,
+                    timestamp,
+                    decision.confidence,
+                    grade=decision.route,
+                    inferredFromRoute=True,
+                )
+            )
+            state.grading_emitted = True
+            state.expected_route = decision.route
         kind = ObservationKind.ROUTING_REJECTED if decision.route == "rejected" else ObservationKind.ROUTING_ACCEPTED
         state.session.add(self._observation(state.session.bale_id, kind, timestamp, decision.confidence, route=decision.route))
         state.route_emitted = True
@@ -411,13 +431,55 @@ class RuntimePipeline:
         state.session.add(self._observation(bale_id, ObservationKind.BALE_EXITED, timestamp, 1.0))
         return state.session.finalize(timestamp)
 
-    def process_frame(self, frame: Any, timestamp: float) -> list[InspectionEvent]:
-        detections = self.detector.infer(frame)
-        bale_detections = [item for item in detections if is_bale_track_class(item.class_name) and self._track_id(item)]
-        hand_points = self.hand_reader.points(frame)
+    def _resolve_detect_bale_id(self, detection: Detection, timestamp: float) -> str | None:
+        local = self._track_id(detection)
+        if local is None:
+            return None
+        bale_id = self.identity.resolve_detect(self.camera_id, local, detection.box, timestamp)
+        self._local_to_global[local] = bale_id
+        return bale_id
+
+    def _process_detect_frame(self, detections: list[Detection], timestamp: float) -> None:
+        bale_detections = [
+            item for item in detections if is_bale_track_class(item.class_name) and self._track_id(item)
+        ]
+        seen_global: set[str] = set()
         for detection in bale_detections:
-            bale_id = self._track_id(detection)
-            assert bale_id is not None
+            bale_id = self._resolve_detect_bale_id(detection, timestamp)
+            if bale_id is None:
+                continue
+            seen_global.add(bale_id)
+            state = self.active.get(bale_id)
+            if state is None:
+                if not point_in_polygon(detection.box.center, self.rois.entry_zone):
+                    continue
+                state = self._new_bale(bale_id, detection.box, timestamp, detection.confidence)
+            state.box = detection.box
+            state.last_seen = timestamp
+            if is_opened_class(detection.class_name):
+                self._mark_opened(state, timestamp, detection.confidence)
+            self._update_route(state, timestamp, detection.confidence)
+        for bale_id, state in list(self.active.items()):
+            if bale_id not in seen_global and timestamp - state.last_seen >= 1.0:
+                self.identity.offer_handoff(bale_id, timestamp)
+
+    def _process_tracked_inspection_frame(
+        self,
+        detections: list[Detection],
+        hand_points: list[tuple[float, float, float]],
+        timestamp: float,
+    ) -> None:
+        """Track bales and apply opening/inspection on CAM-03 / CAM-04."""
+        bale_detections = [
+            item for item in detections if is_bale_track_class(item.class_name) and self._track_id(item)
+        ]
+        seen_global: set[str] = set()
+        for detection in bale_detections:
+            local = self._track_id(detection)
+            assert local is not None
+            bale_id = self.identity.resolve_detect(self.camera_id, local, detection.box, timestamp)
+            self._local_to_global[local] = bale_id
+            seen_global.add(bale_id)
             state = self.active.get(bale_id)
             if state is None:
                 if not point_in_polygon(detection.box.center, self.rois.inspection):
@@ -428,19 +490,80 @@ class RuntimePipeline:
             if is_opened_class(detection.class_name):
                 self._mark_opened(state, timestamp, detection.confidence)
             self._update_inspection_detection(state, detections, timestamp)
+            if state.hand_emitted:
+                self.identity.mark_inspected(bale_id)
             self._update_hand_observation(state, hand_points, timestamp)
             self._update_grading(state, detections, timestamp)
             self._update_route(state, timestamp, detection.confidence)
+
+        # If an opening/inspection box has no track yet, attach via IoU/handoff.
+        orphan_signals = [
+            item
+            for item in detections
+            if (
+                is_opened_class(item.class_name)
+                or is_inspected_class(item.class_name)
+                or is_not_inspected_class(item.class_name)
+            )
+            and item.confidence >= self.config.thresholds.inspect_min_confidence
+            and self._track_id(item) is None
+        ]
+        for detection in orphan_signals:
+            already = any(self._matches_state(state, detection) for state in self.active.values())
+            if already:
+                continue
+            bale_id = self.identity.resolve_inspect(self.camera_id, detection.box, timestamp)
+            if bale_id is None:
+                continue
+            state = self.active.get(bale_id)
+            if state is None:
+                state = self._new_bale(bale_id, detection.box, timestamp, detection.confidence)
+            state.box = detection.box
+            state.last_seen = timestamp
+            if is_opened_class(detection.class_name):
+                self._mark_opened(state, timestamp, detection.confidence)
+            self._update_inspection_detection(state, detections, timestamp)
+            if state.hand_emitted:
+                self.identity.mark_inspected(bale_id)
+
+        for bale_id, state in list(self.active.items()):
+            if bale_id not in seen_global and timestamp - state.last_seen >= 1.0:
+                self.identity.offer_handoff(bale_id, timestamp)
+
+    def process_observations(
+        self,
+        frame: Any,
+        detections: list[Detection],
+        timestamp: float,
+        hand_points: list[tuple[float, float, float]] | None = None,
+    ) -> list[InspectionEvent]:
+        """Advance SOP state from already-computed detections (avoids double YOLO)."""
+        points = hand_points if hand_points is not None else self.hand_reader.points(frame)
+        if self.role == "detect":
+            self._process_detect_frame(detections, timestamp)
+        else:
+            # inspect + combined: keep tracking so bale numbers stay consistent
+            self._process_tracked_inspection_frame(detections, points, timestamp)
 
         self._update_weight(frame, timestamp)
         events: list[InspectionEvent] = []
         timeout = self.config.thresholds.session_timeout_seconds
         for bale_id, state in list(self.active.items()):
-            complete = state.opened_emitted and state.hand_emitted and state.grading_emitted and state.route_emitted and state.weight_emitted
+            complete = (
+                state.opened_emitted
+                and state.hand_emitted
+                and state.grading_emitted
+                and state.route_emitted
+                and state.weight_emitted
+            )
             stale = timestamp - state.last_seen >= timeout or timestamp - state.session.started_at >= timeout
             if complete or stale:
                 events.append(self._finalize_state(bale_id, timestamp))
         return events
+
+    def process_frame(self, frame: Any, timestamp: float) -> list[InspectionEvent]:
+        detections = self.detector.infer(frame)
+        return self.process_observations(frame, detections, timestamp)
 
     def fail_active(self, kind: ObservationKind, timestamp: float, confidence: float = 1.0) -> list[InspectionEvent]:
         if kind not in {ObservationKind.CAMERA_FAILURE, ObservationKind.MODEL_FAILURE, ObservationKind.SERVICE_FAILURE}:

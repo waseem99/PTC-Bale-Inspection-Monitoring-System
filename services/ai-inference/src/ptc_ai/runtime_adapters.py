@@ -25,13 +25,25 @@ def normalize_class_name(name: str) -> str:
 
 
 BALE_TRACK_CLASSES = frozenset({"bale", "bale_closed", "bale_opened", "opened_bale"})
-OPENED_CLASSES = frozenset({"bale_opened", "opened_bale"})
+OPENED_CLASSES = frozenset(
+    {
+        "bale_opened",
+        "opened_bale",
+        "bale_opening",
+        "opening",
+        "bale_open",
+        "open_bale",
+    }
+)
+# Opening labels that come only from the inspection model (not ByteTrack).
+INSPECT_OPENED_CLASSES = frozenset({"bale_opening", "opening", "bale_open", "open_bale"})
 INSPECTED_CLASSES = frozenset(
     {
         "inspected",
         "bale_inspected",
         "inspected_bale",
         "inspection",
+        "bale_inspection",
         "inspection_done",
         "hand_inspection",
         "checked",
@@ -49,7 +61,13 @@ NOT_INSPECTED_CLASSES = frozenset(
     }
 )
 GRADING_CLASSES = frozenset({"grade_indicator", "grading_action", "grade_accept", "grade_reject"})
-_ASSOCIATION_SKIP_CLASSES = INSPECTED_CLASSES | NOT_INSPECTED_CLASSES | GRADING_CLASSES | {"inspector", "person", "hand"}
+_ASSOCIATION_SKIP_CLASSES = (
+    INSPECTED_CLASSES
+    | NOT_INSPECTED_CLASSES
+    | GRADING_CLASSES
+    | INSPECT_OPENED_CLASSES
+    | {"inspector", "person", "hand"}
+)
 
 
 def is_inspected_class(name: str) -> bool:
@@ -117,6 +135,16 @@ def _detections_from_yolo_results(results: Any, width: int, height: int, include
     return detections
 
 
+def _resolve_torch_device() -> str:
+    try:
+        import torch  # type: ignore
+    except ImportError:
+        return "cpu"
+    if torch.cuda.is_available():
+        return "cuda:0"
+    return "cpu"
+
+
 def _load_yolo(weights: str | Path) -> Any:
     try:
         from ultralytics import YOLO  # type: ignore
@@ -125,7 +153,14 @@ def _load_yolo(weights: str | Path) -> Any:
     weights_path = Path(weights)
     if not weights_path.is_file():
         raise FileNotFoundError(f"PTC model weights do not exist: {weights_path}")
-    return YOLO(str(weights_path))
+    model = YOLO(str(weights_path))
+    device = _resolve_torch_device()
+    try:
+        model.to(device)
+    except Exception:
+        device = "cpu"
+    model._ptc_device = device  # type: ignore[attr-defined]
+    return model
 
 
 def associate_inspection_to_tracks(
@@ -164,25 +199,41 @@ class UltralyticsByteTrackAdapter:
     COCO weights are not accepted as PTC validation evidence.
     """
 
-    def __init__(self, weights: str | Path, tracker: str = "bytetrack.yaml") -> None:
+    def __init__(
+        self,
+        weights: str | Path,
+        tracker: str = "bytetrack.yaml",
+        conf: float = 0.50,
+    ) -> None:
         self._model = _load_yolo(weights)
         self._tracker = tracker
+        self._conf = conf
 
     def infer(self, frame: Any) -> list[Detection]:
         height, width = frame.shape[:2]
-        results = self._model.track(frame, persist=True, tracker=self._tracker, verbose=False)
+        device = getattr(self._model, "_ptc_device", _resolve_torch_device())
+        results = self._model.track(
+            frame,
+            persist=True,
+            tracker=self._tracker,
+            conf=self._conf,
+            device=device,
+            verbose=False,
+        )
         return _detections_from_yolo_results(results, width, height, include_track_id=True)
 
 
 class UltralyticsPredictAdapter:
     """YOLO detector without tracking, used for inspected / not-inspected classes."""
 
-    def __init__(self, weights: str | Path) -> None:
+    def __init__(self, weights: str | Path, conf: float = 0.40) -> None:
         self._model = _load_yolo(weights)
+        self._conf = conf
 
     def infer(self, frame: Any) -> list[Detection]:
         height, width = frame.shape[:2]
-        results = self._model.predict(frame, verbose=False)
+        device = getattr(self._model, "_ptc_device", _resolve_torch_device())
+        results = self._model.predict(frame, conf=self._conf, device=device, verbose=False)
         return _detections_from_yolo_results(results, width, height, include_track_id=False)
 
 
@@ -201,10 +252,12 @@ class SequentialBaleInspectionAdapter:
         inspection_weights: str | Path,
         tracker: str = "bytetrack.yaml",
         min_iou: float = 0.1,
+        detect_conf: float = 0.50,
+        inspect_conf: float = 0.40,
     ) -> "SequentialBaleInspectionAdapter":
         return cls(
-            UltralyticsByteTrackAdapter(track_weights, tracker=tracker),
-            UltralyticsPredictAdapter(inspection_weights),
+            UltralyticsByteTrackAdapter(track_weights, tracker=tracker, conf=detect_conf),
+            UltralyticsPredictAdapter(inspection_weights, conf=inspect_conf),
             min_iou=min_iou,
         )
 

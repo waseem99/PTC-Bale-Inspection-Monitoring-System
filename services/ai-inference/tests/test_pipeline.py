@@ -135,6 +135,41 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(1, len(events))
         self.assertEqual("completed", events[0].outcome.value)
 
+    def test_opening_and_inspection_can_complete_without_grade_classes(self):
+        """PTC inspect weights expose Opening/Inspection only — route infers grading."""
+        box = Box(0.4, 0.4, 0.6, 0.6)
+        accepted = Box(0.82, 0.4, 0.95, 0.6)
+        detector = SequenceDetector(
+            [
+                [Detection("bale", 0.95, box, "1")],
+                [Detection("bale", 0.95, box, "1"), Detection("Bale Opening", 0.9, box, None)],
+                [Detection("bale", 0.95, box, "1"), Detection("Bale Inspection", 0.91, box, None)],
+                [Detection("bale", 0.95, box, "1"), Detection("Bale Inspection", 0.9, box, None)],
+                [Detection("bale", 0.95, accepted, "1")],
+                [Detection("bale", 0.95, accepted, "1")],
+                [Detection("bale", 0.95, accepted, "1")],
+            ]
+        )
+        ocr = SequenceOcr(
+            [
+                [OcrReading(6, "50.0", 0.9)],
+                [OcrReading(7, "50.0", 0.9)],
+            ]
+        )
+        pipeline = RuntimePipeline(
+            self.config(inspectionMinSeconds=0.4, ocrStableFrames=2),
+            "CAM-01",
+            detector,
+            SequenceHands([[], [], [], [], [], [], []]),
+            ocr,
+        )
+        events = []
+        for timestamp in range(1, 8):
+            events.extend(pipeline.process_frame(FakeFrame(), float(timestamp)))
+        self.assertEqual(1, len(events))
+        self.assertEqual("completed", events[0].outcome.value)
+        self.assertEqual("accepted", events[0].metadata["route"])
+
     def test_not_inspected_model_does_not_count_as_proper(self):
         box = Box(0.4, 0.4, 0.6, 0.6)
         detector = SequenceDetector(
@@ -178,7 +213,7 @@ class PipelineTests(unittest.TestCase):
         pipeline = RuntimePipeline(self.config(gradingMinSeconds=2.0), "CAM-01", detector, hands, ocr)
         for timestamp in range(1, 5):
             pipeline.process_frame(FakeFrame(), float(timestamp))
-        state = pipeline.active["1"]
+        state = pipeline.active["bale-1"]
         self.assertFalse(state.grading_emitted)
 
     def test_multiple_routed_bales_do_not_share_one_weight(self):

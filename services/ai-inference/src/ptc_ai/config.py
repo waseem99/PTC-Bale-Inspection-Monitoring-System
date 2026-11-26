@@ -23,6 +23,11 @@ def _polygon(value: Any, name: str) -> Polygon:
     return tuple(points)
 
 
+CAMERA_ROLES = frozenset({"detect", "inspect", "combined"})
+# Recommended production layout (set explicitly in camera config):
+# CAM-01/CAM-02 = detect, CAM-03/CAM-04 = inspect.
+
+
 @dataclass(frozen=True, slots=True)
 class CameraRois:
     inspection: Polygon
@@ -31,6 +36,7 @@ class CameraRois:
     scale_display: Polygon
     entry: Polygon | None = None
     grading: Polygon | None = None
+    role: str = "combined"
 
     @property
     def entry_zone(self) -> Polygon:
@@ -46,6 +52,8 @@ class CameraRois:
 @dataclass(frozen=True, slots=True)
 class Thresholds:
     min_observation_confidence: float = 0.55
+    detect_min_confidence: float = 0.50
+    inspect_min_confidence: float = 0.40
     hand_min_contact_seconds: float = 2.0
     hand_min_motion: float = 0.04
     grading_min_seconds: float = 0.5
@@ -93,20 +101,30 @@ class AiConfig:
         for camera_id, raw in camera_data.items():
             if not isinstance(raw, dict):
                 raise ValueError(f"Camera {camera_id} configuration must be an object")
+            camera_key = str(camera_id)
             inspection = _polygon(raw.get("inspection"), f"{camera_id}.inspection")
             entry_raw = raw.get("entry")
             grading_raw = raw.get("grading")
-            cameras[str(camera_id)] = CameraRois(
+            role_raw = raw.get("role", "combined")
+            role = str(role_raw).strip().lower()
+            if role not in CAMERA_ROLES:
+                raise ValueError(
+                    f"Camera {camera_id} role must be one of {sorted(CAMERA_ROLES)}"
+                )
+            cameras[camera_key] = CameraRois(
                 inspection=inspection,
                 accepted=_polygon(raw.get("accepted"), f"{camera_id}.accepted"),
                 rejected=_polygon(raw.get("rejected"), f"{camera_id}.rejected"),
                 scale_display=_polygon(raw.get("scaleDisplay"), f"{camera_id}.scaleDisplay"),
                 entry=_polygon(entry_raw, f"{camera_id}.entry") if entry_raw is not None else None,
                 grading=_polygon(grading_raw, f"{camera_id}.grading") if grading_raw is not None else None,
+                role=role,
             )
         threshold_data = data.get("thresholds") or {}
         thresholds = Thresholds(
             min_observation_confidence=float(threshold_data.get("minObservationConfidence", 0.55)),
+            detect_min_confidence=float(threshold_data.get("detectMinConfidence", 0.85)),
+            inspect_min_confidence=float(threshold_data.get("inspectMinConfidence", 0.65)),
             hand_min_contact_seconds=float(threshold_data.get("handMinContactSeconds", 2.0)),
             hand_min_motion=float(threshold_data.get("handMinMotion", 0.04)),
             grading_min_seconds=float(threshold_data.get("gradingMinSeconds", 0.5)),

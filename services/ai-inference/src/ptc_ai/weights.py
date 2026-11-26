@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
-_TRACK_HINTS = ("track", "tracker", "bale-track", "bale_track")
+_TRACK_HINTS = ("track", "tracker", "bale-track", "bale_track", "detect", "detection")
 _INSPECT_HINTS = ("inspect", "inspection", "inspected")
 _WEIGHT_SUFFIXES = {".pt", ".onnx", ".engine"}
 

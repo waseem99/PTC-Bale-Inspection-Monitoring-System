@@ -68,15 +68,34 @@ function usePingPongPlayback(videoRef: RefObject<HTMLVideoElement | null>, enabl
 export function CameraPreview({ camera }: { camera: Camera }) {
   const source = resolveCameraPreviewSource(camera.id);
   const [failedUrl, setFailedUrl] = useState<string>();
+  const [liveNonce, setLiveNonce] = useState(0);
+  const liveRetries = useRef(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const useVideo = Boolean(source && source.kind === 'video' && failedUrl !== source.url);
 
   usePingPongPlayback(videoRef, useVideo);
 
+  useEffect(() => {
+    liveRetries.current = 0;
+    setFailedUrl(undefined);
+    setLiveNonce(0);
+  }, [source?.url]);
+
   if (!source || failedUrl === source.url) return <CameraScene camera={camera} />;
 
-  const degraded = camera.status !== 'online' || camera.aiStatus !== 'processing';
+  const degraded = camera.status !== 'online' || (camera.aiStatus !== 'processing' && camera.aiStatus !== 'ready');
   const commonStyle = { position: 'absolute' as const, inset: 0, width: '100%', height: '100%', border: 0, background: '#101820' };
+  const live = source.origin === 'live-ai';
+  const liveSrc = live && liveNonce > 0 ? `${source.url}${source.url.includes('?') ? '&' : '?'}_r=${liveNonce}` : source.url;
+
+  const onLiveError = () => {
+    if (liveRetries.current >= 8) {
+      setFailedUrl(source.url);
+      return;
+    }
+    liveRetries.current += 1;
+    window.setTimeout(() => setLiveNonce((n) => n + 1), Math.min(8_000, 750 * liveRetries.current));
+  };
 
   return <div className={`camera-scene ${degraded ? 'camera-scene--degraded' : ''}`} aria-label={`Video preview for ${camera.name}`}>
     {source.kind === 'iframe'
@@ -88,18 +107,26 @@ export function CameraPreview({ camera }: { camera: Camera }) {
           onError={() => setFailedUrl(source.url)}
           style={commonStyle}
         />
-      : <video
-          ref={videoRef}
-          src={source.url}
-          autoPlay
-          muted
-          playsInline
-          preload="auto"
-          onError={() => setFailedUrl(source.url)}
-          style={{ ...commonStyle, objectFit: 'cover' }}
-        />}
+      : source.kind === 'mjpeg'
+        ? <img
+            key={liveSrc}
+            src={liveSrc}
+            alt={`Live AI preview for ${camera.name}`}
+            onError={onLiveError}
+            style={{ ...commonStyle, objectFit: 'cover' }}
+          />
+        : <video
+            ref={videoRef}
+            src={source.url}
+            autoPlay
+            muted
+            playsInline
+            preload="auto"
+            onError={() => setFailedUrl(source.url)}
+            style={{ ...commonStyle, objectFit: 'cover' }}
+          />}
     <span className="camera-id-overlay">{camera.id}</span>
-    <span className="camera-mode-overlay">VIDEO PREVIEW</span>
+    <span className="camera-mode-overlay">{live ? 'LIVE AI' : 'VIDEO PREVIEW'}</span>
     {degraded && <span className="camera-warning-overlay">DEGRADED</span>}
   </div>;
 }

@@ -50,20 +50,28 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
     <aside className="sidebar">
       <div className="sidebar__brand"><img src={ptcLogoDataUri} alt="PTC" /><div><strong>Bale Inspection</strong><span>Monitoring System</span></div></div>
       <nav className="sidebar__nav" aria-label="Primary navigation">{NAV_ITEMS.map((item) => { const active = pathname === item.path || (item.path === '/events' && pathname.startsWith('/events/')); return <Link key={item.path} to={item.path} className={active ? 'nav-item nav-item--active' : 'nav-item'} ariaCurrent={active ? 'page' : undefined}><Icon name={item.icon} /><span>{item.label}</span></Link>; })}</nav>
-      <div className="sidebar__footer"><div className="environment-card"><span className="environment-card__label">Environment</span><strong>{runtime.environmentName}</strong><span>{runtime.dataMode === 'mock' ? 'Synthetic PoC data' : 'Live API mode'}</span></div>
+      <div className="sidebar__footer">
         <button className="sidebar-user" type="button" onClick={performLogout} aria-label={`Sign out ${user?.displayName ?? ''}`}><span className="sidebar-user__avatar"><Icon name="user" size={20} /></span><span><strong>{user?.displayName}</strong><small>{user?.role}</small></span><Icon name="logout" size={18} /></button>
       </div>
     </aside>
-    <div className="workspace"><header className="topbar"><div><span className="topbar__context">PTC · Pakistan Standard Time</span><h1 tabIndex={-1}>{title}</h1></div><div className="topbar__actions"><StatusPill label={runtime.dataMode === 'mock' ? 'Mock data' : 'Live data'} tone={runtime.dataMode === 'mock' ? 'info' : 'good'} /><span className="build-label">v{runtime.buildVersion}</span></div></header>
-      <div className="system-strip" role="status" aria-live="polite"><div><span className={`strip-dot ${online ? 'strip-dot--good' : 'strip-dot--bad'}`} /><strong>Browser network</strong><span>{online ? 'Online' : 'Offline'}</span></div><div><span className="strip-dot strip-dot--good" /><strong>Local System</strong><span>Available</span></div><div><span className="strip-dot strip-dot--neutral" /><strong>Azure Sync</strong><span>Not configured</span></div><div className="system-strip__time">{runtime.dataMode === 'mock' ? 'Production UI · mock provider' : 'Connected provider'}</div></div>
+    <div className="workspace"><header className="topbar"><div><span className="topbar__context">PTC · Pakistan Standard Time</span><h1 tabIndex={-1}>{title}</h1></div><div className="topbar__actions"><span className="build-label">v{runtime.buildVersion}</span></div></header>
+      <div className="system-strip" role="status" aria-live="polite"><div><span className={`strip-dot ${online ? 'strip-dot--good' : 'strip-dot--bad'}`} /><strong>Network</strong><span>{online ? 'Online' : 'Offline'}</span></div><div><span className="strip-dot strip-dot--good" /><strong>Platform</strong><span>Connected</span></div><div className="system-strip__time">{new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi', dateStyle: 'medium', timeStyle: 'short' })}</div></div>
       <main className="content" id="main-content">{!online && <div className="offline-banner" role="alert"><Icon name="warning" size={20} /><span>You are offline. Cached screen data remains visible where available; changes require reconnection.</span></div>}{children}</main>
     </div>
   </div>;
 }
 
 export function CameraScene({ camera }: { camera: Camera }) {
-  const degraded = camera.status !== 'online' || camera.aiStatus !== 'processing';
-  return <div className={`camera-scene ${degraded ? 'camera-scene--degraded' : ''}`} aria-label={`Synthetic preview for ${camera.name}`}><div className="camera-scene__grid"/><div className="conveyor"/><div className="bale bale--one"><span>BALE</span></div><div className="bale bale--two"><span>BALE</span></div><div className="worker worker--one"><span/></div><div className="worker worker--two"><span/></div><div className="tracking-box tracking-box--bale"><span>Bale 0.94</span></div><div className="tracking-box tracking-box--worker"><span>Worker 0.91</span></div><span className="camera-id-overlay">{camera.id}</span><span className="camera-mode-overlay">MOCK FEED</span>{degraded && <span className="camera-warning-overlay">DEGRADED</span>}</div>;
+  const degraded = camera.status !== 'online' || (camera.aiStatus !== 'processing' && camera.aiStatus !== 'ready');
+  return <div className={`camera-scene ${degraded ? 'camera-scene--degraded' : ''}`} aria-label={`No stream for ${camera.name}`}>
+    <div className="camera-scene__grid"/>
+    <div className="camera-unavailable">
+      <Icon name="camera" size={28} />
+      <strong>{camera.id}</strong>
+      <span>Stream unavailable</span>
+    </div>
+    {degraded && <span className="camera-warning-overlay">DEGRADED</span>}
+  </div>;
 }
 
 export function LoadingPanel({ label = 'Loading data…', rows = 3 }: { label?: string; rows?: number }) { return <div className="loading-panel" role="status" aria-live="polite" aria-label={label}>{Array.from({ length: rows }, (_, index) => <span className="skeleton-line" key={index}/>)}<span className="sr-only">{label}</span></div>; }

@@ -55,23 +55,22 @@ function summaryFor(outcome: Outcome): string {
   }[outcome];
 }
 
-export function seedCameras(anchor = new Date('2026-07-24T08:00:00.000Z')) {
+export function seedCameras(anchor = new Date()) {
   return [
-    { id: 'CAM-01', name: 'Camera 01', zone: 'Bale Entry', status: 'online', aiStatus: 'processing', lastFrameAt: new Date(anchor.getTime() - 2_000), fps: 18, streamQuality: '1080p', todayEvents: 64, configVersion: 'camera-draft-0.2', dataset: DATASET },
-    { id: 'CAM-02', name: 'Camera 02', zone: 'Inspection Bay A', status: 'online', aiStatus: 'processing', lastFrameAt: new Date(anchor.getTime() - 1_000), fps: 20, streamQuality: '1080p', todayEvents: 69, configVersion: 'camera-draft-0.2', dataset: DATASET },
-    { id: 'CAM-03', name: 'Camera 03', zone: 'Inspection Bay B', status: 'warning', aiStatus: 'degraded', lastFrameAt: new Date(anchor.getTime() - 18_000), fps: 9, streamQuality: '720p', todayEvents: 61, configVersion: 'camera-draft-0.2', dataset: DATASET },
-    { id: 'CAM-04', name: 'Camera 04', zone: 'Bale Exit', status: 'online', aiStatus: 'processing', lastFrameAt: new Date(anchor.getTime() - 3_000), fps: 18, streamQuality: '1080p', todayEvents: 63, configVersion: 'camera-draft-0.2', dataset: DATASET },
+    { id: 'CAM-01', name: 'Camera 01', zone: 'Bale Entry', status: 'online', aiStatus: 'processing', lastFrameAt: anchor, fps: 0, streamQuality: '1080p', todayEvents: 0, configVersion: 'camera-1.0', dataset: DATASET },
+    { id: 'CAM-02', name: 'Camera 02', zone: 'Inspection Bay A', status: 'online', aiStatus: 'processing', lastFrameAt: anchor, fps: 0, streamQuality: '1080p', todayEvents: 0, configVersion: 'camera-1.0', dataset: DATASET },
+    { id: 'CAM-03', name: 'Camera 03', zone: 'Inspection Bay B', status: 'online', aiStatus: 'processing', lastFrameAt: anchor, fps: 0, streamQuality: '1080p', todayEvents: 0, configVersion: 'camera-1.0', dataset: DATASET },
+    { id: 'CAM-04', name: 'Camera 04', zone: 'Bale Exit', status: 'online', aiStatus: 'processing', lastFrameAt: anchor, fps: 0, streamQuality: '1080p', todayEvents: 0, configVersion: 'camera-1.0', dataset: DATASET },
   ] as const;
 }
 
-export function seedHealth(anchor = new Date('2026-07-24T08:00:00.000Z')) {
+export function seedHealth(anchor = new Date()) {
   return [
-    { id: 'edge', label: 'Local edge system', value: 'Online', detail: 'All core services are responding', state: 'healthy', checkedAt: anchor, source: 'seed', dataset: DATASET },
-    { id: 'ai', label: 'AI inference engine', value: 'Active', detail: '3 healthy streams, 1 degraded', state: 'warning', checkedAt: anchor, source: 'seed', dataset: DATASET },
-    { id: 'gpu', label: 'GPU utilization', value: '64%', detail: 'Temperature 68°C · Memory 7.2 / 12 GB', state: 'healthy', checkedAt: anchor, source: 'seed', dataset: DATASET },
-    { id: 'db', label: 'Local PostgreSQL database', value: 'Healthy', detail: 'Last write less than 1 minute ago', state: 'healthy', checkedAt: anchor, source: 'seed', dataset: DATASET },
-    { id: 'storage', label: 'Evidence storage', value: '71% free', detail: '214 GB available on local volume', state: 'healthy', checkedAt: anchor, source: 'seed', dataset: DATASET },
-    { id: 'azure', label: 'Azure synchronization', value: 'Not configured', detail: 'Local PoC remains fully operational', state: 'neutral', checkedAt: anchor, source: 'seed', dataset: DATASET },
+    { id: 'edge', label: 'Local edge system', value: 'Online', detail: 'Core services are responding', state: 'healthy', checkedAt: anchor, source: 'seed', dataset: DATASET },
+    { id: 'ai', label: 'AI inference engine', value: 'Standby', detail: 'Awaiting live inference telemetry', state: 'neutral', checkedAt: anchor, source: 'seed', dataset: DATASET },
+    { id: 'gpu', label: 'GPU utilization', value: '—', detail: 'No telemetry published yet', state: 'neutral', checkedAt: anchor, source: 'seed', dataset: DATASET },
+    { id: 'db', label: 'PostgreSQL database', value: 'Healthy', detail: 'Connected', state: 'healthy', checkedAt: anchor, source: 'seed', dataset: DATASET },
+    { id: 'storage', label: 'Evidence storage', value: 'Ready', detail: 'Evidence root configured', state: 'healthy', checkedAt: anchor, source: 'seed', dataset: DATASET },
   ] as const;
 }
 

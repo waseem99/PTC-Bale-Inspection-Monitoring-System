@@ -1,14 +1,15 @@
 import { connectDatabase, disconnectDatabase } from './db';
 import { loadConfig } from './config';
-import { resetSyntheticData, seedStatus, seedSyntheticData } from './seed-service';
+import { resetSyntheticData, seedOperationalBootstrap, seedStatus, seedSyntheticData } from './seed-service';
 
 async function main(): Promise<void> {
   const command = process.argv[2] ?? 'seed';
   const config = loadConfig();
   await connectDatabase();
   try {
-    if (command === 'reset') console.log(JSON.stringify(await seedSyntheticData(config, true)));
-    else if (command === 'seed') console.log(JSON.stringify(await seedSyntheticData(config, false)));
+    if (command === 'reset') console.log(JSON.stringify(await seedOperationalBootstrap(config, true)));
+    else if (command === 'seed') console.log(JSON.stringify(await seedOperationalBootstrap(config, false)));
+    else if (command === 'full') console.log(JSON.stringify(await seedSyntheticData(config, true)));
     else if (command === 'status') console.log(JSON.stringify(await seedStatus()));
     else if (command === 'clear') {
       await resetSyntheticData(config);

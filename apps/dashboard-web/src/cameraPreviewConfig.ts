@@ -1,11 +1,11 @@
 type PreviewEnvironment = {
-  VITE_CAMERA_PREVIEW_MODE?: 'drive' | 'local';
+  VITE_CAMERA_PREVIEW_MODE?: 'drive' | 'local' | 'live';
 };
 
 export type CameraPreviewSource = {
   url: string;
-  kind: 'video' | 'iframe';
-  origin: 'drive-default' | 'local-default';
+  kind: 'video' | 'iframe' | 'mjpeg';
+  origin: 'drive-default' | 'local-default' | 'live-ai';
 };
 
 /** Shared Drive camera-angle clips (folder AI Bale Detection). Public preview media only. */
@@ -23,6 +23,14 @@ const localPreviewByCamera: Record<string, string> = {
   'CAM-04': '/media/camera-04.mp4',
 };
 
+/** Realtime YOLO MJPEG from services/ai-inference/scripts/live_mjpeg_server.py (proxied). */
+const livePreviewByCamera: Record<string, string> = {
+  'CAM-01': '/live-ai/stream/CAM-01',
+  'CAM-02': '/live-ai/stream/CAM-02',
+  'CAM-03': '/live-ai/stream/CAM-03',
+  'CAM-04': '/live-ai/stream/CAM-04',
+};
+
 function googleDrivePreviewUrl(value: string): string | undefined {
   try {
     const parsed = new URL(value, 'https://ptc.local');
@@ -37,13 +45,20 @@ function googleDrivePreviewUrl(value: string): string | undefined {
   }
 }
 
-function selectedPreviewMode(environment?: PreviewEnvironment): 'drive' | 'local' {
+function selectedPreviewMode(environment?: PreviewEnvironment): 'drive' | 'local' | 'live' {
   const configured = environment?.VITE_CAMERA_PREVIEW_MODE ?? import.meta.env.VITE_CAMERA_PREVIEW_MODE;
-  return configured === 'local' ? 'local' : 'drive';
+  if (configured === 'live') return 'live';
+  if (configured === 'local') return 'local';
+  return 'drive';
 }
 
 export function resolveCameraPreviewSource(cameraId: string, environment?: PreviewEnvironment): CameraPreviewSource | undefined {
-  if (selectedPreviewMode(environment) === 'local') {
+  const mode = selectedPreviewMode(environment);
+  if (mode === 'live') {
+    const live = livePreviewByCamera[cameraId];
+    return live ? { url: live, kind: 'mjpeg', origin: 'live-ai' } : undefined;
+  }
+  if (mode === 'local') {
     const localDefault = localPreviewByCamera[cameraId];
     return localDefault ? { url: localDefault, kind: 'video', origin: 'local-default' } : undefined;
   }
