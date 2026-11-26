@@ -11,6 +11,8 @@
   "weightPattern": "\\d+(?:\\.\\d+)?",
   "thresholds": {
     "minObservationConfidence": 0.55,
+    "detectMinConfidence": 0.50,
+    "inspectMinConfidence": 0.40,
     "handMinContactSeconds": 2.0,
     "handMinMotion": 0.04,
     "gradingMinSeconds": 0.5,

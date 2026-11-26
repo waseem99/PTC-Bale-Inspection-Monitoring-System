@@ -88,6 +88,8 @@ def main() -> int:
             track_weights=track_weights,
             inspection_weights=inspection_weights,
             tracker=args.tracker,
+            detect_conf=config.thresholds.detect_min_confidence,
+            inspect_conf=config.thresholds.inspect_min_confidence,
         )
         pipelines[camera_id] = RuntimePipeline(
             config=config,

@@ -46,6 +46,14 @@ describe('camera preview', () => {
     });
   });
 
+  it('uses live MJPEG streams when live preview mode is selected', () => {
+    expect(resolveCameraPreviewSource('CAM-03', { VITE_CAMERA_PREVIEW_MODE: 'live' })).toEqual({
+      url: '/live-ai/stream/CAM-03',
+      kind: 'mjpeg',
+      origin: 'live-ai',
+    });
+  });
+
   it('ignores legacy per-camera Vite URL variables so RTSP credentials cannot enter the bundle path', () => {
     vi.stubEnv('VITE_CAMERA_01_PREVIEW_URL', 'rtsp://camera-user:camera-password@10.0.0.10/stream');
     expect(cameraPreviewSource('CAM-01')).toBe(
@@ -74,12 +82,12 @@ describe('camera preview', () => {
     );
   });
 
-  it('falls back to the synthetic preview when local media fails to load', () => {
+  it('falls back to the unavailable stream state when local media fails to load', () => {
     vi.stubEnv('VITE_CAMERA_PREVIEW_MODE', 'local');
     render(<CameraPreview camera={camera} />);
     const video = screen.getByLabelText('Video preview for Camera 01').querySelector('video');
     expect(video).toBeTruthy();
     fireEvent.error(video as HTMLVideoElement);
-    expect(screen.getByLabelText('Synthetic preview for Camera 01')).toBeInTheDocument();
+    expect(screen.getByLabelText('No stream for Camera 01')).toBeInTheDocument();
   });
 });

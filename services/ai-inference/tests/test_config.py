@@ -63,6 +63,20 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             AiConfig.from_dict({"cameras": {"CAM-01": {"inspection": [[2, 0]]}}})
 
+    def test_detect_and_inspect_confidence_defaults_and_overrides(self):
+        defaults = AiConfig.from_dict({"cameras": {"CAM-01": self.legacy_camera()}})
+        self.assertEqual(0.50, defaults.thresholds.detect_min_confidence)
+        self.assertEqual(0.40, defaults.thresholds.inspect_min_confidence)
+
+        configured = AiConfig.from_dict(
+            {
+                "cameras": {"CAM-01": self.legacy_camera()},
+                "thresholds": {"detectMinConfidence": 0.9, "inspectMinConfidence": 0.6},
+            }
+        )
+        self.assertEqual(0.9, configured.thresholds.detect_min_confidence)
+        self.assertEqual(0.6, configured.thresholds.inspect_min_confidence)
+
 
 if __name__ == "__main__":
     unittest.main()

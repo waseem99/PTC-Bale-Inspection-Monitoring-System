@@ -210,7 +210,7 @@ class RuntimePipeline:
             for item in detections
             if self._matches_state(state, item)
             and (is_inspected_class(item.class_name) or is_not_inspected_class(item.class_name))
-            and item.confidence >= self.config.thresholds.min_observation_confidence
+            and item.confidence >= self.config.thresholds.inspect_min_confidence
         ]
         if not matches:
             return
@@ -312,11 +312,26 @@ class RuntimePipeline:
         state.grading_emitted = True
 
     def _update_route(self, state: ActiveBale, timestamp: float, confidence: float) -> None:
-        if state.route_emitted or not state.grading_emitted:
+        # PTC inspect weights currently expose Opening/Inspection only. After a proper
+        # inspection signal, allow lane ROI routing even when no grade_* class exists.
+        if state.route_emitted or not state.hand_emitted:
             return
         decision = self.route_verifier.classify(state.box.center, timestamp, confidence)
         if decision is None:
             return
+        if not state.grading_emitted:
+            state.session.add(
+                self._observation(
+                    state.session.bale_id,
+                    ObservationKind.GRADING_COMPLETED,
+                    timestamp,
+                    decision.confidence,
+                    grade=decision.route,
+                    inferredFromRoute=True,
+                )
+            )
+            state.grading_emitted = True
+            state.expected_route = decision.route
         kind = ObservationKind.ROUTING_REJECTED if decision.route == "rejected" else ObservationKind.ROUTING_ACCEPTED
         state.session.add(self._observation(state.session.bale_id, kind, timestamp, decision.confidence, route=decision.route))
         state.route_emitted = True
@@ -490,7 +505,7 @@ class RuntimePipeline:
                 or is_inspected_class(item.class_name)
                 or is_not_inspected_class(item.class_name)
             )
-            and item.confidence >= self.config.thresholds.min_observation_confidence
+            and item.confidence >= self.config.thresholds.inspect_min_confidence
             and self._track_id(item) is None
         ]
         for detection in orphan_signals:
@@ -515,14 +530,20 @@ class RuntimePipeline:
             if bale_id not in seen_global and timestamp - state.last_seen >= 1.0:
                 self.identity.offer_handoff(bale_id, timestamp)
 
-    def process_frame(self, frame: Any, timestamp: float) -> list[InspectionEvent]:
-        detections = self.detector.infer(frame)
-        hand_points = self.hand_reader.points(frame)
+    def process_observations(
+        self,
+        frame: Any,
+        detections: list[Detection],
+        timestamp: float,
+        hand_points: list[tuple[float, float, float]] | None = None,
+    ) -> list[InspectionEvent]:
+        """Advance SOP state from already-computed detections (avoids double YOLO)."""
+        points = hand_points if hand_points is not None else self.hand_reader.points(frame)
         if self.role == "detect":
             self._process_detect_frame(detections, timestamp)
         else:
             # inspect + combined: keep tracking so bale numbers stay consistent
-            self._process_tracked_inspection_frame(detections, hand_points, timestamp)
+            self._process_tracked_inspection_frame(detections, points, timestamp)
 
         self._update_weight(frame, timestamp)
         events: list[InspectionEvent] = []
@@ -539,6 +560,10 @@ class RuntimePipeline:
             if complete or stale:
                 events.append(self._finalize_state(bale_id, timestamp))
         return events
+
+    def process_frame(self, frame: Any, timestamp: float) -> list[InspectionEvent]:
+        detections = self.detector.infer(frame)
+        return self.process_observations(frame, detections, timestamp)
 
     def fail_active(self, kind: ObservationKind, timestamp: float, confidence: float = 1.0) -> list[InspectionEvent]:
         if kind not in {ObservationKind.CAMERA_FAILURE, ObservationKind.MODEL_FAILURE, ObservationKind.SERVICE_FAILURE}:

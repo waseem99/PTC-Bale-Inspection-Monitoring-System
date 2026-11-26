@@ -14,6 +14,8 @@ def build_camera_detector(
     inspection_weights: str | Path | None = None,
     models_dir: str | Path | None = None,
     tracker: str = "bytetrack.yaml",
+    detect_conf: float = 0.50,
+    inspect_conf: float = 0.40,
 ):
     """Return the detector for a camera role.
 
@@ -26,7 +28,13 @@ def build_camera_detector(
     normalized = role.strip().lower()
     track, inspect = resolve_model_weights(track_weights, inspection_weights, models_dir)
     if normalized == "detect":
-        return UltralyticsByteTrackAdapter(track, tracker=tracker)
+        return UltralyticsByteTrackAdapter(track, tracker=tracker, conf=detect_conf)
     if normalized in {"inspect", "combined"}:
-        return SequentialBaleInspectionAdapter.from_weights(track, inspect, tracker=tracker)
+        return SequentialBaleInspectionAdapter.from_weights(
+            track,
+            inspect,
+            tracker=tracker,
+            detect_conf=detect_conf,
+            inspect_conf=inspect_conf,
+        )
     raise ValueError(f"Unsupported camera role: {role}")

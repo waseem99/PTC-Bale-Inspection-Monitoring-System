@@ -57,8 +57,18 @@ The runtime adapters require a PTC-trained weights file. A generic COCO model ma
 
 Camera roles (see `config/poc.example.json`):
 
-- **CAM-01 / CAM-02 (`detect`)** use `bale_detect_*.pt` to track bales and keep stable IDs (`bale-1`, `bale-2`, …).
-- **CAM-03 / CAM-04 (`inspect`)** keep **tracking with the detect model** and also run `bale_inspect_*.pt` (`Bale Opening`, `Bale Inspection`) on the same global bale IDs. Tracking continues on these cameras so opening/inspection stay attached to the correct bale number.
+- **CAM-01 / CAM-02 (`detect`)** use `bale_detect_*.pt` to track bales and keep stable IDs (`bale-1`, `bale-2`, …) at **≥85%** confidence.
+- **CAM-03 / CAM-04 (`inspect`)** keep **tracking with the detect model** (≥85%) and also run `bale_inspect_*.pt` (`Bale Opening`, `Bale Inspection`) at **≥65%** on the same global bale IDs. Tracking continues on these cameras so opening/inspection stay attached to the correct bale number.
+
+Offline demo (pre-render annotated MP4s for the dashboard, no live OpenCV windows):
+
+```bash
+python scripts/play_local_videos.py \
+  --videos-dir ../../videos \
+  --models-dir ../../models
+```
+
+Then run the dashboard with `VITE_CAMERA_PREVIEW_MODE=local` so Live Monitoring plays `public/media/camera-01.mp4` … `camera-04.mp4`.
 
 Place weights in repo `models/` (gitignored) or pass explicit paths.
 

@@ -52,6 +52,8 @@ class CameraRois:
 @dataclass(frozen=True, slots=True)
 class Thresholds:
     min_observation_confidence: float = 0.55
+    detect_min_confidence: float = 0.50
+    inspect_min_confidence: float = 0.40
     hand_min_contact_seconds: float = 2.0
     hand_min_motion: float = 0.04
     grading_min_seconds: float = 0.5
@@ -121,6 +123,8 @@ class AiConfig:
         threshold_data = data.get("thresholds") or {}
         thresholds = Thresholds(
             min_observation_confidence=float(threshold_data.get("minObservationConfidence", 0.55)),
+            detect_min_confidence=float(threshold_data.get("detectMinConfidence", 0.85)),
+            inspect_min_confidence=float(threshold_data.get("inspectMinConfidence", 0.65)),
             hand_min_contact_seconds=float(threshold_data.get("handMinContactSeconds", 2.0)),
             hand_min_motion=float(threshold_data.get("handMinMotion", 0.04)),
             grading_min_seconds=float(threshold_data.get("gradingMinSeconds", 0.5)),

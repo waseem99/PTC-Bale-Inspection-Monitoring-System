@@ -24,6 +24,11 @@ models/*.engine
 *.webm
 *.mov
 apps/dashboard-web/public/media/
+videos/**
+!videos/README.md
+
+# Local Python packaging artifacts
+*.egg-info/
 
 # Database backups and local state
 *.dump

@@ -279,7 +279,7 @@ export function createApp(config: AppConfig) {
       unresolved,
       unreviewed,
       completedRate: total ? Math.round((completed / total) * 1000) / 10 : 0,
-      periodLabel: 'Seeded PoC dataset',
+      periodLabel: 'Today',
       generatedAt: new Date().toISOString(),
     });
   }));
